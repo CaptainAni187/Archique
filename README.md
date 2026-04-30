@@ -1,7 +1,3 @@
-Here is the **final updated README**, with future roadmap and tech decisions added—still clean, no fluff, no unnecessary sections.
-
----
-
 # Archiverse
 
 **Live:** [https://archiverse-art.vercel.app/](https://archiverse-art.vercel.app/)
