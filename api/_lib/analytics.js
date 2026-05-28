@@ -1,7 +1,7 @@
 import {
   createEmptyTasteProfile,
   mergeTasteProfileForEvent,
-} from '../../shared/ai/foundation.js'
+} from '../../shared/ai/core/index.js'
 import {
   createVisitorEvent,
   fetchVisitorTasteProfileBySessionId,

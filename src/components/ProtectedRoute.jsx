@@ -29,7 +29,7 @@ function ProtectedRoute({ children }) {
   }
 
   if (authState !== 'authenticated') {
-    return <Navigate to="/admin/login" replace state={{ from: location.pathname }} />
+    return <Navigate to="/captain" replace state={{ from: location.pathname }} />
   }
 
   return children

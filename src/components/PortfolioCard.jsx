@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { trackAnalyticsEvent } from '../services/analyticsService'
 import { getArtworkTasteMetadata } from '../services/tasteService'
 
-function PortfolioCard({ artwork }) {
+function PortfolioCard({ artwork, className = '' }) {
   const navigate = useNavigate()
   const images = useMemo(
     () =>
@@ -22,7 +22,7 @@ function PortfolioCard({ artwork }) {
 
   return (
     <article
-      className="portfolio-card"
+      className={`portfolio-card ${className}`.trim()}
       onClick={openProduct}
       role="button"
       tabIndex={0}

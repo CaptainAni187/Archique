@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
+import { isDarkImageBrightness, measureImageBrightness } from '../utils/imageBrightness'
 
 function FullscreenCarousel({
   artworks,
   autoSlide = true,
-  interval = 5000,
+  interval = 3000,
   overlayContent = null,
   showMeta = true,
+  onBackgroundContrastChange,
 }) {
   const slides = useMemo(
     () =>
@@ -24,6 +26,25 @@ function FullscreenCarousel({
   )
   const [activeIndex, setActiveIndex] = useState(0)
   const safeActiveIndex = slides.length > 0 ? activeIndex % slides.length : 0
+  const activeSlideImage = slides[safeActiveIndex]?.image || ''
+
+  useEffect(() => {
+    if (!onBackgroundContrastChange || !activeSlideImage) {
+      return undefined
+    }
+
+    let isCurrent = true
+
+    measureImageBrightness(activeSlideImage).then((luminance) => {
+      if (isCurrent) {
+        onBackgroundContrastChange(isDarkImageBrightness(luminance))
+      }
+    })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [activeSlideImage, onBackgroundContrastChange])
 
   useEffect(() => {
     if (!autoSlide || slides.length <= 1) {

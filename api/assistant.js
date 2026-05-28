@@ -4,9 +4,9 @@ import {
   createArtworkSearchDocument,
   explainSmartSearchMatch,
   getSearchScoreBreakdown,
-  smartKeywordSearch,
+  searchArtworks,
   tokenizeText,
-} from '../shared/ai/foundation.js'
+} from '../shared/ai/core/index.js'
 import { fetchArtworks } from './_lib/supabaseAdmin.js'
 import { methodNotAllowed, readJson, sendJson } from './_lib/http.js'
 import { sendValidationError, validateWithSchema } from './_lib/validation.js'
@@ -342,14 +342,10 @@ export default async function handler(req, res) {
     logAssistantSearch('artworks-loaded', {
       artworkCount: artworks.length,
     })
-    let source = 'keyword'
     let results = null
 
     try {
       results = await searchWithOllama(artworks, payload.query, payload.moods, payload.limit)
-      if (results) {
-        source = 'ollama-embeddings'
-      }
     } catch (error) {
       logAssistantSearch('ollama-error', {
         message: error?.message || 'Unknown Ollama error',
@@ -363,9 +359,18 @@ export default async function handler(req, res) {
     }
 
     const usedOllamaResults = Boolean(results && results.length > 0)
-    const resolvedResults = usedOllamaResults
-      ? results
-      : smartKeywordSearch(artworks, payload.query, payload.moods, payload.limit)
+    const semanticScoresById = new Map(
+      usedOllamaResults
+        ? results.map((result) => [Number(result.artwork.id), Number(result.score || 0)])
+        : [],
+    )
+    const resolvedResults = searchArtworks({
+      artworks,
+      query: payload.query,
+      moods: payload.moods,
+      limit: payload.limit,
+      semanticScoresById,
+    })
     if (!usedOllamaResults) {
       logAssistantSearch('keyword-scoring-complete', {
         rawQuery: payload.query,
@@ -393,9 +398,9 @@ export default async function handler(req, res) {
         mismatches: sortCheck.mismatches,
       })
     }
-    const resolvedSource = usedOllamaResults ? source : 'keyword'
+    const resolvedSource = usedOllamaResults ? 'hybrid-ollama-keyword' : 'keyword'
     const summary =
-      resolvedSource === 'ollama-embeddings'
+      usedOllamaResults
         ? await summarizeWithOllama(payload.query, payload.moods, resolvedResults)
         : ''
 

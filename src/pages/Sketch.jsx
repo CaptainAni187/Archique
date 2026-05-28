@@ -16,7 +16,7 @@ const placeholderSketch = {
   category: 'sketch',
 }
 
-function Sketch() {
+function Sketch({ onHeroContrastChange }) {
   const [artworks, setArtworks] = useState([])
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
@@ -74,7 +74,12 @@ function Sketch() {
       ) : null}
 
       {!loading && !errorMessage && artworks.length > 0 ? (
-        <ArtworkCarousel images={sketchImages} interval={3000} overlayPosition="left" />
+        <ArtworkCarousel
+          images={sketchImages}
+          interval={3000}
+          overlayPosition="left"
+          onBackgroundContrastChange={onHeroContrastChange}
+        />
       ) : null}
     </section>
   )

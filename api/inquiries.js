@@ -5,6 +5,15 @@ import { getBackendConfig } from './_lib/env.js'
 import { sendResendEmail } from './_lib/notifications.js'
 import { supabaseAdminRequest } from './_lib/supabaseAdmin.js'
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;')
+}
+
 export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
@@ -92,14 +101,14 @@ export default async function handler(req, res) {
     })
 
     const config = getBackendConfig()
-    const recipients = ['kanimesh187@gmail.com', 'archikri07@gmail.com']
+    const recipients = ['archikri07@gmail.com', 'kanimesh187@gmail.com']
     const emailHtml = `
       <h2>New ARCHIVERSE inquiry</h2>
-      <p><strong>Name:</strong> ${name}</p>
-      <p><strong>Email:</strong> ${email}</p>
-      <p><strong>Subject:</strong> ${subject}</p>
+      <p><strong>Name:</strong> ${escapeHtml(name)}</p>
+      <p><strong>Email:</strong> ${escapeHtml(email)}</p>
+      <p><strong>Subject:</strong> ${escapeHtml(subject)}</p>
       <p><strong>Message:</strong></p>
-      <p>${message.replaceAll('\n', '<br/>')}</p>
+      <p>${escapeHtml(message).replaceAll('\n', '<br/>')}</p>
     `
 
     await Promise.allSettled(

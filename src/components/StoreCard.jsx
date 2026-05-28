@@ -54,6 +54,7 @@ function StoreCard({ artwork }) {
       </div>
       <div className="store-card-body">
         <h3>{artwork.title}</h3>
+        <p>{artwork.medium || artwork.category}</p>
         <p>{formatPrice(artwork.price)}</p>
         {artwork.smart_explanation ? (
           <p className="smart-result-explanation">{artwork.smart_explanation}</p>

@@ -1,5 +1,5 @@
-import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom'
-import { useEffect } from 'react'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import Home from './pages/Home'
 import Gallery from './pages/Gallery'
 import Product from './pages/Product'
@@ -25,6 +25,7 @@ import './App.css'
 
 function AppLayout() {
   const location = useLocation()
+  const [isDarkHeroBackground, setIsDarkHeroBackground] = useState(false)
   const isCarouselRoute = location.pathname === '/canvas' || location.pathname === '/sketch'
   const hasOverlayHeader =
     location.pathname === '/' ||
@@ -38,7 +39,7 @@ function AppLayout() {
 
   return (
     <div className={`app-shell ${isCarouselRoute ? 'is-carousel-route' : ''}`.trim()}>
-      <SiteHeader />
+      <SiteHeader isDarkBackground={hasOverlayHeader && isDarkHeroBackground} />
 
       <main
         className={`page-wrap ${hasOverlayHeader ? 'has-overlay-header' : ''} ${
@@ -46,9 +47,18 @@ function AppLayout() {
         }`.trim()}
       >
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/canvas" element={<Canvas />} />
-          <Route path="/sketch" element={<Sketch />} />
+          <Route
+            path="/"
+            element={<Home onHeroContrastChange={setIsDarkHeroBackground} />}
+          />
+          <Route
+            path="/canvas"
+            element={<Canvas onHeroContrastChange={setIsDarkHeroBackground} />}
+          />
+          <Route
+            path="/sketch"
+            element={<Sketch onHeroContrastChange={setIsDarkHeroBackground} />}
+          />
           <Route path="/feed" element={<Feed />} />
           <Route path="/cv" element={<CV />} />
           <Route path="/store" element={<Gallery />} />
@@ -63,9 +73,11 @@ function AppLayout() {
           <Route path="/order/:orderCode" element={<OrderTracking />} />
           <Route path="/login" element={<UserLogin />} />
           <Route path="/account" element={<UserAccount />} />
-          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/captain" element={<AdminLogin />} />
+          <Route path="/admin/login" element={<Navigate to="/captain" replace />} />
+          <Route path="/admin" element={<Navigate to="/captain" replace />} />
           <Route
-            path="/admin"
+            path="/captain/dashboard"
             element={
               <ProtectedRoute>
                 <Admin />

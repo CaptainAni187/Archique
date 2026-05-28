@@ -14,7 +14,14 @@ import {
 } from './_lib/supabaseAdmin.js'
 
 function getAction(req) {
-  return String(req.query?.action || '').trim().toLowerCase()
+  const queryAction = String(req.query?.action || '').trim().toLowerCase()
+  if (queryAction) {
+    return queryAction
+  }
+
+  const path = String(req.url || '').split('?')[0].replace(/\/+$/, '')
+  const match = path.match(/\/api\/user\/([^/]+)$/)
+  return String(match?.[1] || '').trim().toLowerCase()
 }
 
 function serializeUser(user) {
@@ -57,6 +64,7 @@ async function handleSignup(req, res) {
   if (!name || !email || !password) {
     return sendJson(res, 400, {
       success: false,
+      error: 'VALIDATION_ERROR',
       message: 'Name, email, and password are required.',
     })
   }
@@ -64,6 +72,7 @@ async function handleSignup(req, res) {
   if (password.length < 8) {
     return sendJson(res, 400, {
       success: false,
+      error: 'VALIDATION_ERROR',
       message: 'Password must be at least 8 characters.',
     })
   }
@@ -72,6 +81,7 @@ async function handleSignup(req, res) {
   if (existingUser) {
     return sendJson(res, 409, {
       success: false,
+      error: 'ACCOUNT_EXISTS',
       message: 'An account already exists for this email.',
     })
   }
@@ -107,6 +117,7 @@ async function handleLogin(req, res) {
   if (!user || !isValid) {
     return sendJson(res, 401, {
       success: false,
+      error: 'INVALID_CREDENTIALS',
       message: 'Invalid email or password.',
     })
   }
@@ -196,11 +207,13 @@ export default async function handler(req, res) {
 
     return sendJson(res, 404, {
       success: false,
+      error: 'ROUTE_NOT_FOUND',
       message: 'User route not found.',
     })
   } catch (error) {
     return sendJson(res, error.status || 500, {
       success: false,
+      error: error.code || 'USER_REQUEST_FAILED',
       message: error.message || 'Unable to process user request.',
     })
   }

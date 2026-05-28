@@ -1,4 +1,4 @@
-import { SMART_SEARCH_MOODS } from '../../shared/ai/foundation.js'
+import { SMART_SEARCH_MOODS } from '../../shared/ai/core/index.js'
 
 function SmartSearchPanel({
   query,

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { SUPPORTED_BEHAVIOR_EVENTS } from '../shared/ai/foundation.js'
+import { SUPPORTED_BEHAVIOR_EVENTS } from '../shared/ai/core/index.js'
 import { logAnalyticsEvent } from './_lib/analytics.js'
 import { requireAdminAuth } from './_lib/adminSession.js'
 import { methodNotAllowed, readJson, sendJson } from './_lib/http.js'

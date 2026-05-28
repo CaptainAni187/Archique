@@ -3,7 +3,8 @@ import {
   createAdminToken,
   createPasswordResetToken,
   createAdminSessionRecord,
-  findAdminByEmail,
+  findAdminForPasswordReset,
+  getAdminBackupEmail,
   logoutAdminSession,
   requireAdminAuth,
   updateAdminPassword,
@@ -13,8 +14,21 @@ import { fetchAdminActivity, logAdminActivity } from './_lib/adminActivity.js'
 import { getClientIp, consumeRateLimit } from './_lib/rateLimit.js'
 import { methodNotAllowed, readJson, sendJson } from './_lib/http.js'
 import { fetchOrderAnalyticsRows } from './_lib/supabaseAdmin.js'
+import { getBackendConfig } from './_lib/env.js'
+import { sendResendEmail } from './_lib/notifications.js'
 
 const REVENUE_STATUSES = ['advance_paid', 'processing', 'shipped', 'delivered']
+
+function isStrongPassword(password) {
+  return (
+    typeof password === 'string' &&
+    password.length >= 12 &&
+    /[a-z]/.test(password) &&
+    /[A-Z]/.test(password) &&
+    /\d/.test(password) &&
+    /[^A-Za-z0-9]/.test(password)
+  )
+}
 
 function getAction(req) {
   return String(req.query?.action || '').trim().toLowerCase()
@@ -152,7 +166,9 @@ async function handleLogin(req, res) {
         auth_source: admin.auth_source,
       },
     },
-  )
+  ).catch((error) => {
+    console.warn('[admin-auth] Login succeeded but activity logging failed:', error.message)
+  })
 
   return sendJson(res, 200, {
     success: true,
@@ -257,25 +273,58 @@ async function handleForgotPassword(req, res) {
 
   const body = await readJson(req)
   const email = body.email?.trim()
+  const ipAddress = getClientIp(req)
+  const rateLimit = consumeRateLimit(`admin-password-reset:${ipAddress}`, {
+    limit: 3,
+    windowMs: 60 * 60 * 1000,
+  })
 
-  const admin = await findAdminByEmail(email)
+  if (!rateLimit.allowed) {
+    res.setHeader('Retry-After', String(rateLimit.retryAfterSeconds))
+    return sendJson(res, 429, {
+      success: false,
+      error: 'RATE_LIMITED',
+      message: 'Too many reset attempts. Please try again later.',
+    })
+  }
+
+  const admin = await findAdminForPasswordReset(email)
 
   if (!email || !admin) {
-    return sendJson(res, 404, {
-      success: false,
-      error: 'EMAIL_NOT_FOUND',
-      message: 'Email not found.',
+    return sendJson(res, 200, {
+      success: true,
+      data: {
+        message: 'If the email is authorized, reset instructions have been sent.',
+      },
     })
   }
 
   const resetToken = createPasswordResetToken(admin)
+  const config = getBackendConfig()
+  const recipients = Array.from(new Set([admin.email, getAdminBackupEmail()].filter(Boolean)))
+  const emailHtml = `
+    <h2>Archiverse admin password reset</h2>
+    <p>A password reset was requested for the Archiverse admin dashboard.</p>
+    <p><strong>Reset token:</strong> ${resetToken}</p>
+    <p>This token expires in 30 minutes. If you did not request this, ignore this email.</p>
+  `
+
+  await Promise.allSettled(
+    recipients.map((to) =>
+      sendResendEmail({
+        resendApiKey: config.resendApiKey,
+        fromEmail: config.fromEmail,
+        to,
+        subject: 'Archiverse admin password reset token',
+        html: emailHtml,
+      }),
+    ),
+  )
 
   return sendJson(res, 200, {
     success: true,
     data: {
-      resetToken,
-      message:
-        'Use this temporary reset token to verify ownership, then submit the password reset request.',
+      message: 'Reset instructions have been sent to the admin recovery emails.',
     },
   })
 }
@@ -298,11 +347,12 @@ async function handleResetPassword(req, res) {
     })
   }
 
-  if (newPassword.length < 8) {
+  if (!isStrongPassword(newPassword)) {
     return sendJson(res, 400, {
       success: false,
       error: 'WEAK_PASSWORD',
-      message: 'New password must be at least 8 characters.',
+      message:
+        'New password must be at least 12 characters and include uppercase, lowercase, number, and symbol.',
     })
   }
 
@@ -316,6 +366,19 @@ async function handleResetPassword(req, res) {
   }
 
   await updateAdminPassword(admin, newPassword)
+  await logAdminActivity(
+    {
+      admin_id: admin.id,
+      session_id: null,
+      name: admin.name,
+      email: admin.email,
+    },
+    {
+      action_type: 'password_reset',
+      resource_type: 'admin',
+      resource_id: admin.id || admin.email,
+    },
+  ).catch(() => null)
 
   return sendJson(res, 200, {
     success: true,

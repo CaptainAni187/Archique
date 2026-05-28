@@ -1,4 +1,4 @@
-import { smartKeywordSearch } from '../../shared/ai/foundation.js'
+import { searchArtworks } from '../../shared/ai/core/index.js'
 import { backendRequest } from './backendApiService'
 
 export async function runSmartArtworkSearch({ query = '', moods = [], limit = 12, artworks = [] }) {
@@ -38,7 +38,7 @@ export async function runSmartArtworkSearch({ query = '', moods = [], limit = 12
       reason: 'Assistant API request failed',
       message: error?.message || 'Unknown client fallback error',
     })
-    const results = smartKeywordSearch(artworks, query, moods, limit)
+    const results = searchArtworks({ artworks, query, moods, limit })
     console.log('[smart-search-client] fallback-results', {
       resultCount: results.length,
       topResults: results.slice(0, 5).map((result, index) => ({

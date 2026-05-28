@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { loginUser, signupUser } from '../services/userAuthService'
 import usePageMeta from '../hooks/usePageMeta'
+import PasswordInput from '../components/PasswordInput'
 
 function UserLogin() {
   usePageMeta({
@@ -66,12 +67,12 @@ function UserLogin() {
         </label>
         <label>
           Password
-          <input
-            type="password"
+          <PasswordInput
             name="password"
             value={form.password}
             onChange={onChange}
             minLength={8}
+            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
             required
           />
         </label>
@@ -82,19 +83,21 @@ function UserLogin() {
 
       {errorMessage ? <p className="status-message error">{errorMessage}</p> : null}
 
-      <button
-        type="button"
-        className="text-link-button"
-        onClick={() => {
-          setErrorMessage('')
-          setMode((current) => (current === 'login' ? 'signup' : 'login'))
-        }}
-      >
-        {mode === 'login' ? 'Create an account' : 'Already have an account? Login'}
-      </button>
-      <Link to="/store" className="text-link-button">
-        Back to Store
-      </Link>
+      <div className="auth-link-row">
+        <button
+          type="button"
+          className="text-link-button"
+          onClick={() => {
+            setErrorMessage('')
+            setMode((current) => (current === 'login' ? 'signup' : 'login'))
+          }}
+        >
+          {mode === 'login' ? 'Create an account' : 'Already have an account? Login'}
+        </button>
+        <Link to="/store" className="text-link-button">
+          Back to Store
+        </Link>
+      </div>
     </section>
   )
 }

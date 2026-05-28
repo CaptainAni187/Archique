@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchArtworks } from '../services/artworkService'
-import { fetchTestimonials } from '../services/testimonialService'
 import FullscreenCarousel from '../components/FullscreenCarousel'
 import PortfolioCard from '../components/PortfolioCard'
 import { Link, useNavigate } from 'react-router-dom'
@@ -9,30 +8,6 @@ import { getCanvasArtworks, getSketchArtworks } from '../utils/artworkCategories
 import ErrorState from '../components/ErrorState'
 import { SkeletonGrid } from '../components/SkeletonLoader'
 import { getUserFriendlyError } from '../utils/userErrors'
-import {
-  getRecommendedArtworks,
-  getTasteProfile,
-  onTastePreferencesReset,
-} from '../services/tasteService'
-
-const processSteps = [
-  {
-    step: 'Step 01',
-    copy: 'Browse featured works and select the piece that fits your space.',
-  },
-  {
-    step: 'Step 02',
-    copy: 'Review details, pricing, and delivery timing before checkout.',
-  },
-  {
-    step: 'Step 03',
-    copy: 'Pay the advance securely and confirm your collector details.',
-  },
-  {
-    step: 'Step 04',
-    copy: 'Track the order through preparation, shipping, and delivery.',
-  },
-]
 
 function pickStableGalleryPreview(artworks) {
   const validArtworks = artworks.filter((artwork) =>
@@ -59,14 +34,12 @@ function getFeaturedRank(artwork) {
   return Number.isFinite(rank) ? rank : Number.MAX_SAFE_INTEGER
 }
 
-function Home() {
+function Home({ onHeroContrastChange }) {
   const navigate = useNavigate()
   const [heroCanvasWorks, setHeroCanvasWorks] = useState([])
   const [heroSketchWorks, setHeroSketchWorks] = useState([])
   const [canvasWorks, setCanvasWorks] = useState([])
-  const [forYouWorks, setForYouWorks] = useState([])
   const [galleryPreviewWorks, setGalleryPreviewWorks] = useState([])
-  const [testimonials, setTestimonials] = useState([])
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
   const [noticeMessage, setNoticeMessage] = useState('')
@@ -84,16 +57,6 @@ function Home() {
       setNoticeMessage('')
       try {
         const artworks = await fetchArtworks()
-        let reviewResponse = []
-
-        try {
-          reviewResponse = await fetchTestimonials()
-        } catch (error) {
-          setNoticeMessage(
-            getUserFriendlyError(error, 'Reviews are unavailable right now.'),
-          )
-        }
-
         const featuredWorks = artworks
           .filter((artwork) => artwork.is_featured === true)
           .sort(
@@ -110,12 +73,10 @@ function Home() {
 
         setHeroCanvasWorks(curatedHeroCanvas)
         setHeroSketchWorks(curatedHeroSketch)
-        setForYouWorks(getRecommendedArtworks(artworks, 4, getTasteProfile()))
         setCanvasWorks(featuredWorks.slice(0, 6))
         setGalleryPreviewWorks((current) =>
           current.length > 0 ? current : pickStableGalleryPreview(artworks),
         )
-        setTestimonials(reviewResponse.slice(0, 3))
         setErrorMessage('')
       } catch (error) {
         setErrorMessage(
@@ -128,8 +89,6 @@ function Home() {
 
     loadFeatured()
   }, [retryKey])
-
-  useEffect(() => onTastePreferencesReset(() => setForYouWorks([])), [])
 
   const heroArtworks = useMemo(
     () => [...heroCanvasWorks, ...heroSketchWorks],
@@ -170,15 +129,15 @@ function Home() {
           <FullscreenCarousel
             artworks={heroArtworks}
             autoSlide
-            interval={5000}
+            interval={3000}
             showMeta={false}
+            onBackgroundContrastChange={onHeroContrastChange}
             overlayContent={() => (
               <div className="hero-overlay-copy">
                 <p>CURATED WORKS</p>
                 <h1>ARCHIVERSE</h1>
                 <p>
-                  SELECTED PAINTINGS, SKETCHES, AND STUDIES PRESENTED WITH QUIET
-                  PRECISION
+                  Original works and commissioned pieces created for personal spaces.
                 </p>
                 <Link to="/canvas" className="hero-enter-link">
                   ENTER CANVAS
@@ -187,80 +146,35 @@ function Home() {
             )}
           />
 
-          {forYouWorks.length > 0 ? (
-            <section className="section-block section-block-home">
-              <p className="eyebrow">FOR YOU</p>
-              <div className="portfolio-grid">
-                {forYouWorks.map((artwork) => (
-                  <PortfolioCard key={artwork.id} artwork={artwork} />
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          <section className="section-block section-block-home">
-            <p className="eyebrow">PROCESS</p>
-            <div className="process-grid">
-              {processSteps.map((item) => (
-                <article key={item.step} className="testimonial-card">
-                  <p className="eyebrow">{item.step}</p>
-                  <p className="section-copy">{item.copy}</p>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section className="section-block section-block-home">
-            <p className="eyebrow">ABOUT</p>
-            <p className="section-copy">HANDMADE ACRYLIC ARTWORKS</p>
-            <p className="section-copy section-copy-highlight">MINIMAL • MODERN • PERSONAL</p>
-            <p className="section-copy section-copy-readable">
-              EACH PIECE IS CREATED WITH DETAIL, DESIGNED TO FIT YOUR SPACE AND STYLE.
-            </p>
-          </section>
-
-          <section className="section-block section-block-home">
-            <p className="eyebrow">CUSTOM ARTWORKS</p>
-            <p className="section-copy section-copy-readable">
-              REQUEST A PERSONALIZED PAINTING BASED ON YOUR IDEA, STYLE, AND SPACE.
-            </p>
-            <Link to="/contact" className="text-link-button">
-              CONTACT
-            </Link>
-          </section>
-
           {canvasWorks.length > 0 ? (
-            <section className="section-block section-block-home">
+            <section className="section-block home-featured-section">
               <p className="eyebrow">FEATURED WORKS</p>
-              <div className="portfolio-grid">
-                {canvasWorks.map((artwork) => (
-                  <PortfolioCard key={artwork.id} artwork={artwork} />
+              <div className="home-featured-grid">
+                {canvasWorks.slice(0, 4).map((artwork, index) => (
+                  <PortfolioCard
+                    key={artwork.id}
+                    artwork={artwork}
+                    className={index === 0 ? 'portfolio-card-dominant' : ''}
+                  />
                 ))}
               </div>
             </section>
           ) : null}
 
-          {testimonials.length > 0 ? (
-            <section className="section-block section-block-home">
-              <p className="eyebrow">TESTIMONIALS</p>
-              <div className="testimonial-grid">
-                {testimonials.map((testimonial) => (
-                  <article key={testimonial.id} className="testimonial-card">
-                    {testimonial.rating ? (
-                      <p className="testimonial-rating">{'*'.repeat(testimonial.rating)}</p>
-                    ) : null}
-                    <p className="section-copy">"{testimonial.content}"</p>
-                    <p>
-                      <strong>{testimonial.name.toUpperCase()}</strong>
-                    </p>
-                  </article>
-                ))}
-              </div>
-            </section>
-          ) : null}
+          <section className="section-block home-statement-section">
+            <p className="eyebrow">ABOUT</p>
+            <p className="home-editorial-statement">
+              Original works and commissioned pieces created for personal spaces.
+            </p>
+          </section>
 
-          <section className="section-block section-block-home">
-            <p className="eyebrow">EXPLORE FULL GALLERY</p>
+          <section className="section-block home-gallery-section">
+            <div className="home-section-intro">
+              <p className="eyebrow">GALLERY PREVIEW</p>
+              <Link to="/feed" className="text-link-button">
+                VIEW GALLERY
+              </Link>
+            </div>
             {galleryPreviewItems.length > 0 ? (
               <div className="feed-preview-grid home-gallery-preview">
                 {galleryPreviewItems.map((artwork) => (
@@ -284,8 +198,15 @@ function Home() {
                 ))}
               </div>
             ) : null}
-            <Link to="/feed" className="text-link-button">
-              VIEW GALLERY
+          </section>
+
+          <section className="section-block home-commission-section">
+            <p className="eyebrow">CUSTOM COMMISSIONS</p>
+            <p className="section-copy section-copy-readable">
+              A restrained process for translating an idea, room, or memory into a personal work.
+            </p>
+            <Link to="/contact" className="text-link-button">
+              CONTACT
             </Link>
           </section>
         </>

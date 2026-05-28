@@ -9,6 +9,9 @@ function isActivityStoreUnavailable(error, tableName) {
   const message = String(error?.message || '').toLowerCase()
   return (
     isMissingTableError(error, tableName) ||
+    message.includes('schema cache') ||
+    message.includes('action_type') ||
+    message.includes('admin_activity_logs') ||
     message.includes('supabase_url') ||
     message.includes('supabase_service_role_key') ||
     message.includes('fetch failed')

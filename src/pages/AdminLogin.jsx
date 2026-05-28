@@ -1,11 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   loginAdmin,
+  isAdminAuthenticated,
   resetAdminPassword,
   requestAdminPasswordReset,
 } from '../services/adminAuthService'
 import usePageMeta from '../hooks/usePageMeta'
+import PasswordInput from '../components/PasswordInput'
 
 function AdminLogin() {
   usePageMeta({
@@ -17,15 +19,30 @@ function AdminLogin() {
   const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
   const [resetEmail, setResetEmail] = useState('')
   const [resetToken, setResetToken] = useState('')
   const [newPassword, setNewPassword] = useState('')
-  const [showNewPassword, setShowNewPassword] = useState(false)
   const [resetMessage, setResetMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isResetSubmitting, setIsResetSubmitting] = useState(false)
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function redirectAuthenticatedAdmin() {
+      const authenticated = await isAdminAuthenticated()
+      if (isMounted && authenticated) {
+        navigate('/captain/dashboard', { replace: true })
+      }
+    }
+
+    redirectAuthenticatedAdmin()
+
+    return () => {
+      isMounted = false
+    }
+  }, [navigate])
 
   const onSubmit = async (event) => {
     event.preventDefault()
@@ -34,7 +51,7 @@ function AdminLogin() {
 
     try {
       await loginAdmin(email.trim(), password)
-      const redirectTo = location.state?.from || '/admin'
+      const redirectTo = location.state?.from || '/captain/dashboard'
       navigate(redirectTo, { replace: true })
     } catch (error) {
       setErrorMessage(
@@ -53,11 +70,7 @@ function AdminLogin() {
 
     try {
       const response = await requestAdminPasswordReset(resetEmail.trim())
-      setResetMessage(
-        `${response.data?.message || 'Reset token generated.'} Temporary token: ${
-          response.data?.resetToken || 'not generated'
-        }`,
-      )
+      setResetMessage(response.data?.message || 'Reset instructions sent.')
     } catch (error) {
       setErrorMessage(error.message === 'Email not found.' ? 'Invalid credentials' : error.message)
     } finally {
@@ -106,27 +119,12 @@ function AdminLogin() {
         </label>
         <label>
           Password
-          <div className="password-field">
-            <input
-              type={showPassword ? 'text' : 'password'}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoCapitalize="none"
-              autoCorrect="off"
-              autoComplete="current-password"
-              spellCheck={false}
-              required
-            />
-            <button
-              type="button"
-              className="password-toggle"
-              onClick={() => setShowPassword((current) => !current)}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-              aria-pressed={showPassword}
-            >
-              {showPassword ? 'Hide' : 'Show'}
-            </button>
-          </div>
+          <PasswordInput
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoComplete="current-password"
+            required
+          />
         </label>
         <button type="submit" disabled={isSubmitting}>
           {isSubmitting ? 'Signing In...' : 'Login'}
@@ -137,7 +135,7 @@ function AdminLogin() {
 
       <form className="admin-form" onSubmit={onForgotPassword}>
         <label>
-          Forgot Password (admin email)
+          Forgot Password (admin or backup email)
           <input
             type="email"
             value={resetEmail}
@@ -161,27 +159,13 @@ function AdminLogin() {
         </label>
         <label>
           New Password
-          <div className="password-field">
-            <input
-              type={showNewPassword ? 'text' : 'password'}
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-              autoCapitalize="none"
-              autoCorrect="off"
-              autoComplete="new-password"
-              spellCheck={false}
-              required
-            />
-            <button
-              type="button"
-              className="password-toggle"
-              onClick={() => setShowNewPassword((current) => !current)}
-              aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}
-              aria-pressed={showNewPassword}
-            >
-              {showNewPassword ? 'Hide' : 'Show'}
-            </button>
-          </div>
+          <PasswordInput
+            value={newPassword}
+            onChange={(event) => setNewPassword(event.target.value)}
+            autoComplete="new-password"
+            revealLabel="new password"
+            required
+          />
         </label>
         <button type="submit" disabled={isResetSubmitting}>
           {isResetSubmitting ? 'Updating...' : 'Reset Password'}

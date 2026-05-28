@@ -173,16 +173,29 @@ function Feed() {
       {featuredArtwork ? (
         <Reveal className="feed-feature">
           {featuredArtwork.src ? (
-            <img
-              src={featuredArtwork.src}
-              alt={featuredArtwork.title}
-              className="feed-feature-image"
-              loading="lazy"
-              decoding="async"
-              width="1600"
-              height="1200"
-            />
+            <button
+              type="button"
+              className="feed-feature-button"
+              onClick={() => {
+                void trackAnalyticsEvent('artwork_click', getArtworkTasteMetadata(featuredArtwork))
+                navigate(`/product/${featuredArtwork.id}`)
+              }}
+            >
+              <img
+                src={featuredArtwork.src}
+                alt={featuredArtwork.title}
+                className="feed-feature-image"
+                loading="lazy"
+                decoding="async"
+                width="1600"
+                height="1200"
+              />
+            </button>
           ) : null}
+          <div className="feed-card-caption">
+            <h3>{featuredArtwork.title}</h3>
+            <p>{featuredArtwork.medium || featuredArtwork.category}</p>
+          </div>
           {featuredArtwork.smart_explanation ? (
             <p className="smart-result-explanation">{featuredArtwork.smart_explanation}</p>
           ) : null}
@@ -264,6 +277,10 @@ function Feed() {
                   Instagram
                 </a>
               ) : null}
+              <div className="feed-card-caption">
+                <h3>{artwork.title}</h3>
+                <p>{artwork.medium || artwork.category}</p>
+              </div>
               {artwork.smart_explanation ? (
                 <p className="smart-result-explanation">{artwork.smart_explanation}</p>
               ) : null}

@@ -53,7 +53,7 @@ function Contact() {
 
   return (
     <section className="page-flow page-with-header-gap">
-      <Reveal className="contact-layout">
+      <Reveal className="contact-layout contact-page-layout">
         <div className="contact-copy">
           <p className="eyebrow">CONTACT</p>
           <p className="section-copy">
@@ -131,10 +131,11 @@ function Contact() {
         <div className="contact-copy developer-copy">
           <p className="eyebrow">SITE & DEVELOPMENT</p>
           <p className="section-copy">DESIGNED & DEVELOPED BY ANIMESH</p>
-          <div className="contact-links">
+          <div className="contact-links developer-links">
             <a href="https://github.com/CaptainAni187" target="_blank" rel="noreferrer">
               GITHUB
             </a>
+            <a href="mailto:kanimesh187@gmail.com">MAIL</a>
             <a
               href="https://www.linkedin.com/in/animesh-kumar-5347b4294/"
               target="_blank"
@@ -142,7 +143,6 @@ function Contact() {
             >
               LINKEDIN
             </a>
-            <a href="mailto:kanimesh187@gmail.com">MAIL</a>
           </div>
         </div>
       </Reveal>

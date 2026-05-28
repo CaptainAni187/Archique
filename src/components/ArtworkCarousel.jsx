@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
+import { isDarkImageBrightness, measureImageBrightness } from '../utils/imageBrightness'
 
-function ArtworkCarousel({ images, interval = 5000, overlayPosition = 'left' }) {
+function ArtworkCarousel({
+  images,
+  interval = 3000,
+  overlayPosition = 'left',
+  onBackgroundContrastChange,
+}) {
   const slides = useMemo(() => {
     return (images || [])
       .filter(Boolean)
@@ -20,28 +26,10 @@ function ArtworkCarousel({ images, interval = 5000, overlayPosition = 'left' }) 
   const count = slides.length
   const safeIndex = count > 0 ? ((activeIndex % count) + count) % count : 0
   const nextIndex = count > 1 ? (safeIndex + 1) % count : safeIndex
+  const activeSlideSrc = slides[safeIndex]?.src || ''
 
   const goPrevious = () => setActiveIndex((previous) => previous - 1)
   const goNext = () => setActiveIndex((previous) => previous + 1)
-
-  useEffect(() => {
-    if (count === 0) {
-      setActiveIndex(0)
-      return
-    }
-
-    setActiveIndex((previous) => {
-      if (previous < 0) {
-        return count - 1
-      }
-
-      if (previous >= count) {
-        return 0
-      }
-
-      return previous
-    })
-  }, [count])
 
   useEffect(() => {
     if (count <= 1 || isHovering) {
@@ -54,6 +42,24 @@ function ArtworkCarousel({ images, interval = 5000, overlayPosition = 'left' }) 
 
     return () => window.clearInterval(timerId)
   }, [count, interval, isHovering])
+
+  useEffect(() => {
+    if (!onBackgroundContrastChange || !activeSlideSrc) {
+      return undefined
+    }
+
+    let isCurrent = true
+
+    measureImageBrightness(activeSlideSrc).then((luminance) => {
+      if (isCurrent) {
+        onBackgroundContrastChange(isDarkImageBrightness(luminance))
+      }
+    })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [activeSlideSrc, onBackgroundContrastChange])
 
   useEffect(() => {
     if (count <= 1) {
@@ -73,7 +79,6 @@ function ArtworkCarousel({ images, interval = 5000, overlayPosition = 'left' }) 
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [count])
 
   useEffect(() => {

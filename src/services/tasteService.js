@@ -1,11 +1,13 @@
 import {
-  buildRecommendationSet,
+  buildTasteVector,
   createEmptyTasteProfile,
   explainArtworkRecommendation,
+  hasTasteSignals as profileHasTasteSignals,
   mergeTasteProfileForEvent,
-  rankArtworksForTaste,
+  rankArtworksByTaste as rankArtworksByTasteCore,
+  recommendArtworks,
   suggestArtworkTags as suggestTagsForArtwork,
-} from '../../shared/ai/foundation.js'
+} from '../../shared/ai/core/index.js'
 
 const TASTE_PROFILE_STORAGE_KEY = 'archiverse_taste_profile'
 const TASTE_RESET_EVENT = 'archiverse:taste-reset'
@@ -70,32 +72,23 @@ export function getArtworkTasteMetadata(artwork = {}, extra = {}) {
 }
 
 export function hasTasteSignals(profile = readProfileFromStorage()) {
-  return (
-    Object.keys(profile.category_weights || {}).length > 0 ||
-    Object.keys(profile.tag_weights || {}).length > 0 ||
-    Object.keys(profile.artwork_weights || {}).length > 0 ||
-    Number(profile.price_preference?.total_weight || 0) > 0
-  )
+  return profileHasTasteSignals(profile)
 }
 
 export function rankArtworksByTaste(artworks = [], profile = readProfileFromStorage()) {
-  if (!hasTasteSignals(profile)) {
-    return artworks
-  }
-
-  return rankArtworksForTaste(artworks, profile)
+  return rankArtworksByTasteCore({ artworks, tasteProfile: profile })
 }
 
 export function getRecommendedArtworks(artworks = [], limit = 4, profile = readProfileFromStorage()) {
-  if (!hasTasteSignals(profile)) {
-    return []
-  }
-
-  return buildRecommendationSet(artworks, profile, limit)
+  return recommendArtworks({ artworks, tasteProfile: profile, limit })
 }
 
 export function getRecommendationReason(artwork, profile = readProfileFromStorage()) {
   return explainArtworkRecommendation(artwork, profile)
+}
+
+export function getTasteVector(profile = readProfileFromStorage()) {
+  return buildTasteVector(profile)
 }
 
 export function getAutoTagSuggestions(artwork) {

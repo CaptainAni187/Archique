@@ -15,6 +15,8 @@ import {
 const SESSION_EXPIRES_IN = '1h'
 const resetTokens = new Map()
 let runtimePasswordHash = null
+const DEFAULT_ADMIN_EMAIL = 'kanimesh187@gmail.com'
+const DEFAULT_ADMIN_BACKUP_EMAIL = 'kanimesh1878@gmail.com'
 
 function getSessionSecret() {
   return process.env.ADMIN_SESSION_SECRET || ''
@@ -40,7 +42,16 @@ function isAdminStoreUnavailable(error, tableName) {
 }
 
 function getFallbackAdminEmail() {
-  return normalizeEmail(process.env.ADMIN_EMAIL || '')
+  return normalizeEmail(process.env.ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL)
+}
+
+export function getAdminBackupEmail() {
+  return normalizeEmail(process.env.ADMIN_BACKUP_EMAIL || DEFAULT_ADMIN_BACKUP_EMAIL)
+}
+
+export function isAdminRecoveryEmail(email) {
+  const normalizedEmail = normalizeEmail(email)
+  return normalizedEmail === getFallbackAdminEmail() || normalizedEmail === getAdminBackupEmail()
 }
 
 function getPasswordHash() {
@@ -129,6 +140,16 @@ export async function findAdminByEmail(email) {
 
   const fallbackAdmin = getFallbackAdminRecord()
   return fallbackAdmin?.email === normalizedEmail ? sanitizeAdmin(fallbackAdmin, 'env') : null
+}
+
+export async function findAdminForPasswordReset(email) {
+  const normalizedEmail = normalizeEmail(email)
+
+  if (!isAdminRecoveryEmail(normalizedEmail)) {
+    return null
+  }
+
+  return findAdminByEmail(getFallbackAdminEmail())
 }
 
 export async function createAdminSessionRecord(admin, req) {
@@ -290,7 +311,10 @@ export function consumePasswordResetToken(token, email) {
   }
 
   const normalizedEmail = normalizeEmail(email)
-  if (entry.expiresAt < Date.now() || normalizeEmail(entry.admin?.email) !== normalizedEmail) {
+  const isAllowedEmail =
+    normalizeEmail(entry.admin?.email) === normalizedEmail || normalizedEmail === getAdminBackupEmail()
+
+  if (entry.expiresAt < Date.now() || !isAllowedEmail) {
     resetTokens.delete(token)
     return null
   }

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { resetTastePreferences } from '../services/tasteService'
+import PasswordInput from './PasswordInput'
 
 function AdminSettingsTab({
   adminSession,
@@ -79,15 +80,12 @@ function AdminSettingsTab({
         </label>
         <label>
           New Password
-          <input
-            type="password"
+          <PasswordInput
             name="newPassword"
             value={newPassword}
             onChange={onChangePasswordField}
-            autoCapitalize="none"
-            autoCorrect="off"
             autoComplete="new-password"
-            spellCheck={false}
+            revealLabel="new password"
             required
           />
         </label>

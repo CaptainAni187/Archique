@@ -698,7 +698,7 @@ function Admin() {
 
   const onLogout = async () => {
     await logoutAdmin()
-    navigate('/admin/login')
+    navigate('/captain')
   }
 
   const onToggleInquiryRead = async (inquiryId) => {

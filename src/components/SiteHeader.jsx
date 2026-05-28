@@ -30,8 +30,9 @@ function SocialIcons() {
   )
 }
 
-function SiteHeader() {
+function SiteHeader({ isDarkBackground = false }) {
   const location = useLocation()
+  const isAccountRoute = location.pathname === '/account' || location.pathname === '/login'
   const aboutItems = [
     { to: '/feed', label: 'FEED' },
     { to: '/contact', label: 'CONTACT' },
@@ -53,7 +54,11 @@ function SiteHeader() {
   }, [])
 
   return (
-    <header className={`topbar ${isOverlay ? 'is-overlay' : ''} ${isScrolled ? 'scrolled' : ''}`}>
+    <header
+      className={`topbar ${isOverlay ? 'is-overlay' : ''} ${
+        isScrolled ? 'scrolled' : ''
+      } ${isDarkBackground ? 'is-dark-background' : 'is-bright-background'}`}
+    >
       <Link to="/" className="brand-mark" aria-label="ARCHIVERSE home">
         ARCHIVERSE
       </Link>
@@ -72,6 +77,25 @@ function SiteHeader() {
             className={({ isActive }) => (isActive ? 'active-nav' : '')}
           >
             STORE
+          </NavLink>
+          <NavLink
+            to="/account"
+            className={({ isActive }) =>
+              isActive || isAccountRoute ? 'profile-nav-link active-nav' : 'profile-nav-link'
+            }
+            aria-label="Account"
+            title="Account"
+          >
+            <svg
+              className="profile-nav-icon"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <circle cx="12" cy="8" r="3.4" />
+              <path d="M5.8 19.2c1.1-3.4 3.2-5.1 6.2-5.1s5.1 1.7 6.2 5.1" />
+            </svg>
+            <span className="sr-only">Account</span>
           </NavLink>
         </nav>
 

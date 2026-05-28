@@ -6,7 +6,7 @@ import usePageMeta from '../hooks/usePageMeta'
 import ErrorState from '../components/ErrorState'
 import { getUserFriendlyError } from '../utils/userErrors'
 
-function Canvas() {
+function Canvas({ onHeroContrastChange }) {
   const [artworks, setArtworks] = useState([])
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
@@ -64,7 +64,12 @@ function Canvas() {
       ) : null}
 
       {!loading && !errorMessage && artworks.length > 0 ? (
-        <ArtworkCarousel images={canvasImages} interval={3000} overlayPosition="left" />
+        <ArtworkCarousel
+          images={canvasImages}
+          interval={3000}
+          overlayPosition="left"
+          onBackgroundContrastChange={onHeroContrastChange}
+        />
       ) : null}
     </section>
   )
