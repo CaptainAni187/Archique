@@ -21,6 +21,17 @@ export function createEmptyTasteProfile() {
     price_affinity: {},
     search_terms: {},
     confidence_score: 0,
+    recommendation_feedback: {
+      shown: 0,
+      clicked: 0,
+      purchased: 0,
+      saved: 0,
+      revisited: 0,
+      ignored: 0,
+      save_adds: 0,
+      save_removals: 0,
+    },
+    recommendation_confidence: 0,
     last_event_type: null,
     last_updated_at: null,
   }
@@ -76,6 +87,10 @@ export function mergeTasteProfileForEvent(currentProfile = {}, event = {}) {
       ...emptyProfile.price_preference,
       ...(currentProfile.price_preference || {}),
     },
+    recommendation_feedback: {
+      ...emptyProfile.recommendation_feedback,
+      ...(currentProfile.recommendation_feedback || {}),
+    },
   }
   const eventType = normalizeText(event.event_type)
   const metadata = event.metadata || {}
@@ -125,6 +140,24 @@ export function mergeTasteProfileForEvent(currentProfile = {}, event = {}) {
     )
   }
 
+  if (eventType === 'recommendation_shown') {
+    nextProfile.recommendation_feedback.shown += 1
+  } else if (eventType === 'recommendation_clicked') {
+    nextProfile.recommendation_feedback.clicked += 1
+  } else if (eventType === 'recommendation_purchased') {
+    nextProfile.recommendation_feedback.purchased += 1
+  } else if (eventType === 'recommendation_saved') {
+    nextProfile.recommendation_feedback.saved += 1
+  } else if (eventType === 'recommendation_revisited') {
+    nextProfile.recommendation_feedback.revisited += 1
+  } else if (eventType === 'recommendation_ignored') {
+    nextProfile.recommendation_feedback.ignored += 1
+  } else if (eventType === 'favorite_added') {
+    nextProfile.recommendation_feedback.save_adds += 1
+  } else if (eventType === 'favorite_removed') {
+    nextProfile.recommendation_feedback.save_removals += 1
+  }
+
   const signalCount =
     Object.keys(nextProfile.tag_weights).length +
     Object.keys(nextProfile.artwork_weights).length +
@@ -132,6 +165,26 @@ export function mergeTasteProfileForEvent(currentProfile = {}, event = {}) {
     normalizeNumber(nextProfile.price_preference.total_weight)
 
   nextProfile.confidence_score = Number(Math.min(1, signalCount / 20).toFixed(3))
+  const shown = normalizeNumber(nextProfile.recommendation_feedback.shown)
+  const clicked = normalizeNumber(nextProfile.recommendation_feedback.clicked)
+  const purchased = normalizeNumber(nextProfile.recommendation_feedback.purchased)
+  const saved = normalizeNumber(nextProfile.recommendation_feedback.saved)
+  const revisited = normalizeNumber(nextProfile.recommendation_feedback.revisited)
+  const ignored = normalizeNumber(nextProfile.recommendation_feedback.ignored)
+  nextProfile.recommendation_confidence = Number(
+    (
+      shown > 0
+        ? Math.max(
+            0,
+            Math.min(
+              1,
+              (clicked * 0.25 + saved * 0.55 + revisited * 0.35 + purchased * 1.0 - ignored * 0.2) /
+                shown,
+            ),
+          )
+        : 0
+    ).toFixed(3),
+  )
 
   return nextProfile
 }

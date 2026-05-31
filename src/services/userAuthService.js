@@ -1,4 +1,5 @@
 import { backendRequest } from './backendApiService'
+import { setTasteProfile } from './tasteService'
 
 const USER_TOKEN_KEY = 'archiverse_user_token'
 const USER_PROFILE_KEY = 'archiverse_user_profile'
@@ -62,6 +63,9 @@ export async function fetchCurrentUser() {
         Authorization: `Bearer ${token}`,
       },
     })
+    if (payload.user?.taste_profile) {
+      setTasteProfile(payload.user.taste_profile)
+    }
     localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(payload.user))
     return payload.user
   } catch {
@@ -80,4 +84,127 @@ export async function fetchUserOrders() {
   })
 
   return payload.orders
+}
+
+export async function fetchSavedArtworks() {
+  const token = getUserToken()
+  const payload = await backendRequest('/api/user/saved-artworks', {
+    headers: {
+      Authorization: `Bearer ${token || ''}`,
+    },
+  })
+  return Array.isArray(payload.saved_artworks) ? payload.saved_artworks : []
+}
+
+export async function saveArtwork(artworkId) {
+  const token = getUserToken()
+  return backendRequest('/api/user/saved-artworks', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token || ''}`,
+    },
+    body: JSON.stringify({ artwork_id: artworkId }),
+  })
+}
+
+export async function unsaveArtwork(artworkId) {
+  const token = getUserToken()
+  return backendRequest('/api/user/saved-artworks', {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token || ''}`,
+    },
+    body: JSON.stringify({ artwork_id: artworkId }),
+  })
+}
+
+export async function fetchPersonalizationSummary() {
+  const token = getUserToken()
+  const payload = await backendRequest('/api/user/personalization', {
+    headers: {
+      Authorization: `Bearer ${token || ''}`,
+    },
+  })
+  return payload.data || {}
+}
+
+export async function updateAccountSettings(settings) {
+  const token = getUserToken()
+  const payload = await backendRequest('/api/user/settings', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token || ''}`,
+    },
+    body: JSON.stringify(settings),
+  })
+  if (payload.user) {
+    localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(payload.user))
+  }
+  return payload.user || null
+}
+
+export async function exportMyData() {
+  const token = getUserToken()
+  return backendRequest('/api/user/export', {
+    headers: {
+      Authorization: `Bearer ${token || ''}`,
+    },
+  })
+}
+
+export async function deleteMyAccount() {
+  const token = getUserToken()
+  await backendRequest('/api/user/delete', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token || ''}`,
+    },
+  })
+  localStorage.removeItem(USER_TOKEN_KEY)
+  localStorage.removeItem(USER_PROFILE_KEY)
+}
+
+export async function fetchCollections() {
+  const token = getUserToken()
+  const payload = await backendRequest('/api/user/collections', {
+    headers: {
+      Authorization: `Bearer ${token || ''}`,
+    },
+  })
+  return Array.isArray(payload.collections) ? payload.collections : []
+}
+
+export async function createCollection(name) {
+  const token = getUserToken()
+  const payload = await backendRequest('/api/user/collections', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token || ''}`,
+    },
+    body: JSON.stringify({ name }),
+  })
+  return payload.collection || null
+}
+
+export async function addArtworkToCollection(collectionId, artworkId) {
+  const token = getUserToken()
+  const payload = await backendRequest('/api/user/collections', {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token || ''}`,
+    },
+    body: JSON.stringify({ collection_id: collectionId, artwork_id: artworkId }),
+  })
+  return payload.item || null
+}
+
+export async function removeCollectionItem(itemId) {
+  const token = getUserToken()
+  return backendRequest('/api/user/collections', {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token || ''}`,
+    },
+    body: JSON.stringify({ item_id: itemId }),
+  })
 }

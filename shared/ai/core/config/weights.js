@@ -11,6 +11,14 @@ export const SUPPORTED_BEHAVIOR_EVENTS = [
   'checkout_started',
   'order_completed',
   'purchase',
+  'recommendation_shown',
+  'recommendation_clicked',
+  'recommendation_saved',
+  'recommendation_purchased',
+  'recommendation_ignored',
+  'recommendation_revisited',
+  'favorite_added',
+  'favorite_removed',
 ]
 
 export const EVENT_WEIGHTS = {
@@ -26,6 +34,14 @@ export const EVENT_WEIGHTS = {
   checkout_started: 2.5,
   order_completed: 4,
   purchase: 4,
+  recommendation_shown: 0.6,
+  recommendation_clicked: 1.8,
+  recommendation_saved: 2.9,
+  recommendation_purchased: 3.5,
+  recommendation_ignored: 0.15,
+  recommendation_revisited: 2.2,
+  favorite_added: 2.4,
+  favorite_removed: -0.6,
 }
 
 export const DEFAULT_RANKING_WEIGHTS = {

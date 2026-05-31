@@ -7,6 +7,7 @@ function readEnv(name, fallback = '') {
 export function getBackendConfig() {
   return {
     supabaseUrl: readEnv('SUPABASE_URL', readEnv('VITE_SUPABASE_URL')),
+    supabaseAnonKey: readEnv('VITE_SUPABASE_ANON_KEY'),
     supabaseServiceRoleKey: readEnv('SUPABASE_SERVICE_ROLE_KEY'),
     razorpayKeyId: readEnv('RAZORPAY_KEY_ID', readEnv('VITE_RAZORPAY_KEY_ID')),
     razorpayKeySecret: readEnv('RAZORPAY_KEY_SECRET'),

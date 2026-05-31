@@ -8,6 +8,9 @@ import { getCanvasArtworks, getSketchArtworks } from '../utils/artworkCategories
 import ErrorState from '../components/ErrorState'
 import { SkeletonGrid } from '../components/SkeletonLoader'
 import { getUserFriendlyError } from '../utils/userErrors'
+import { fetchPersonalizationSummary, getStoredUser } from '../services/userAuthService'
+import { getTasteProfile, rankArtworksByTaste } from '../services/tasteService'
+import StoreCard from '../components/StoreCard'
 
 function pickStableGalleryPreview(artworks) {
   const validArtworks = artworks.filter((artwork) =>
@@ -44,6 +47,7 @@ function Home({ onHeroContrastChange }) {
   const [errorMessage, setErrorMessage] = useState('')
   const [noticeMessage, setNoticeMessage] = useState('')
   const [retryKey, setRetryKey] = useState(0)
+  const [personalizationSummary, setPersonalizationSummary] = useState(null)
 
   usePageMeta({
     title: 'Archiverse | Curated Fine Art',
@@ -56,7 +60,10 @@ function Home({ onHeroContrastChange }) {
       setLoading(true)
       setNoticeMessage('')
       try {
-        const artworks = await fetchArtworks()
+        const [artworks, summary] = await Promise.all([
+          fetchArtworks(),
+          fetchPersonalizationSummary().catch(() => null),
+        ])
         const featuredWorks = artworks
           .filter((artwork) => artwork.is_featured === true)
           .sort(
@@ -77,6 +84,7 @@ function Home({ onHeroContrastChange }) {
         setGalleryPreviewWorks((current) =>
           current.length > 0 ? current : pickStableGalleryPreview(artworks),
         )
+        setPersonalizationSummary(summary)
         setErrorMessage('')
       } catch (error) {
         setErrorMessage(
@@ -103,6 +111,21 @@ function Home({ onHeroContrastChange }) {
       })),
     [galleryPreviewWorks],
   )
+  const currentUser = getStoredUser()
+  const personalizedRecommendations = useMemo(() => {
+    if (!Array.isArray(canvasWorks) || canvasWorks.length === 0) {
+      return []
+    }
+    return rankArtworksByTaste(canvasWorks, getTasteProfile()).slice(0, 3)
+  }, [canvasWorks])
+  const recentViewedArtworks = useMemo(() => {
+    const idSet = new Set(
+      Array.isArray(personalizationSummary?.recent_viewed_artwork_ids)
+        ? personalizationSummary.recent_viewed_artwork_ids.map((value) => Number(value))
+        : [],
+    )
+    return canvasWorks.filter((artwork) => idSet.has(Number(artwork.id))).slice(0, 3)
+  }, [canvasWorks, personalizationSummary?.recent_viewed_artwork_ids])
 
   return (
     <section className="page-flow">
@@ -167,6 +190,42 @@ function Home({ onHeroContrastChange }) {
               Original works and commissioned pieces created for personal spaces.
             </p>
           </section>
+
+          {currentUser ? (
+            <section className="section-block">
+              <p className="eyebrow">WELCOME BACK</p>
+              <h2 className="section-title">Welcome back, {currentUser.name}</h2>
+              {recentViewedArtworks.length > 0 ? (
+                <>
+                  <p className="store-tagline">Recently viewed</p>
+                  <div className="store-grid artwork-grid">
+                    {recentViewedArtworks.map((artwork) => (
+                      <StoreCard key={`recent-${artwork.id}`} artwork={artwork} />
+                    ))}
+                  </div>
+                </>
+              ) : null}
+              {personalizedRecommendations.length > 0 ? (
+                <>
+                  <p className="store-tagline">Personalized recommendations</p>
+                  <div className="store-grid artwork-grid">
+                    {personalizedRecommendations.map((artwork) => (
+                      <StoreCard
+                        key={`recommended-${artwork.id}`}
+                        artwork={{
+                          ...artwork,
+                          recommendation_reason_label: 'fits your preferred style',
+                        }}
+                      />
+                    ))}
+                  </div>
+                </>
+              ) : null}
+              <Link to="/feed" className="text-link-button">
+                Continue exploring
+              </Link>
+            </section>
+          ) : null}
 
           <section className="section-block home-gallery-section">
             <div className="home-section-intro">

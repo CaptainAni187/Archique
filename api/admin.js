@@ -13,7 +13,11 @@ import {
 import { fetchAdminActivity, logAdminActivity } from './_lib/adminActivity.js'
 import { getClientIp, consumeRateLimit } from './_lib/rateLimit.js'
 import { methodNotAllowed, readJson, sendJson } from './_lib/http.js'
-import { fetchOrderAnalyticsRows } from './_lib/supabaseAdmin.js'
+import {
+  fetchOrderAnalyticsRows,
+  fetchUserAccounts,
+  fetchUserLoginEvents,
+} from './_lib/supabaseAdmin.js'
 import { getBackendConfig } from './_lib/env.js'
 import { sendResendEmail } from './_lib/notifications.js'
 
@@ -103,6 +107,89 @@ function buildDashboardAnalytics(orders) {
       date,
       count: ordersByDay.get(date) || 0,
     })),
+  }
+}
+
+function buildUserAnalytics(users, loginEvents) {
+  const today = new Date().toISOString().slice(0, 10)
+  const sevenDayCutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
+  const usersById = new Map(users.map((user) => [user.id, user]))
+
+  const totalAccounts = users.length
+  const googleAccounts = users.filter((user) =>
+    ['google', 'email+google'].includes(String(user.provider || 'email')),
+  ).length
+  const emailAccounts = users.filter((user) =>
+    ['email', 'email+google'].includes(String(user.provider || 'email')),
+  ).length
+  const dailyLogins = loginEvents.filter((event) => String(event.login_at || '').slice(0, 10) === today)
+    .length
+  const activeUsers = new Set(
+    loginEvents
+      .filter((event) => new Date(event.login_at).getTime() >= sevenDayCutoff)
+      .map((event) => event.user_id),
+  ).size
+
+  const loginFrequency = users
+    .map((user) => ({
+      user_id: user.id,
+      login_count: Number(user.login_count || 0),
+      provider: user.provider || 'email',
+    }))
+    .sort((a, b) => b.login_count - a.login_count)
+    .slice(0, 8)
+
+  const latestUsers = [...users]
+    .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+    .slice(0, 8)
+    .map((user) => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      avatar_url: user.avatar_url || null,
+      provider: user.provider || 'email',
+      created_at: user.created_at,
+      last_login_at: user.last_login_at,
+      login_count: Number(user.login_count || 0),
+    }))
+
+  const recentSignups = [...users]
+    .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+    .slice(0, 14)
+    .map((user) => ({
+      id: user.id,
+      date: String(user.created_at || '').slice(0, 10),
+      provider: user.provider || 'email',
+    }))
+
+  const recentActiveUsers = [...loginEvents]
+    .slice(0, 20)
+    .map((event) => ({
+      user_id: event.user_id,
+      provider: event.provider,
+      login_at: event.login_at,
+      account_provider: usersById.get(event.user_id)?.provider || 'email',
+    }))
+
+  const totalLogins = loginEvents.length
+  const googleLogins = loginEvents.filter((event) => event.provider === 'google').length
+  const emailLogins = loginEvents.filter((event) => event.provider === 'email').length
+  const lastLoginTimestamp = loginEvents[0]?.login_at || null
+
+  return {
+    total_accounts: totalAccounts,
+    google_accounts: googleAccounts,
+    email_accounts: emailAccounts,
+    total_logins: totalLogins,
+    google_logins: googleLogins,
+    email_logins: emailLogins,
+    active_users_7d: activeUsers,
+    daily_logins: dailyLogins,
+    last_login_at: lastLoginTimestamp,
+    recent_signups: recentSignups,
+    recent_active_users: recentActiveUsers,
+    login_frequency: loginFrequency,
+    latest_users: latestUsers,
   }
 }
 
@@ -399,9 +486,17 @@ async function handleDashboard(req, res) {
   }
 
   const orders = await fetchOrderAnalyticsRows()
+  const users = await fetchUserAccounts().catch(() => [])
+  const loginEvents = await fetchUserLoginEvents(1000).catch(() => [])
   return sendJson(res, 200, {
     success: true,
-    data: buildDashboardAnalytics(orders),
+    data: {
+      ...buildDashboardAnalytics(orders),
+      ...buildUserAnalytics(
+        Array.isArray(users) ? users : [],
+        Array.isArray(loginEvents) ? loginEvents : [],
+      ),
+    },
   })
 }
 

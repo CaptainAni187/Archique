@@ -17,6 +17,7 @@ function normalizeSessionId(value) {
 export async function logAnalyticsEvent({
   event_type,
   session_id = '',
+  user_id = null,
   metadata = {},
   path = '',
   referrer = '',
@@ -33,7 +34,10 @@ export async function logAnalyticsEvent({
       body: JSON.stringify({
         event_type,
         timestamp,
-        metadata,
+        metadata: {
+          ...metadata,
+          user_id: Number.isInteger(Number(user_id)) ? Number(user_id) : undefined,
+        },
       }),
     })
 
@@ -58,6 +62,7 @@ export async function logAnalyticsEvent({
     await createVisitorEvent({
       session_id: normalizedSessionId,
       event_type,
+      user_id: Number.isInteger(Number(user_id)) ? Number(user_id) : null,
       artwork_id: Number.isInteger(Number(artwork_id)) ? Number(artwork_id) : null,
       path: path || null,
       metadata,

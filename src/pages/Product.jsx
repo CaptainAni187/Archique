@@ -4,6 +4,7 @@ import { useOrderContext } from '../state/useOrderContext'
 import { fetchArtworks, fetchSingleArtwork } from '../services/artworkService'
 import { fetchActiveCombos } from '../services/comboService'
 import { trackAnalyticsEvent } from '../services/analyticsService'
+import { trackRecommendationEvent } from '../services/analyticsService'
 import Reveal from '../components/Reveal'
 import ErrorState from '../components/ErrorState'
 import { SkeletonProduct } from '../components/SkeletonLoader'
@@ -20,6 +21,7 @@ import {
   getSmartPairings,
   isArtworkAvailable,
 } from '../utils/comboPricing'
+import { fetchSavedArtworks, saveArtwork, unsaveArtwork } from '../services/userAuthService'
 
 function formatPrice(price) {
   return `Rs. ${Number(price).toLocaleString()}`
@@ -39,6 +41,7 @@ function Product() {
   const [retryKey, setRetryKey] = useState(0)
   const [allArtworks, setAllArtworks] = useState([])
   const [comboMatches, setComboMatches] = useState([])
+  const [savedArtworkIds, setSavedArtworkIds] = useState([])
   const productOpenedAtRef = useRef(Date.now())
   const hoverStartedAtRef = useRef(null)
   const hoverDwellMsRef = useRef(0)
@@ -56,17 +59,29 @@ function Product() {
         const response = await fetchSingleArtwork(id)
         setArtwork(response || null)
         setActiveImage(Array.isArray(response?.images) ? response.images[0] || '' : '')
-        const [artworksResponse, comboResponse] = await Promise.all([
+        const [artworksResponse, comboResponse, saved] = await Promise.all([
           fetchArtworks(),
           fetchActiveCombos(id),
+          fetchSavedArtworks().catch(() => []),
         ])
         setAllArtworks(artworksResponse)
         setComboMatches(comboResponse)
+        setSavedArtworkIds(saved.map((item) => Number(item.artwork_id)).filter(Boolean))
         if (response) {
           productOpenedAtRef.current = Date.now()
           hoverDwellMsRef.current = 0
           hoverStartedAtRef.current = null
           void trackAnalyticsEvent('artwork_view', getArtworkTasteMetadata(response))
+          void trackRecommendationEvent('recommendation_clicked', {
+            artwork_id: response.id,
+            source: 'product_page',
+            artwork: response,
+          })
+          void trackRecommendationEvent('recommendation_revisited', {
+            artwork_id: response.id,
+            source: document.referrer || 'direct',
+            artwork: response,
+          })
         }
         setErrorMessage('')
       } catch (error) {
@@ -92,6 +107,9 @@ function Product() {
   const recommendationReason = artwork
     ? getRecommendationReason(artwork, getTasteProfile())
     : ''
+  const recommendationReasonLabel = recommendationReason
+    .replace(/^Shown because it\s*/i, '')
+    .replace(/\.$/, '')
 
   const goToPreviousImage = () => {
     if (galleryImages.length <= 1) {
@@ -220,11 +238,17 @@ function Product() {
     }
 
     const selection = buildPurchaseSelection([artwork])
+    void trackRecommendationEvent('recommendation_purchased', {
+      artwork_id: artwork.id,
+      source: 'product_buy_now',
+      artwork,
+    })
     setSelectedProduct(artwork)
     setSelectedPurchase(selection)
     navigate('/checkout', { state: { product: artwork, selection } })
   }
   const isSoldOut = artwork.status === 'sold' || Number(artwork.quantity) <= 0
+  const isSaved = savedArtworkIds.includes(Number(artwork.id))
 
   return (
     <section className="page-flow page-with-header-gap">
@@ -324,9 +348,41 @@ function Product() {
           <div className="product-meta">
             <p>
               <span>Why this is shown</span>
-              {recommendationReason}
+              {recommendationReasonLabel}
             </p>
           </div>
+          <button
+            type="button"
+            className="text-link-button action-button"
+            onClick={async () => {
+              if (isSaved) {
+                await unsaveArtwork(artwork.id).catch(() => null)
+                setSavedArtworkIds((current) => current.filter((value) => value !== Number(artwork.id)))
+                void trackRecommendationEvent('favorite_removed', {
+                  artwork_id: artwork.id,
+                  source: 'product',
+                  artwork,
+                })
+              } else {
+                await saveArtwork(artwork.id).catch(() => null)
+                setSavedArtworkIds((current) =>
+                  current.includes(Number(artwork.id)) ? current : [...current, Number(artwork.id)],
+                )
+                void trackRecommendationEvent('favorite_added', {
+                  artwork_id: artwork.id,
+                  source: 'product',
+                  artwork,
+                })
+                void trackRecommendationEvent('recommendation_saved', {
+                  artwork_id: artwork.id,
+                  source: 'product',
+                  artwork,
+                })
+              }
+            }}
+          >
+            {isSaved ? 'Remove from Saved' : 'Save Artwork'}
+          </button>
           <button
             type="button"
             className="text-link-button action-button"
@@ -367,6 +423,7 @@ function Product() {
                   type="button"
                   className="text-link-button action-button"
                   onClick={() => {
+                    void trackAnalyticsEvent('combo_click', getArtworkTasteMetadata(artwork, { combo_id: combo.id }))
                     const selection = buildPurchaseSelection(combo.items, {
                       comboId: combo.id,
                       comboTitle: combo.title,

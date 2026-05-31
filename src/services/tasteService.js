@@ -33,6 +33,13 @@ function writeProfileToStorage(profile) {
   window.localStorage.setItem(TASTE_PROFILE_STORAGE_KEY, JSON.stringify(profile))
 }
 
+export function setTasteProfile(profile) {
+  if (!profile || typeof profile !== 'object') {
+    return
+  }
+  writeProfileToStorage(profile)
+}
+
 export function getTasteProfile() {
   return readProfileFromStorage()
 }
@@ -76,7 +83,12 @@ export function hasTasteSignals(profile = readProfileFromStorage()) {
 }
 
 export function rankArtworksByTaste(artworks = [], profile = readProfileFromStorage()) {
-  return rankArtworksByTasteCore({ artworks, tasteProfile: profile })
+  try {
+    const ranked = rankArtworksByTasteCore({ artworks, tasteProfile: profile })
+    return Array.isArray(ranked) ? ranked : Array.isArray(artworks) ? artworks : []
+  } catch {
+    return Array.isArray(artworks) ? artworks : []
+  }
 }
 
 export function getRecommendedArtworks(artworks = [], limit = 4, profile = readProfileFromStorage()) {

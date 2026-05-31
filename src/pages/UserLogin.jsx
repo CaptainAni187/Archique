@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { loginUser, signupUser } from '../services/userAuthService'
+import { continueWithGoogle, finalizeGoogleLogin } from '../services/supabaseAuthService'
 import usePageMeta from '../hooks/usePageMeta'
 import PasswordInput from '../components/PasswordInput'
 
@@ -15,6 +16,46 @@ function UserLogin() {
   const [form, setForm] = useState({ name: '', email: '', password: '' })
   const [errorMessage, setErrorMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false)
+
+  useEffect(() => {
+    let isCancelled = false
+    async function handleGoogleCallback() {
+      const hasAccessToken = window.location.hash.includes('access_token=')
+      const hasOauthError = window.location.hash.includes('error=')
+      if (!hasAccessToken && !hasOauthError) {
+        return
+      }
+
+      if (hasOauthError) {
+        const errorParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+        setErrorMessage(errorParams.get('error_description') || 'Google login was cancelled.')
+        window.history.replaceState({}, document.title, '/login')
+        return
+      }
+
+      setIsGoogleLoading(true)
+      try {
+        await finalizeGoogleLogin()
+        if (!isCancelled) {
+          navigate('/account')
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          setErrorMessage(error.message || 'Unable to finish Google login.')
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsGoogleLoading(false)
+        }
+      }
+    }
+
+    handleGoogleCallback()
+    return () => {
+      isCancelled = true
+    }
+  }, [navigate])
 
   const onChange = (event) => {
     const { name, value } = event.target
@@ -78,6 +119,23 @@ function UserLogin() {
         </label>
         <button type="submit" disabled={isSubmitting}>
           {isSubmitting ? 'Please wait...' : mode === 'signup' ? 'Sign Up' : 'Login'}
+        </button>
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={isGoogleLoading}
+          onClick={async () => {
+            setErrorMessage('')
+            setIsGoogleLoading(true)
+            try {
+              await continueWithGoogle()
+            } catch (error) {
+              setErrorMessage(error.message || 'Unable to start Google login.')
+              setIsGoogleLoading(false)
+            }
+          }}
+        >
+          {isGoogleLoading ? 'Redirecting...' : 'Continue with Google'}
         </button>
       </form>
 

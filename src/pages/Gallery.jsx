@@ -9,11 +9,13 @@ import { getUserFriendlyError } from '../utils/userErrors'
 import {
   getTasteProfile,
   hasTasteSignals,
+  getRecommendationReason,
   rankArtworksByTaste,
 } from '../services/tasteService'
-import { trackAnalyticsEvent } from '../services/analyticsService'
+import { trackAnalyticsEvent, trackRecommendationEvent } from '../services/analyticsService'
 import SmartSearchPanel from '../components/SmartSearchPanel'
 import { runSmartArtworkSearch } from '../services/smartSearchService'
+import { fetchSavedArtworks, saveArtwork, unsaveArtwork } from '../services/userAuthService'
 
 const ALL_CATEGORIES = 'all'
 const DEFAULT_SORT = 'featured'
@@ -59,6 +61,8 @@ function Gallery() {
   const [smartSummary, setSmartSummary] = useState('')
   const [smartSource, setSmartSource] = useState('')
   const [isSmartSearching, setIsSmartSearching] = useState(false)
+  const [savedArtworkIds, setSavedArtworkIds] = useState([])
+  const [debugStats, setDebugStats] = useState(null)
 
   usePageMeta({
     title: 'Gallery | Archiverse',
@@ -69,8 +73,23 @@ function Gallery() {
     async function loadArtworks() {
       setLoading(true)
       try {
-        const response = await fetchArtworks()
-        setArtworks(response)
+        const [response, saved] = await Promise.all([
+          fetchArtworks(),
+          fetchSavedArtworks().catch(() => []),
+        ])
+        const normalizedResponse = Array.isArray(response) ? response : []
+        setArtworks(normalizedResponse)
+        setSavedArtworkIds(saved.map((item) => Number(item.artwork_id)).filter(Boolean))
+        if (import.meta.env.DEV) {
+          console.debug('[gallery] loaded artworks payload', {
+            count: normalizedResponse.length,
+            sample: normalizedResponse.slice(0, 3).map((item) => ({
+              id: item?.id,
+              title: item?.title,
+              tags: Array.isArray(item?.tags) ? item.tags.length : 'invalid',
+            })),
+          })
+        }
         setErrorMessage('')
       } catch (error) {
         setErrorMessage(
@@ -145,12 +164,22 @@ function Gallery() {
       ? smartResults.map((result) => result.artwork).filter(Boolean)
       : artworks
 
-    const matchingArtworks = sourceArtworks.map((artwork) => ({
-      ...artwork,
-      smart_explanation: smartResultById.get(Number(artwork.id))?.explanation || '',
-      smart_score: smartResultById.get(Number(artwork.id))?.score || 0,
-      smart_source: smartResultById.get(Number(artwork.id))?.source || '',
-    })).filter((artwork) => {
+    const safeSourceArtworks = sourceArtworks.filter(
+      (artwork) =>
+        artwork &&
+        typeof artwork === 'object' &&
+        Number.isFinite(Number(artwork.id)) &&
+        typeof artwork.title === 'string',
+    )
+
+    const matchingArtworks = safeSourceArtworks
+      .map((artwork) => ({
+        ...artwork,
+        smart_explanation: smartResultById.get(Number(artwork.id))?.explanation || '',
+        smart_score: smartResultById.get(Number(artwork.id))?.score || 0,
+        smart_source: smartResultById.get(Number(artwork.id))?.source || '',
+      }))
+      .filter((artwork) => {
       const matchesCategory =
         selectedCategory === ALL_CATEGORIES || artwork.category === selectedCategory
       const matchesMinPrice = parsedMinPrice === null || artwork.price >= parsedMinPrice
@@ -164,11 +193,33 @@ function Gallery() {
     }
 
     if (sortBy === DEFAULT_SORT && hasTasteSignals(getTasteProfile())) {
-      return rankArtworksByTaste(matchingArtworks, getTasteProfile())
+      try {
+        const ranked = rankArtworksByTaste(matchingArtworks, getTasteProfile())
+        return Array.isArray(ranked) && ranked.length > 0 ? ranked : matchingArtworks
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.warn('[gallery] ranking failed, fallback to raw list', error)
+        }
+        return matchingArtworks
+      }
     }
 
     return sortArtworks(matchingArtworks, sortBy)
   }, [artworks, hasSmartSearch, maxPrice, minPrice, selectedCategory, smartResults, sortBy])
+
+  useEffect(() => {
+    const topRecommendations = (Array.isArray(filteredArtworks) ? filteredArtworks : []).slice(0, 12)
+    topRecommendations.forEach((artwork, index) => {
+      void trackRecommendationEvent('recommendation_shown', {
+        artwork_id: artwork.id,
+        rank_index: index,
+        source: hasSmartSearch ? 'smart_search' : 'gallery',
+        category: artwork.category || '',
+        tags: Array.isArray(artwork.tags) ? artwork.tags : [],
+        artwork,
+      })
+    })
+  }, [filteredArtworks, hasSmartSearch])
 
   useEffect(() => {
     if (!hasSmartSearch) {
@@ -181,17 +232,29 @@ function Gallery() {
     let isCancelled = false
     const searchTimer = window.setTimeout(async () => {
       setIsSmartSearching(true)
-      const response = await runSmartArtworkSearch({
-        query: smartQuery,
-        moods: selectedMoods,
-        artworks,
-      })
+      try {
+        const response = await runSmartArtworkSearch({
+          query: smartQuery,
+          moods: selectedMoods,
+          artworks,
+        })
 
-      if (!isCancelled) {
-        setSmartResults(response.results)
-        setSmartSummary(response.summary)
-        setSmartSource(response.source)
-        setIsSmartSearching(false)
+        if (!isCancelled) {
+          setSmartResults(Array.isArray(response.results) ? response.results : [])
+          setSmartSummary(response.summary || '')
+          setSmartSource(response.source || '')
+          setIsSmartSearching(false)
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          setSmartResults([])
+          setSmartSummary('')
+          setSmartSource('')
+          setIsSmartSearching(false)
+        }
+        if (import.meta.env.DEV) {
+          console.warn('[gallery] smart search failed', error)
+        }
       }
     }, 250)
 
@@ -200,6 +263,26 @@ function Gallery() {
       window.clearTimeout(searchTimer)
     }
   }, [artworks, hasSmartSearch, selectedMoods, smartQuery])
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) {
+      return
+    }
+    const invalidArtworks = artworks.filter(
+      (artwork) =>
+        !artwork ||
+        !Number.isFinite(Number(artwork.id)) ||
+        typeof artwork.title !== 'string' ||
+        !Number.isFinite(Number(artwork.price)),
+    )
+    setDebugStats({
+      artwork_count: artworks.length,
+      ranked_count: filteredArtworks.length,
+      invalid_artworks: invalidArtworks.length,
+      smart_result_count: smartResults.length,
+      has_smart_search: hasSmartSearch,
+    })
+  }, [artworks, filteredArtworks, smartResults, hasSmartSearch])
 
   const toggleMood = (mood) => {
     setSelectedMoods((current) =>
@@ -320,13 +403,59 @@ function Gallery() {
       <p className="store-results-count">
         Showing {filteredArtworks.length} of {artworks.length} artworks
       </p>
+      {import.meta.env.DEV && debugStats ? (
+        <p className="status-message">
+          debug: artworks={debugStats.artwork_count}, ranked={debugStats.ranked_count}, invalid=
+          {debugStats.invalid_artworks}, smart={debugStats.smart_result_count}
+        </p>
+      ) : null}
 
       {invalidPriceRange ? null : filteredArtworks.length === 0 ? (
         <p className="status-message">No artworks match the selected filters.</p>
       ) : (
         <div className="store-grid artwork-grid">
           {filteredArtworks.map((artwork) => (
-            <StoreCard key={artwork.id} artwork={artwork} />
+            <StoreCard
+              key={artwork.id}
+              artwork={{
+                ...artwork,
+                recommendation_reason_label: artwork.smart_explanation
+                  ? ''
+                  : getRecommendationReason(artwork, getTasteProfile())
+                      .replace(/^Shown because it\s*/i, '')
+                      .replace(/\.$/, ''),
+              }}
+              isSaved={savedArtworkIds.includes(Number(artwork.id))}
+              onToggleSave={async () => {
+                const isSaved = savedArtworkIds.includes(Number(artwork.id))
+                if (isSaved) {
+                  await unsaveArtwork(artwork.id).catch(() => null)
+                  setSavedArtworkIds((current) =>
+                    current.filter((value) => value !== Number(artwork.id)),
+                  )
+                  void trackRecommendationEvent('favorite_removed', {
+                    artwork_id: artwork.id,
+                    source: 'gallery',
+                    artwork,
+                  })
+                  return
+                }
+                await saveArtwork(artwork.id).catch(() => null)
+                setSavedArtworkIds((current) =>
+                  current.includes(Number(artwork.id)) ? current : [...current, Number(artwork.id)],
+                )
+                void trackRecommendationEvent('favorite_added', {
+                  artwork_id: artwork.id,
+                  source: 'gallery',
+                  artwork,
+                })
+                void trackRecommendationEvent('recommendation_saved', {
+                  artwork_id: artwork.id,
+                  source: 'gallery',
+                  artwork,
+                })
+              }}
+            />
           ))}
         </div>
       )}

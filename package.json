@@ -8,6 +8,7 @@
     "dev:api": "node scripts/dev-api-server.mjs",
     "dev:vercel": "node scripts/dev-api-server.mjs",
     "audit:artworks": "node scripts/audit-artwork-tags.mjs",
+    "digest:send": "node scripts/send-personalized-digest.mjs",
     "build": "vite build",
     "lint": "eslint .",
     "test": "vitest run",

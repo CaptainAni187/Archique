@@ -50,8 +50,101 @@ export async function fetchArtworks() {
   return supabaseAdminRequest('artworks?select=*&order=id.asc')
 }
 
+export async function fetchRecentArtworks(limit = 120) {
+  return supabaseAdminRequest(`artworks?select=*&order=id.desc&limit=${Number(limit)}`)
+}
+
 export async function fetchCombos() {
   return supabaseAdminRequest('combos?select=*&order=created_at.desc')
+}
+
+export async function fetchTagRegistry({ query = '', type = '', onlyActive = true, limit = 200 } = {}) {
+  const filters = ['select=*', 'order=usage_count.desc', `limit=${Number(limit)}`]
+  if (onlyActive) {
+    filters.push('is_active=eq.true')
+  }
+  if (type) {
+    filters.push(`type=eq.${encodeURIComponent(String(type).trim())}`)
+  }
+  if (query) {
+    filters.push(`name=ilike.*${encodeURIComponent(String(query).trim())}*`)
+  }
+  return supabaseAdminRequest(`tag_registry?${filters.join('&')}`)
+}
+
+export async function fetchTagAliases() {
+  return supabaseAdminRequest(
+    'tag_aliases?select=id,alias,canonical_tag_id,created_at&order=created_at.desc',
+  )
+}
+
+export async function fetchTagByName(name) {
+  const response = await supabaseAdminRequest(
+    `tag_registry?select=*&name=eq.${encodeURIComponent(String(name || '').trim().toLowerCase())}&limit=1`,
+  )
+  return response?.[0] || null
+}
+
+export async function createTagRegistryEntry(payload) {
+  const response = await supabaseAdminRequest('tag_registry', {
+    method: 'POST',
+    headers: {
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify(payload),
+  })
+  return response?.[0] || null
+}
+
+export async function updateTagRegistryEntryById(id, payload) {
+  const response = await supabaseAdminRequest(`tag_registry?id=eq.${Number(id)}`, {
+    method: 'PATCH',
+    headers: {
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify(payload),
+  })
+  return response?.[0] || null
+}
+
+export async function createTagAlias(payload) {
+  const response = await supabaseAdminRequest('tag_aliases', {
+    method: 'POST',
+    headers: {
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify(payload),
+  })
+  return response?.[0] || null
+}
+
+export async function deleteTagAliasById(id) {
+  await supabaseAdminRequest(`tag_aliases?id=eq.${Number(id)}`, {
+    method: 'DELETE',
+    headers: {
+      Prefer: 'return=minimal',
+    },
+  })
+}
+
+export async function upsertAdminAiFeedback(payload) {
+  const response = await supabaseAdminRequest(
+    'admin_ai_feedback?on_conflict=feedback_type,source,signal_key',
+    {
+      method: 'POST',
+      headers: {
+        Prefer: 'resolution=merge-duplicates,return=representation',
+      },
+      body: JSON.stringify(payload),
+    },
+  )
+  return response?.[0] || null
+}
+
+export async function fetchAdminAiFeedback(limit = 500) {
+  return supabaseAdminRequest(
+    `admin_ai_feedback?select=*&order=updated_at.desc&limit=${Number(limit)}`,
+  )
 }
 
 export async function fetchComboById(id) {
@@ -247,6 +340,20 @@ export async function fetchUserByEmail(email) {
   return response?.[0] || null
 }
 
+export async function fetchUserByGoogleId(googleId) {
+  const encodedGoogleId = encodeURIComponent(String(googleId || '').trim())
+  const response = await supabaseAdminRequest(
+    `user_accounts?select=*&google_id=eq.${encodedGoogleId}&limit=1`,
+  )
+
+  return response?.[0] || null
+}
+
+export async function fetchUserById(userId) {
+  const response = await supabaseAdminRequest(`user_accounts?select=*&id=eq.${Number(userId)}&limit=1`)
+  return response?.[0] || null
+}
+
 export async function createUserAccount(payload) {
   const response = await supabaseAdminRequest('user_accounts', {
     method: 'POST',
@@ -257,6 +364,136 @@ export async function createUserAccount(payload) {
   })
 
   return response?.[0] || null
+}
+
+export async function updateUserAccountById(id, payload) {
+  const response = await supabaseAdminRequest(`user_accounts?id=eq.${Number(id)}`, {
+    method: 'PATCH',
+    headers: {
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  return response?.[0] || null
+}
+
+export async function deleteUserAccountById(id) {
+  await supabaseAdminRequest(`user_accounts?id=eq.${Number(id)}`, {
+    method: 'DELETE',
+    headers: {
+      Prefer: 'return=minimal',
+    },
+  })
+}
+
+export async function createUserLoginEvent(payload) {
+  const response = await supabaseAdminRequest('user_login_events', {
+    method: 'POST',
+    headers: {
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  return response?.[0] || null
+}
+
+export async function fetchRecentVisitorEventsByUserId(userId, limit = 100) {
+  return supabaseAdminRequest(
+    `visitor_events?select=event_type,artwork_id,path,metadata,created_at&user_id=eq.${Number(
+      userId,
+    )}&order=created_at.desc&limit=${Number(limit)}`,
+  )
+}
+
+export async function fetchUserSavedArtworksByUserId(userId) {
+  return supabaseAdminRequest(
+    `user_saved_artworks?select=id,artwork_id,created_at&user_id=eq.${Number(
+      userId,
+    )}&order=created_at.desc`,
+  )
+}
+
+export async function fetchUserSavedArtworkByArtworkId(userId, artworkId) {
+  const response = await supabaseAdminRequest(
+    `user_saved_artworks?select=*&user_id=eq.${Number(userId)}&artwork_id=eq.${Number(artworkId)}&limit=1`,
+  )
+  return response?.[0] || null
+}
+
+export async function createUserSavedArtwork(payload) {
+  const response = await supabaseAdminRequest('user_saved_artworks', {
+    method: 'POST',
+    headers: {
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify(payload),
+  })
+  return response?.[0] || null
+}
+
+export async function deleteUserSavedArtworkById(id) {
+  await supabaseAdminRequest(`user_saved_artworks?id=eq.${Number(id)}`, {
+    method: 'DELETE',
+    headers: {
+      Prefer: 'return=minimal',
+    },
+  })
+}
+
+export async function fetchUserCollectionsByUserId(userId) {
+  return supabaseAdminRequest(
+    `user_collections?select=id,name,created_at&user_id=eq.${Number(userId)}&order=created_at.desc`,
+  )
+}
+
+export async function createUserCollection(payload) {
+  const response = await supabaseAdminRequest('user_collections', {
+    method: 'POST',
+    headers: {
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify(payload),
+  })
+  return response?.[0] || null
+}
+
+export async function deleteUserCollectionById(id) {
+  await supabaseAdminRequest(`user_collections?id=eq.${Number(id)}`, {
+    method: 'DELETE',
+    headers: {
+      Prefer: 'return=minimal',
+    },
+  })
+}
+
+export async function fetchUserCollectionArtworksByCollectionId(collectionId) {
+  return supabaseAdminRequest(
+    `user_collection_artworks?select=id,collection_id,artwork_id,combo_id,created_at&collection_id=eq.${Number(
+      collectionId,
+    )}&order=created_at.desc`,
+  )
+}
+
+export async function createUserCollectionArtwork(payload) {
+  const response = await supabaseAdminRequest('user_collection_artworks', {
+    method: 'POST',
+    headers: {
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify(payload),
+  })
+  return response?.[0] || null
+}
+
+export async function deleteUserCollectionArtworkById(id) {
+  await supabaseAdminRequest(`user_collection_artworks?id=eq.${Number(id)}`, {
+    method: 'DELETE',
+    headers: {
+      Prefer: 'return=minimal',
+    },
+  })
 }
 
 export async function fetchVisibleTestimonials() {
@@ -383,6 +620,19 @@ export async function createVisitorEvent(payload) {
   return response?.[0] || null
 }
 
+export async function updateVisitorEventsForSession(sessionId, payload) {
+  const encodedSessionId = encodeURIComponent(String(sessionId || '').trim())
+  const response = await supabaseAdminRequest(`visitor_events?session_id=eq.${encodedSessionId}`, {
+    method: 'PATCH',
+    headers: {
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  return response || []
+}
+
 export async function fetchVisitorTasteProfileBySessionId(sessionId) {
   const encodedSessionId = encodeURIComponent(String(sessionId || '').trim())
   const response = await supabaseAdminRequest(
@@ -404,8 +654,40 @@ export async function upsertVisitorTasteProfile(payload) {
   return response?.[0] || null
 }
 
+export async function fetchUserTasteProfileByUserId(userId) {
+  const response = await supabaseAdminRequest(
+    `user_taste_profiles?select=*&user_id=eq.${Number(userId)}&limit=1`,
+  )
+
+  return response?.[0] || null
+}
+
+export async function upsertUserTasteProfile(payload) {
+  const response = await supabaseAdminRequest('user_taste_profiles?on_conflict=user_id', {
+    method: 'POST',
+    headers: {
+      Prefer: 'resolution=merge-duplicates,return=representation',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  return response?.[0] || null
+}
+
 export async function fetchVisitorEvents(limit = 500) {
   return supabaseAdminRequest(
     `visitor_events?select=event_type,metadata,created_at&order=created_at.desc&limit=${Number(limit)}`,
+  )
+}
+
+export async function fetchUserAccounts() {
+  return supabaseAdminRequest(
+    'user_accounts?select=id,name,email,avatar_url,created_at,provider,last_login_at,login_count&order=created_at.desc',
+  )
+}
+
+export async function fetchUserLoginEvents(limit = 1000) {
+  return supabaseAdminRequest(
+    `user_login_events?select=id,user_id,provider,login_at&order=login_at.desc&limit=${Number(limit)}`,
   )
 }

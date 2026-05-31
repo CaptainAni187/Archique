@@ -198,3 +198,18 @@ export async function notifyCommissionRequest(commission, config) {
     customerEmailStatus,
   }
 }
+
+export async function sendUserWelcomeEmail({ email, name, config }) {
+  return sendResendEmail({
+    resendApiKey: config.resendApiKey,
+    fromEmail: config.fromEmail,
+    to: email,
+    subject: 'Welcome to Archiverse',
+    html: `
+      <h2>Welcome to Archiverse</h2>
+      <p>Hello ${escapeHtml(name || 'there')},</p>
+      <p>Your account is ready. You can now track orders and get personalized recommendations.</p>
+      <p>Thank you for joining Archiverse.</p>
+    `,
+  }).catch(() => ({ delivered: false, skipped: false }))
+}

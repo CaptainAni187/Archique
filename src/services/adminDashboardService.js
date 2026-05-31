@@ -10,6 +10,19 @@ const emptyDashboard = {
   top_tags: [],
   top_categories: [],
   inspected_events: 0,
+  total_accounts: 0,
+  google_accounts: 0,
+  email_accounts: 0,
+  total_logins: 0,
+  google_logins: 0,
+  email_logins: 0,
+  active_users_7d: 0,
+  daily_logins: 0,
+  last_login_at: null,
+  recent_signups: [],
+  recent_active_users: [],
+  login_frequency: [],
+  latest_users: [],
 }
 
 export async function fetchDashboardAnalytics() {

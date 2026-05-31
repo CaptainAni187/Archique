@@ -9,6 +9,7 @@ import { sendValidationError, validateWithSchema } from './_lib/validation.js'
 const analyticsEventSchema = z.object({
   event_type: z.enum(SUPPORTED_BEHAVIOR_EVENTS),
   session_id: z.string().trim().min(1).max(120).optional().default(''),
+  user_id: z.coerce.number().int().positive().optional().nullable(),
   path: z.string().trim().max(240).optional().default(''),
   referrer: z.string().trim().max(1000).optional().default(''),
   artwork_id: z.coerce.number().int().positive().optional().nullable(),

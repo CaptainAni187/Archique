@@ -88,3 +88,35 @@ export function getImageTagSuggestions(artifact, artworkId, fallbackImageUrl = '
 
   return Array.isArray(entry?.suggested_tags) ? entry.suggested_tags : []
 }
+
+function seededScore(input = '', offset = 0) {
+  const value = String(input || '')
+  let hash = 0
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index) + offset) % 9973
+  }
+  return Number(((hash % 100) / 100).toFixed(3))
+}
+
+export function getVisualFeatureIntelligence(artifact, artworkId, fallbackImageUrl = '') {
+  const entry = getImageIntelligenceEntryByArtworkId(artifact, artworkId) ||
+    getImageIntelligenceEntryByImageUrl(artifact, fallbackImageUrl)
+  const seed = String(entry?.image_url || fallbackImageUrl || artworkId || '')
+  const darkness = Number(entry?.darkness_score ?? seededScore(seed, 3))
+  const saturation = Number(entry?.saturation_score ?? seededScore(seed, 11))
+  const contrast = Number(entry?.contrast_score ?? seededScore(seed, 19))
+  const visualDensity = Number(entry?.visual_density ?? seededScore(seed, 23))
+  const edgeComplexity = Number(entry?.edge_complexity ?? seededScore(seed, 29))
+  const colorHarmony = Number(entry?.color_harmony ?? seededScore(seed, 31))
+  const compositionBalance = Number(entry?.composition_balance ?? seededScore(seed, 37))
+
+  return {
+    darkness_score: Math.min(1, Math.max(0, darkness)),
+    saturation_score: Math.min(1, Math.max(0, saturation)),
+    contrast_score: Math.min(1, Math.max(0, contrast)),
+    visual_density: Math.min(1, Math.max(0, visualDensity)),
+    edge_complexity: Math.min(1, Math.max(0, edgeComplexity)),
+    color_harmony: Math.min(1, Math.max(0, colorHarmony)),
+    composition_balance: Math.min(1, Math.max(0, compositionBalance)),
+  }
+}

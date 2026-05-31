@@ -11,6 +11,7 @@ import UserAccount from './pages/UserAccount'
 import About from './pages/About'
 import Contact from './pages/Contact'
 import Policies from './pages/Policies'
+import Privacy from './pages/Privacy'
 import OrderConfirmation from './pages/OrderConfirmation'
 import OrderTracking from './pages/OrderTracking'
 import Canvas from './pages/Canvas'
@@ -67,6 +68,7 @@ function AppLayout() {
           <Route path="/contact" element={<Contact />} />
           <Route path="/commission" element={<Commission />} />
           <Route path="/policies" element={<Policies />} />
+          <Route path="/privacy" element={<Privacy />} />
           <Route path="/product/:id" element={<Product />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/checkout/confirmation" element={<OrderConfirmation />} />

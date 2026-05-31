@@ -38,6 +38,7 @@ export function buildTasteVector(profile = {}) {
       max: baseProfile.price_preference.max,
     },
     confidence_score: Number(baseProfile.confidence_score || 0),
+    recommendation_confidence: Number(baseProfile.recommendation_confidence || 0),
   }
 }
 

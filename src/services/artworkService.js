@@ -16,9 +16,10 @@ function normalizeArtwork(artwork) {
     return typeof image === 'string' && image.trim() && collection.indexOf(image) === index
   })
 
+  const normalizedPrice = Number(artwork.price)
   return {
     ...artwork,
-    price: Number(artwork.price),
+    price: Number.isFinite(normalizedPrice) ? normalizedPrice : 0,
     images,
     image: images[0] || '',
     is_featured: artwork.is_featured === true,
@@ -103,7 +104,11 @@ export async function fetchArtworks() {
   }
 
   const payload = await backendRequest('/api/artworks')
-  const normalized = (payload.data || []).map(normalizeArtwork)
+  const sourceRows = Array.isArray(payload?.data) ? payload.data : []
+  const normalized = sourceRows
+    .filter((row) => row && typeof row === 'object')
+    .map(normalizeArtwork)
+    .filter((row) => Number.isFinite(Number(row.id)) && typeof row.title === 'string')
   artworksCache = normalized
 
   normalized.forEach((artwork) => {
@@ -179,4 +184,94 @@ export async function deleteArtwork(id) {
   artworkByIdCache.delete(Number(id))
 
   return { id }
+}
+
+export async function fetchTagRegistry(query = '') {
+  const payload = await backendAdminRequest(
+    `/api/artworks?action=tags${query ? `&q=${encodeURIComponent(query)}` : ''}`,
+  )
+  return Array.isArray(payload.data) ? payload.data : []
+}
+
+export async function createRegistryTag({ name, type }) {
+  const payload = await backendAdminRequest('/api/artworks?action=tags', {
+    method: 'POST',
+    body: JSON.stringify({ name, type }),
+  })
+  return payload.data || null
+}
+
+export async function fetchStudioSuggestions(input) {
+  const payload = await backendAdminRequest('/api/artworks?action=studio-suggest', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+  return payload.data || {}
+}
+
+export async function fetchAiStudioMetrics() {
+  const payload = await backendAdminRequest('/api/artworks?action=ai-studio')
+  return payload.data || {}
+}
+
+export async function fetchTagGovernance() {
+  const payload = await backendAdminRequest('/api/artworks?action=tag-governance')
+  return payload.data || { tags: [], aliases: [] }
+}
+
+export async function mergeTags(sourceTag, targetTag) {
+  return backendAdminRequest('/api/artworks?action=tag-merge', {
+    method: 'POST',
+    body: JSON.stringify({
+      source_tag: sourceTag,
+      target_tag: targetTag,
+    }),
+  })
+}
+
+export async function renameTag(tagId, newName) {
+  return backendAdminRequest('/api/artworks?action=tag-rename', {
+    method: 'POST',
+    body: JSON.stringify({
+      tag_id: tagId,
+      new_name: newName,
+    }),
+  })
+}
+
+export async function deprecateTag(tagId) {
+  return backendAdminRequest('/api/artworks?action=tag-deprecate', {
+    method: 'POST',
+    body: JSON.stringify({
+      tag_id: tagId,
+    }),
+  })
+}
+
+export async function fetchRecommendationSandbox({ artworkId, tags = [] } = {}) {
+  const query = new URLSearchParams()
+  if (artworkId) query.set('artwork_id', String(artworkId))
+  if (tags.length) query.set('tags', tags.join(','))
+  const payload = await backendAdminRequest(
+    `/api/artworks?action=recommendation-sandbox${query.toString() ? `&${query.toString()}` : ''}`,
+  )
+  return payload.data || {}
+}
+
+export async function submitAiFeedback({ feedbackType, source, signalKey, action }) {
+  const payload = await backendAdminRequest('/api/artworks?action=ai-feedback', {
+    method: 'POST',
+    body: JSON.stringify({
+      feedback_type: feedbackType,
+      source,
+      signal_key: signalKey,
+      action,
+    }),
+  })
+  return payload.data || null
+}
+
+export async function fetchAiFeedback() {
+  const payload = await backendAdminRequest('/api/artworks?action=ai-feedback')
+  return Array.isArray(payload.data) ? payload.data : []
 }

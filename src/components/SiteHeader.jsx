@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import NavDropdown from './NavDropdown'
+import ThemeToggle from './ThemeToggle'
+import { getStoredUser } from '../services/userAuthService'
 function SocialIcons() {
   return (
     <div className="social-links">
@@ -35,6 +37,7 @@ function SiteHeader({ isDarkBackground = false }) {
   const isAccountRoute = location.pathname === '/account' || location.pathname === '/login'
   const aboutItems = [
     { to: '/feed', label: 'FEED' },
+    { to: '/privacy', label: 'PRIVACY' },
     { to: '/contact', label: 'CONTACT' },
   ]
   const isOverlay =
@@ -42,6 +45,7 @@ function SiteHeader({ isDarkBackground = false }) {
     location.pathname === '/canvas' ||
     location.pathname === '/sketch'
   const [isScrolled, setIsScrolled] = useState(false)
+  const [currentUser, setCurrentUser] = useState(getStoredUser())
 
   useEffect(() => {
     const onScroll = () => {
@@ -51,6 +55,13 @@ function SiteHeader({ isDarkBackground = false }) {
     onScroll()
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setCurrentUser(getStoredUser())
+    }, 1500)
+    return () => window.clearInterval(intervalId)
   }, [])
 
   return (
@@ -65,6 +76,7 @@ function SiteHeader({ isDarkBackground = false }) {
 
       <div className="topbar-cluster">
         <nav className="topbar-nav" aria-label="Primary">
+          <ThemeToggle />
           <NavLink to="/canvas" className={({ isActive }) => (isActive ? 'active-nav' : '')}>
             CANVAS
           </NavLink>
@@ -86,15 +98,23 @@ function SiteHeader({ isDarkBackground = false }) {
             aria-label="Account"
             title="Account"
           >
-            <svg
-              className="profile-nav-icon"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-              focusable="false"
-            >
-              <circle cx="12" cy="8" r="3.4" />
-              <path d="M5.8 19.2c1.1-3.4 3.2-5.1 6.2-5.1s5.1 1.7 6.2 5.1" />
-            </svg>
+            {currentUser?.avatar_url ? (
+              <img
+                src={currentUser.avatar_url}
+                alt={currentUser.name || 'Account avatar'}
+                className="profile-nav-avatar"
+              />
+            ) : (
+              <svg
+                className="profile-nav-icon"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <circle cx="12" cy="8" r="3.4" />
+                <path d="M5.8 19.2c1.1-3.4 3.2-5.1 6.2-5.1s5.1 1.7 6.2 5.1" />
+              </svg>
+            )}
             <span className="sr-only">Account</span>
           </NavLink>
         </nav>

@@ -2,8 +2,18 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   addArtwork,
+  createRegistryTag,
   deleteArtwork,
+  deprecateTag,
+  fetchAiStudioMetrics,
   fetchArtworks,
+  fetchRecommendationSandbox,
+  fetchStudioSuggestions,
+  fetchTagGovernance,
+  fetchTagRegistry,
+  mergeTags,
+  renameTag,
+  submitAiFeedback,
   updateArtwork,
   updateArtworkStatus,
 } from '../services/artworkService'
@@ -39,6 +49,7 @@ import AdminTestimonialsTab from '../components/AdminTestimonialsTab'
 import AdminInquiriesTab from '../components/AdminInquiriesTab'
 import AdminCommissionsTab from '../components/AdminCommissionsTab'
 import AdminSettingsTab from '../components/AdminSettingsTab'
+import AdminAiStudioTab from '../components/AdminAiStudioTab'
 import {
   getAutoTagSuggestions,
   getRecommendationReason,
@@ -102,6 +113,7 @@ const adminTabs = [
   { id: 'inquiries', label: 'Inquiries' },
   { id: 'commissions', label: 'Commissions' },
   { id: 'settings', label: 'Settings' },
+  { id: 'ai-studio', label: 'AI Studio' },
 ]
 
 function readInquiryState() {
@@ -147,6 +159,16 @@ function Admin() {
   const [imageIntelligence, setImageIntelligence] = useState(null)
   const [comboForm, setComboForm] = useState(initialComboForm)
   const [editingComboId, setEditingComboId] = useState(null)
+  const [tagRegistry, setTagRegistry] = useState([])
+  const [tagQuery, setTagQuery] = useState('')
+  const [newTagName, setNewTagName] = useState('')
+  const [newTagType, setNewTagType] = useState('style')
+  const [studioSuggestion, setStudioSuggestion] = useState(null)
+  const [aiStudioMetrics, setAiStudioMetrics] = useState({})
+  const [tagGovernance, setTagGovernance] = useState({ tags: [], aliases: [] })
+  const [sandboxResult, setSandboxResult] = useState({})
+  const [sandboxArtworkId, setSandboxArtworkId] = useState('')
+  const [sandboxTags, setSandboxTags] = useState('')
 
   const loadArtworks = async () => {
     const response = await fetchArtworks()
@@ -171,6 +193,21 @@ function Admin() {
   const loadDashboardStats = async () => {
     const response = await fetchDashboardAnalytics()
     setDashboardStats(response)
+  }
+
+  const loadTagRegistry = async (query = '') => {
+    const response = await fetchTagRegistry(query)
+    setTagRegistry(response)
+  }
+
+  const loadAiStudioMetrics = async () => {
+    const response = await fetchAiStudioMetrics().catch(() => ({}))
+    setAiStudioMetrics(response)
+  }
+
+  const loadTagGovernance = async () => {
+    const response = await fetchTagGovernance().catch(() => ({ tags: [], aliases: [] }))
+    setTagGovernance(response)
   }
 
   const loadTestimonials = async () => {
@@ -199,6 +236,9 @@ function Admin() {
           testimonialResponse,
           sessionResponse,
           activityResponse,
+          tagRegistryResponse,
+          aiStudioResponse,
+          tagGovernanceResponse,
         ] = await Promise.all([
           fetchArtworks(),
           fetchAdminCombos(),
@@ -209,6 +249,9 @@ function Admin() {
           fetchAdminTestimonials(),
           fetchAdminSession(),
           backendAdminRequest('/api/admin/activity'),
+          fetchTagRegistry().catch(() => []),
+          fetchAiStudioMetrics().catch(() => ({})),
+          fetchTagGovernance().catch(() => ({ tags: [], aliases: [] })),
         ])
 
         if (!isCancelled) {
@@ -227,6 +270,7 @@ function Admin() {
           setTestimonials(testimonialResponse)
           setAdminSession(sessionResponse.data || null)
           setActivityLogs(Array.isArray(activityResponse.data) ? activityResponse.data : [])
+          setTagRegistry(Array.isArray(tagRegistryResponse) ? tagRegistryResponse : [])
           setPasswordForm((previous) => ({
             ...previous,
             resetEmail: sessionResponse.data?.admin?.email || previous.resetEmail,
@@ -236,6 +280,8 @@ function Admin() {
             ...readInquiryState(),
             ...persistedInquiryState,
           })
+          setAiStudioMetrics(aiStudioResponse || {})
+          setTagGovernance(tagGovernanceResponse || { tags: [], aliases: [] })
           setErrorMessage('')
         }
       } catch (error) {
@@ -367,7 +413,7 @@ function Admin() {
 
       setForm(initialForm)
       setEditingId(null)
-      await Promise.all([loadArtworks(), loadActivityLogs()])
+      await Promise.all([loadArtworks(), loadActivityLogs(), loadTagRegistry(tagQuery), loadAiStudioMetrics()])
     } catch (error) {
       setErrorMessage(`Failed to save artwork: ${error.message}`)
     }
@@ -409,7 +455,7 @@ function Admin() {
     setErrorMessage('')
     try {
       await deleteArtwork(id)
-      await Promise.all([loadArtworks(), loadActivityLogs()])
+      await Promise.all([loadArtworks(), loadActivityLogs(), loadAiStudioMetrics()])
       setMessage('Artwork deleted successfully.')
     } catch (error) {
       setErrorMessage(`Failed to delete artwork: ${error.message}`)
@@ -535,7 +581,7 @@ function Admin() {
     setErrorMessage('')
     try {
       await updateArtworkStatus(id, status)
-      await Promise.all([loadArtworks(), loadActivityLogs()])
+      await Promise.all([loadArtworks(), loadActivityLogs(), loadAiStudioMetrics()])
       setMessage('Artwork status updated.')
     } catch (error) {
       setErrorMessage(`Failed to update status: ${error.message}`)
@@ -551,7 +597,7 @@ function Admin() {
         images: Array.isArray(artwork.images) ? artwork.images : artwork.image ? [artwork.image] : [],
         is_featured: artwork.is_featured !== true,
       })
-      await Promise.all([loadArtworks(), loadDashboardStats(), loadActivityLogs()])
+      await Promise.all([loadArtworks(), loadDashboardStats(), loadActivityLogs(), loadAiStudioMetrics()])
       setMessage('Artwork featured state updated.')
     } catch (error) {
       setErrorMessage(`Failed to update featured state: ${error.message}`)
@@ -578,6 +624,88 @@ function Admin() {
       ...previous,
       tags: nextTags.join(', '),
     }))
+  }
+
+  const onToggleTagPill = (tagName) => {
+    const target = String(tagName || '').trim().toLowerCase()
+    if (!target) return
+    const tags = form.tags
+      .split(',')
+      .map((tag) => tag.trim().toLowerCase())
+      .filter(Boolean)
+    const nextTags = tags.includes(target) ? tags.filter((tag) => tag !== target) : [...tags, target]
+    setForm((previous) => ({ ...previous, tags: nextTags.join(', ') }))
+  }
+
+  const onCreateTag = async () => {
+    if (!newTagName.trim()) return
+    try {
+      await createRegistryTag({ name: newTagName.trim(), type: newTagType })
+      setNewTagName('')
+      await loadTagRegistry(tagQuery)
+      onToggleTagPill(newTagName)
+      setMessage('Tag created and registered globally.')
+    } catch (error) {
+      setErrorMessage(`Failed to create tag: ${error.message}`)
+    }
+  }
+
+  const onStudioSuggest = async () => {
+    try {
+      const response = await fetchStudioSuggestions({
+        artwork_id: editingId,
+        title: form.title,
+        description: form.description,
+        medium: form.medium,
+        category: form.category,
+        price: Number(form.price || 0),
+        image_hints: selectedImageSuggestions,
+      })
+      setStudioSuggestion(response)
+      await Promise.all(
+        (response.suggested_tags || []).map((tag) =>
+          submitAiFeedback({
+            feedbackType: 'tag_suggestion',
+            source: 'ai_studio',
+            signalKey: tag,
+            action: 'accepted',
+          }).catch(() => null),
+        ),
+      )
+      if (Array.isArray(response.suggested_tags) && response.suggested_tags.length > 0) {
+        const existingTags = form.tags
+          .split(',')
+          .map((tag) => tag.trim().toLowerCase())
+          .filter(Boolean)
+        const merged = Array.from(new Set([...existingTags, ...response.suggested_tags]))
+        setForm((previous) => ({
+          ...previous,
+          tags: merged.join(', '),
+          description: previous.description || response.alt_description || '',
+        }))
+        await loadTagRegistry(tagQuery)
+        await loadTagGovernance()
+      }
+    } catch (error) {
+      setErrorMessage(`AI studio suggestion failed: ${error.message}`)
+    }
+  }
+
+  const onBulkPrefill = async (bulkInput) => {
+    const lines = String(bulkInput || '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+    if (lines.length === 0) return
+    setForm((previous) => ({
+      ...previous,
+      image1: lines[0] || '',
+      image2: lines[1] || '',
+      image3: lines[2] || '',
+      image4: lines[3] || '',
+      image5: lines[4] || '',
+    }))
+    await onStudioSuggest()
   }
 
   const onResetRecommendationData = async () => {
@@ -836,6 +964,21 @@ function Admin() {
               onDeleteArtwork={onDeleteArtwork}
               onToggleArtworkFeatured={onToggleArtworkFeatured}
               onSuggestArtworkTags={onSuggestArtworkTags}
+              tagRegistry={tagRegistry}
+              studioSuggestion={studioSuggestion}
+              newTagName={newTagName}
+              newTagType={newTagType}
+              tagQuery={tagQuery}
+              onToggleTagPill={onToggleTagPill}
+              onCreateTag={onCreateTag}
+              onTagQueryChange={async (value) => {
+                setTagQuery(value)
+                await loadTagRegistry(value)
+              }}
+              onNewTagNameChange={setNewTagName}
+              onNewTagTypeChange={setNewTagType}
+              onStudioSuggest={onStudioSuggest}
+              onBulkPrefill={onBulkPrefill}
             />
           ) : null}
           {activeTab === 'combos' ? (
@@ -901,6 +1044,62 @@ function Admin() {
               onSubmitPasswordReset={onSubmitPasswordReset}
               onLogout={onLogout}
               onResetRecommendationData={onResetRecommendationData}
+            />
+          ) : null}
+          {activeTab === 'ai-studio' ? (
+            <AdminAiStudioTab
+              metrics={aiStudioMetrics}
+              governance={tagGovernance}
+              sandbox={sandboxResult}
+              sandboxArtworkId={sandboxArtworkId}
+              sandboxTags={sandboxTags}
+              onSandboxArtworkIdChange={setSandboxArtworkId}
+              onSandboxTagsChange={setSandboxTags}
+              onRunSandbox={async () => {
+                const tags = sandboxTags
+                  .split(',')
+                  .map((tag) => tag.trim().toLowerCase())
+                  .filter(Boolean)
+                const result = await fetchRecommendationSandbox({
+                  artworkId: sandboxArtworkId ? Number(sandboxArtworkId) : null,
+                  tags,
+                })
+                setSandboxResult(result)
+              }}
+              onMergeTags={async (sourceTag) => {
+                const targetTag = window.prompt(`Merge "${sourceTag}" into which canonical tag?`, sourceTag)
+                if (!targetTag || targetTag.trim().toLowerCase() === sourceTag.trim().toLowerCase()) return
+                await mergeTags(sourceTag, targetTag.trim().toLowerCase())
+                await submitAiFeedback({
+                  feedbackType: 'tag_merge',
+                  source: 'governance',
+                  signalKey: `${sourceTag}->${targetTag}`,
+                  action: 'edited',
+                }).catch(() => null)
+                await Promise.all([loadTagGovernance(), loadTagRegistry(tagQuery), loadAiStudioMetrics()])
+              }}
+              onRenameTag={async (tagId, currentName) => {
+                const nextName = window.prompt('Rename tag', currentName)
+                if (!nextName || nextName.trim().toLowerCase() === currentName.trim().toLowerCase()) return
+                await renameTag(tagId, nextName.trim().toLowerCase())
+                await submitAiFeedback({
+                  feedbackType: 'tag_rename',
+                  source: 'governance',
+                  signalKey: currentName,
+                  action: 'edited',
+                }).catch(() => null)
+                await Promise.all([loadTagGovernance(), loadTagRegistry(tagQuery), loadAiStudioMetrics()])
+              }}
+              onDeprecateTag={async (tagId) => {
+                await deprecateTag(tagId)
+                await submitAiFeedback({
+                  feedbackType: 'tag_deprecate',
+                  source: 'governance',
+                  signalKey: String(tagId),
+                  action: 'edited',
+                }).catch(() => null)
+                await Promise.all([loadTagGovernance(), loadTagRegistry(tagQuery), loadAiStudioMetrics()])
+              }}
             />
           ) : null}
         </div>

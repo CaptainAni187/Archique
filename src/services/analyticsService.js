@@ -1,5 +1,6 @@
 import { backendRequest } from './backendApiService'
 import { updateTasteProfileFromEvent } from './tasteService'
+import { getStoredUser } from './userAuthService'
 
 const SESSION_STORAGE_KEY = 'archiverse_visitor_session_id'
 
@@ -28,6 +29,7 @@ export function getAnonymousSessionId() {
 
 export async function trackAnalyticsEvent(eventType, metadata = {}) {
   updateTasteProfileFromEvent(eventType, metadata)
+  const currentUser = getStoredUser()
 
   try {
     await backendRequest('/api/analytics', {
@@ -35,6 +37,7 @@ export async function trackAnalyticsEvent(eventType, metadata = {}) {
       body: JSON.stringify({
         event_type: eventType,
         session_id: getAnonymousSessionId(),
+        user_id: currentUser?.id || null,
         path: typeof window !== 'undefined' ? window.location.pathname : '',
         referrer: typeof document !== 'undefined' ? document.referrer || '' : '',
         artwork_id: metadata.artwork_id || metadata.id || metadata.artwork?.id || null,
@@ -44,4 +47,11 @@ export async function trackAnalyticsEvent(eventType, metadata = {}) {
   } catch (error) {
     console.error('Analytics tracking failed:', error)
   }
+}
+
+export async function trackRecommendationEvent(eventType, metadata = {}) {
+  return trackAnalyticsEvent(eventType, {
+    ...metadata,
+    recommendation_signal: true,
+  })
 }

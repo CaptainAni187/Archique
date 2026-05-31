@@ -3,16 +3,34 @@ import { requireAdminAuth } from './_lib/adminSession.js'
 import { logAdminActivity } from './_lib/adminActivity.js'
 import { methodNotAllowed, readJson, sendJson } from './_lib/http.js'
 import {
+  buildRecommendationReasons,
+  buildTasteVector,
+  createEmptyTasteProfile,
+  mergeTasteProfileForEvent,
+  rankArtworksWithPipeline,
+  suggestArtworkTags,
+} from '../shared/ai/core/index.js'
+import {
+  createTagAlias,
   createCombo,
   createArtwork,
+  createTagRegistryEntry,
   deleteComboById,
   deleteArtwork,
+  fetchAdminAiFeedback,
   fetchComboById,
   fetchCombos,
   fetchArtworkById,
   fetchArtworks,
+  fetchRecentArtworks,
+  fetchTagAliases,
+  fetchTagByName,
+  fetchTagRegistry,
+  fetchVisitorEvents,
+  upsertAdminAiFeedback,
   updateComboById,
   updateArtwork,
+  updateTagRegistryEntryById,
 } from './_lib/supabaseAdmin.js'
 import {
   artworkPayloadSchema,
@@ -116,6 +134,80 @@ function getArtworkId(req) {
 
 function getAction(req) {
   return String(req.query?.action || '').trim().toLowerCase()
+}
+function normalizeTagName(value) {
+  return String(value || '').trim().toLowerCase()
+}
+
+const TAG_TYPES = ['style', 'mood', 'color', 'subject', 'space', 'energy', 'medium', 'collection']
+
+function inferTagType(tag = '') {
+  const value = normalizeTagName(tag)
+  const colorTags = ['black', 'white', 'red', 'blue', 'green', 'gold', 'grey', 'gray', 'brown']
+  const moodTags = ['calm', 'dark', 'emotional', 'vibrant', 'minimal', 'dramatic', 'serene']
+  const spaceTags = ['living-room', 'bedroom', 'gaming-room', 'studio', 'office']
+  if (colorTags.includes(value)) return 'color'
+  if (moodTags.includes(value)) return 'mood'
+  if (spaceTags.includes(value)) return 'space'
+  if (value.includes('collection')) return 'collection'
+  return 'style'
+}
+
+async function registerTags(tags = [], createdBy = 'system') {
+  const normalized = Array.from(new Set(tags.map(normalizeTagName).filter(Boolean))).slice(0, 32)
+  const rows = []
+  for (const tag of normalized) {
+    const existing = await fetchTagByName(tag)
+    if (existing) {
+      const updated = await updateTagRegistryEntryById(existing.id, {
+        usage_count: Number(existing.usage_count || 0) + 1,
+        is_active: true,
+      })
+      rows.push(updated || existing)
+      continue
+    }
+    const created = await createTagRegistryEntry({
+      name: tag,
+      type: inferTagType(tag),
+      usage_count: 1,
+      created_by: createdBy,
+      is_system: createdBy === 'system',
+      is_active: true,
+    })
+    if (created) {
+      rows.push(created)
+    }
+  }
+  return rows
+}
+
+function buildArtworkHealthScore({ artwork, duplicateMatches = [], comboMatches = [] }) {
+  const tags = Array.isArray(artwork.tags) ? artwork.tags : []
+  const hasMood = tags.some((tag) => inferTagType(tag) === 'mood')
+  const hasColor = tags.some((tag) => inferTagType(tag) === 'color')
+  const hasSpace = tags.some((tag) => inferTagType(tag) === 'space')
+  const hasDescription = String(artwork.description || '').trim().length >= 40
+  const hasCombos = comboMatches.length > 0
+  const duplicateRisk = duplicateMatches.some((item) => Number(item.score || 0) >= 0.9)
+  let score = 50
+  if (tags.length >= 4) score += 10
+  if (hasMood) score += 8
+  if (hasColor) score += 8
+  if (hasSpace) score += 6
+  if (hasDescription) score += 8
+  if (hasCombos) score += 6
+  if (duplicateRisk) score -= 14
+  const suggestions = []
+  if (!hasMood) suggestions.push('add mood tags')
+  if (!hasColor) suggestions.push('add color tags')
+  if (!hasSpace) suggestions.push('add room category tag')
+  if (!hasCombos) suggestions.push('low combo compatibility')
+  if (!hasDescription) suggestions.push('improve description depth')
+  if (duplicateRisk) suggestions.push('possible duplicate image detected')
+  return {
+    score: Math.max(0, Math.min(100, score)),
+    suggestions,
+  }
 }
 
 function getComboId(req) {
@@ -445,6 +537,7 @@ async function handleCreateArtwork(req, res) {
 
   const body = await readJson(req)
   const payload = validateWithSchema(artworkPayloadSchema, body)
+  await registerTags(payload.tags, session.email || 'admin')
 
   try {
     const artwork = await createArtwork({
@@ -513,6 +606,7 @@ async function handleUpdateArtwork(req, res) {
 
   const body = await readJson(req)
   const payload = validateWithSchema(artworkPayloadSchema, body)
+  await registerTags(payload.tags, session.email || 'admin')
   const existingArtwork = await fetchArtworkById(artworkId)
   const featuredChanged =
     existingArtwork && existingArtwork.is_featured !== payload.is_featured
@@ -570,6 +664,386 @@ async function handleUpdateArtwork(req, res) {
 
     throw error
   }
+}
+
+async function handleFetchTags(req, res) {
+  const session = await requireAdminAuth(req, res)
+  if (!session) return null
+  const query = String(req.query?.q || '').trim()
+  const type = String(req.query?.type || '').trim().toLowerCase()
+  const tags = await fetchTagRegistry({
+    query,
+    type: TAG_TYPES.includes(type) ? type : '',
+    onlyActive: true,
+    limit: 250,
+  })
+  return sendJson(res, 200, {
+    success: true,
+    data: tags,
+  })
+}
+
+async function handleCreateTag(req, res) {
+  const session = await requireAdminAuth(req, res)
+  if (!session) return null
+  const body = await readJson(req)
+  const name = normalizeTagName(body.name)
+  const type = TAG_TYPES.includes(String(body.type || '').trim()) ? String(body.type).trim() : inferTagType(name)
+  if (!name) {
+    return sendJson(res, 400, { success: false, error: 'VALIDATION_ERROR', message: 'Tag name is required.' })
+  }
+  const existing = await fetchTagByName(name)
+  if (existing) {
+    const updated = await updateTagRegistryEntryById(existing.id, {
+      usage_count: Number(existing.usage_count || 0) + 1,
+      is_active: true,
+    })
+    return sendJson(res, 200, { success: true, data: updated || existing, duplicated: true })
+  }
+  const created = await createTagRegistryEntry({
+    name,
+    type,
+    usage_count: 1,
+    created_by: session.email || 'admin',
+    is_system: false,
+    is_active: true,
+  })
+  return sendJson(res, 201, { success: true, data: created })
+}
+
+async function handleStudioSuggest(req, res) {
+  const session = await requireAdminAuth(req, res)
+  if (!session) return null
+  const body = await readJson(req)
+  const title = String(body.title || '')
+  const description = String(body.description || '')
+  const medium = String(body.medium || '')
+  const category = String(body.category || 'canvas')
+  const imageHints = Array.isArray(body.image_hints) ? body.image_hints : []
+  const candidate = { title, description, medium, category, tags: imageHints }
+  const suggestedTags = Array.from(new Set(suggestArtworkTags(candidate).concat(imageHints.map(normalizeTagName)))).slice(0, 20)
+  const allArtworks = await fetchRecentArtworks(160)
+  const similar = allArtworks
+    .filter((item) => String(item.id) !== String(body.artwork_id || ''))
+    .map((item) => ({
+      artwork_id: item.id,
+      title: item.title,
+      overlap: (Array.isArray(item.tags) ? item.tags : []).filter((tag) => suggestedTags.includes(normalizeTagName(tag))).length,
+    }))
+    .sort((a, b) => b.overlap - a.overlap)
+    .slice(0, 5)
+  const comboSuggestions = similar.filter((item) => item.overlap >= 2).slice(0, 3)
+  const previewReasons = buildRecommendationReasons(
+    { ...candidate, tags: suggestedTags, price: Number(body.price || 0), id: body.artwork_id || 'draft' },
+    mergeTasteProfileForEvent(createEmptyTasteProfile(), {
+      event_type: 'artwork_view',
+      metadata: { artwork: { ...candidate, tags: suggestedTags } },
+    }),
+    {},
+  )
+  const vector = buildTasteVector(
+    mergeTasteProfileForEvent(createEmptyTasteProfile(), {
+      event_type: 'product_open',
+      metadata: { artwork: { ...candidate, tags: suggestedTags, price: Number(body.price || 0) } },
+    }),
+  )
+  const health = buildArtworkHealthScore({ artwork: { ...candidate, tags: suggestedTags }, duplicateMatches: [], comboMatches: comboSuggestions })
+  return sendJson(res, 200, {
+    success: true,
+    data: {
+      suggested_tags: suggestedTags,
+      suggested_tag_types: suggestedTags.map((tag) => ({ name: tag, type: inferTagType(tag) })),
+      room_aesthetic: suggestedTags.filter((tag) => inferTagType(tag) === 'space'),
+      similar_artworks: similar,
+      combo_suggestions: comboSuggestions,
+      live_preview: previewReasons,
+      recommendation_confidence: Number(vector.recommendation_confidence || 0),
+      metadata_completeness: Math.min(100, 40 + suggestedTags.length * 4 + (description.length > 80 ? 20 : 0)),
+      search_discoverability: Math.min(100, 35 + suggestedTags.length * 3 + (title.length > 6 ? 15 : 0)),
+      health,
+      alt_description: `${title || 'Artwork'} in ${category} style with ${suggestedTags.slice(0, 3).join(', ') || 'curated'} aesthetic.`,
+      semantic_keywords: suggestedTags.slice(0, 8),
+    },
+  })
+}
+
+async function handleAiStudioMetrics(req, res) {
+  const session = await requireAdminAuth(req, res)
+  if (!session) return null
+  const [tags, artworks, events, feedbackRows] = await Promise.all([
+    fetchTagRegistry({ limit: 500, onlyActive: false }),
+    fetchRecentArtworks(240),
+    fetchVisitorEvents(900).catch(() => []),
+    fetchAdminAiFeedback(500).catch(() => []),
+  ])
+  const tagStats = new Map()
+  const artworkById = new Map(artworks.map((item) => [Number(item.id), item]))
+  const ensureTag = (tag) => {
+    const key = normalizeTagName(tag)
+    if (!key) return null
+    if (!tagStats.has(key)) {
+      tagStats.set(key, { tag: key, views: 0, clicks: 0, saves: 0, purchases: 0, recommendation_conversions: 0 })
+    }
+    return tagStats.get(key)
+  }
+  events.forEach((event) => {
+    const artwork = artworkById.get(Number(event.artwork_id))
+    const tagsForEvent = Array.isArray(artwork?.tags) ? artwork.tags : []
+    tagsForEvent.forEach((tag) => {
+      const row = ensureTag(tag)
+      if (!row) return
+      if (event.event_type === 'artwork_view') row.views += 1
+      if (event.event_type === 'artwork_click') row.clicks += 1
+      if (event.event_type === 'favorite_added') row.saves += 1
+      if (event.event_type === 'recommendation_purchased' || event.event_type === 'order_completed') row.purchases += 1
+      if (String(event.event_type || '').startsWith('recommendation_')) row.recommendation_conversions += 1
+    })
+  })
+  const scored = Array.from(tagStats.values()).sort((a, b) => (b.purchases + b.saves + b.clicks) - (a.purchases + a.saves + a.clicks))
+  const lowConfidenceArtworks = artworks.filter((artwork) => (Array.isArray(artwork.tags) ? artwork.tags.length : 0) < 3).slice(0, 12)
+  return sendJson(res, 200, {
+    success: true,
+    data: {
+      top_performing_tags: scored.slice(0, 12),
+      low_performing_tags: scored.filter((row) => row.views > 0 && row.clicks === 0).slice(0, 12),
+      low_confidence_artworks: lowConfidenceArtworks,
+      missing_metadata: artworks.filter((artwork) => !artwork.description || (Array.isArray(artwork.tags) ? artwork.tags.length === 0 : true)).slice(0, 12),
+      weak_recommendation_coverage: artworks.filter((artwork) => (Array.isArray(artwork.tags) ? artwork.tags.length : 0) < 2).slice(0, 12),
+      search_quality_diagnostics: {
+        artworks_without_tags: artworks.filter((artwork) => !Array.isArray(artwork.tags) || artwork.tags.length === 0).length,
+        artworks_without_description: artworks.filter((artwork) => String(artwork.description || '').trim().length < 30).length,
+      },
+      recommendation_diversity_metrics: {
+        unique_active_tags: tags.filter((tag) => tag.is_active).length,
+        active_artworks: artworks.filter((artwork) => artwork.status !== 'sold').length,
+      },
+      recommendation_blind_spots: artworks
+        .filter((artwork) => (Array.isArray(artwork.tags) ? artwork.tags.length : 0) <= 1)
+        .slice(0, 12),
+      combo_conversion_quality: scored
+        .map((row) => ({
+          tag: row.tag,
+          conversion_quality: row.clicks > 0 ? Number((row.purchases / row.clicks).toFixed(3)) : 0,
+        }))
+        .sort((a, b) => b.conversion_quality - a.conversion_quality)
+        .slice(0, 12),
+      search_coverage_gaps: scored.filter((row) => row.views > 0 && row.clicks === 0).slice(0, 12),
+      human_feedback_summary: feedbackRows.slice(0, 20),
+    },
+  })
+}
+
+function canonicalizeTagName(tag, aliasesByName = new Map()) {
+  const normalized = normalizeTagName(tag)
+  return aliasesByName.get(normalized) || normalized
+}
+
+async function handleTagGovernance(req, res) {
+  const session = await requireAdminAuth(req, res)
+  if (!session) return null
+  const [tags, aliases] = await Promise.all([fetchTagRegistry({ limit: 600, onlyActive: false }), fetchTagAliases()])
+  return sendJson(res, 200, {
+    success: true,
+    data: {
+      tags,
+      aliases,
+    },
+  })
+}
+
+async function handleCreateTagAlias(req, res) {
+  const session = await requireAdminAuth(req, res)
+  if (!session) return null
+  const body = await readJson(req)
+  const alias = normalizeTagName(body.alias)
+  const canonicalTagId = Number(body.canonical_tag_id)
+  if (!alias || !Number.isInteger(canonicalTagId) || canonicalTagId <= 0) {
+    return sendJson(res, 400, { success: false, error: 'VALIDATION_ERROR', message: 'alias and canonical_tag_id are required.' })
+  }
+  const created = await createTagAlias({
+    alias,
+    canonical_tag_id: canonicalTagId,
+  })
+  return sendJson(res, 201, { success: true, data: created })
+}
+
+async function handleTagMerge(req, res) {
+  const session = await requireAdminAuth(req, res)
+  if (!session) return null
+  const body = await readJson(req)
+  const sourceTag = normalizeTagName(body.source_tag)
+  const targetTag = normalizeTagName(body.target_tag)
+  if (!sourceTag || !targetTag || sourceTag === targetTag) {
+    return sendJson(res, 400, { success: false, error: 'VALIDATION_ERROR', message: 'Valid source_tag and target_tag are required.' })
+  }
+  const [source, target] = await Promise.all([fetchTagByName(sourceTag), fetchTagByName(targetTag)])
+  if (!target) {
+    return sendJson(res, 404, { success: false, error: 'TARGET_TAG_NOT_FOUND', message: 'Target tag does not exist.' })
+  }
+  if (source?.id) {
+    await createTagAlias({ alias: sourceTag, canonical_tag_id: target.id }).catch(() => null)
+    await updateTagRegistryEntryById(source.id, { is_active: false })
+  }
+  const artworks = await fetchRecentArtworks(500)
+  for (const artwork of artworks) {
+    const tags = Array.isArray(artwork.tags) ? artwork.tags : []
+    if (!tags.some((tag) => normalizeTagName(tag) === sourceTag)) continue
+    const mergedTags = Array.from(
+      new Set(
+        tags.map((tag) => (normalizeTagName(tag) === sourceTag ? targetTag : normalizeTagName(tag))),
+      ),
+    )
+    await updateArtwork(artwork.id, { tags: mergedTags })
+  }
+  await updateTagRegistryEntryById(target.id, {
+    usage_count: Number(target.usage_count || 0) + 1,
+    is_active: true,
+  })
+  return sendJson(res, 200, {
+    success: true,
+    data: {
+      source_tag: sourceTag,
+      target_tag: targetTag,
+      propagated: true,
+    },
+  })
+}
+
+async function handleTagRename(req, res) {
+  const session = await requireAdminAuth(req, res)
+  if (!session) return null
+  const body = await readJson(req)
+  const tagId = Number(body.tag_id)
+  const nextName = normalizeTagName(body.new_name)
+  if (!Number.isInteger(tagId) || tagId <= 0 || !nextName) {
+    return sendJson(res, 400, { success: false, error: 'VALIDATION_ERROR', message: 'tag_id and new_name are required.' })
+  }
+  const tags = await fetchTagRegistry({ onlyActive: false, limit: 600 })
+  const currentTag = tags.find((tag) => Number(tag.id) === tagId)
+  if (!currentTag) {
+    return sendJson(res, 404, { success: false, error: 'TAG_NOT_FOUND', message: 'Tag not found.' })
+  }
+  const existingByName = await fetchTagByName(nextName)
+  if (existingByName && Number(existingByName.id) !== tagId) {
+    return sendJson(res, 409, { success: false, error: 'TAG_NAME_EXISTS', message: 'A tag with this name already exists.' })
+  }
+  await updateTagRegistryEntryById(tagId, { name: nextName, is_active: true })
+  const artworks = await fetchRecentArtworks(500)
+  for (const artwork of artworks) {
+    const tagsList = Array.isArray(artwork.tags) ? artwork.tags : []
+    if (!tagsList.some((tag) => normalizeTagName(tag) === normalizeTagName(currentTag.name))) continue
+    const nextTags = Array.from(
+      new Set(
+        tagsList.map((tag) =>
+          normalizeTagName(tag) === normalizeTagName(currentTag.name) ? nextName : normalizeTagName(tag),
+        ),
+      ),
+    )
+    await updateArtwork(artwork.id, { tags: nextTags })
+  }
+  return sendJson(res, 200, { success: true, data: { tag_id: tagId, new_name: nextName } })
+}
+
+async function handleTagDeprecate(req, res) {
+  const session = await requireAdminAuth(req, res)
+  if (!session) return null
+  const body = await readJson(req)
+  const tagId = Number(body.tag_id)
+  if (!Number.isInteger(tagId) || tagId <= 0) {
+    return sendJson(res, 400, { success: false, error: 'VALIDATION_ERROR', message: 'tag_id is required.' })
+  }
+  const updated = await updateTagRegistryEntryById(tagId, { is_active: false })
+  return sendJson(res, 200, { success: true, data: updated })
+}
+
+async function handleRecommendationSandbox(req, res) {
+  const session = await requireAdminAuth(req, res)
+  if (!session) return null
+  const artworkId = Number(req.query?.artwork_id || 0)
+  const tags = String(req.query?.tags || '')
+    .split(',')
+    .map((tag) => normalizeTagName(tag))
+    .filter(Boolean)
+  const allArtworks = await fetchRecentArtworks(240)
+  const [aliasRows, tagRows] = await Promise.all([
+    fetchTagAliases().catch(() => []),
+    fetchTagRegistry({ limit: 600, onlyActive: false }).catch(() => []),
+  ])
+  const canonicalById = new Map(tagRows.map((item) => [Number(item.id), normalizeTagName(item.name)]))
+  const aliasesByName = new Map(
+    aliasRows.map((item) => [normalizeTagName(item.alias), canonicalById.get(Number(item.canonical_tag_id)) || normalizeTagName(item.alias)]),
+  )
+  const normalizedArtworks = allArtworks.map((artwork) => ({
+    ...artwork,
+    tags: (Array.isArray(artwork.tags) ? artwork.tags : []).map((tag) => canonicalizeTagName(tag, aliasesByName)),
+  }))
+  const seedProfile = mergeTasteProfileForEvent(createEmptyTasteProfile(), {
+    event_type: 'artwork_view',
+    metadata: { artwork: { tags } },
+  })
+  const ranked = rankArtworksWithPipeline(normalizedArtworks, {
+    tasteProfile: seedProfile,
+    limit: 50,
+  })
+  const target = artworkId > 0 ? ranked.find((item) => Number(item.id) === artworkId) : ranked[0]
+  const rankIndex = target ? ranked.findIndex((item) => Number(item.id) === Number(target.id)) + 1 : null
+  return sendJson(res, 200, {
+    success: true,
+    data: {
+      rank: rankIndex,
+      artwork_id: target?.id || null,
+      recommendation_confidence: target?.confidence_score || 0,
+      why_it_ranks: target?.recommendation_reasons || [],
+      target_audience: target?.recommendation_reasons || [],
+      combo_compatibility: ranked
+        .filter((item) => Number(item.id) !== Number(target?.id || 0))
+        .slice(0, 5)
+        .map((item) => ({ id: item.id, title: item.title, score: item.ai_score })),
+      search_discoverability: Math.round((target?.score_breakdown?.semantic_similarity || 0) * 100),
+      diversity_penalty: target?.score_breakdown?.diversity_boost || 0,
+      related_artworks: ranked.slice(0, 10).map((item) => ({
+        id: item.id,
+        title: item.title,
+        score: item.ai_score,
+        confidence: item.confidence_score,
+      })),
+    },
+  })
+}
+
+async function handleAiFeedback(req, res) {
+  const session = await requireAdminAuth(req, res)
+  if (!session) return null
+  if (req.method === 'GET') {
+    const rows = await fetchAdminAiFeedback(500)
+    return sendJson(res, 200, { success: true, data: rows })
+  }
+  const body = await readJson(req)
+  const feedbackType = String(body.feedback_type || '').trim()
+  const source = String(body.source || '').trim() || 'admin'
+  const signalKey = String(body.signal_key || '').trim().toLowerCase()
+  const action = String(body.action || '').trim().toLowerCase()
+  if (!feedbackType || !signalKey || !['accepted', 'rejected', 'edited'].includes(action)) {
+    return sendJson(res, 400, { success: false, error: 'VALIDATION_ERROR', message: 'feedback_type, signal_key and action are required.' })
+  }
+  const existing = (await fetchAdminAiFeedback(500)).find(
+    (row) =>
+      row.feedback_type === feedbackType && row.source === source && String(row.signal_key || '') === signalKey,
+  )
+  const payload = {
+    feedback_type: feedbackType,
+    source,
+    signal_key: signalKey,
+    accepted_count: Number(existing?.accepted_count || 0),
+    rejected_count: Number(existing?.rejected_count || 0),
+    edited_count: Number(existing?.edited_count || 0),
+    updated_at: new Date().toISOString(),
+  }
+  if (action === 'accepted') payload.accepted_count += 1
+  if (action === 'rejected') payload.rejected_count += 1
+  if (action === 'edited') payload.edited_count += 1
+  const upserted = await upsertAdminAiFeedback(payload)
+  return sendJson(res, 200, { success: true, data: upserted || payload })
 }
 
 async function handleUpdateArtworkStatus(req, res) {
@@ -647,6 +1121,39 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET' && action === 'combos') {
       return await handleFetchCombos(req, res)
+    }
+    if (req.method === 'GET' && action === 'tags') {
+      return await handleFetchTags(req, res)
+    }
+    if (req.method === 'POST' && action === 'tags') {
+      return await handleCreateTag(req, res)
+    }
+    if (req.method === 'POST' && action === 'studio-suggest') {
+      return await handleStudioSuggest(req, res)
+    }
+    if (req.method === 'GET' && action === 'recommendation-sandbox') {
+      return await handleRecommendationSandbox(req, res)
+    }
+    if (req.method === 'GET' && action === 'ai-studio') {
+      return await handleAiStudioMetrics(req, res)
+    }
+    if (req.method === 'GET' && action === 'tag-governance') {
+      return await handleTagGovernance(req, res)
+    }
+    if (req.method === 'POST' && action === 'tag-alias') {
+      return await handleCreateTagAlias(req, res)
+    }
+    if (req.method === 'POST' && action === 'tag-merge') {
+      return await handleTagMerge(req, res)
+    }
+    if (req.method === 'POST' && action === 'tag-rename') {
+      return await handleTagRename(req, res)
+    }
+    if (req.method === 'POST' && action === 'tag-deprecate') {
+      return await handleTagDeprecate(req, res)
+    }
+    if ((req.method === 'GET' || req.method === 'POST') && action === 'ai-feedback') {
+      return await handleAiFeedback(req, res)
     }
 
     if (req.method === 'POST' && action === 'combos') {

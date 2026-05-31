@@ -22,6 +22,22 @@ function AdminDashboardTab({ dashboardStats }) {
           <p>Unique Artworks Sold</p>
           <strong>{dashboardStats.unique_artworks_sold}</strong>
         </article>
+        <article className="stat-card">
+          <p>Total Accounts</p>
+          <strong>{dashboardStats.total_accounts}</strong>
+        </article>
+        <article className="stat-card">
+          <p>Google Accounts</p>
+          <strong>{dashboardStats.google_accounts}</strong>
+        </article>
+        <article className="stat-card">
+          <p>Email Accounts</p>
+          <strong>{dashboardStats.email_accounts}</strong>
+        </article>
+        <article className="stat-card">
+          <p>Daily Logins</p>
+          <strong>{dashboardStats.daily_logins}</strong>
+        </article>
       </div>
 
       <section className="order-detail-card dashboard-daily-orders">
@@ -69,6 +85,60 @@ function AdminDashboardTab({ dashboardStats }) {
           ) : (
             <p>
               <span>No viewed tag data yet.</span>
+              <strong>0</strong>
+            </p>
+          )}
+        </div>
+      </section>
+
+      <section className="order-detail-card dashboard-daily-orders">
+        <h3>User Login Insights</h3>
+        <div className="dashboard-daily-list">
+          <p>
+            <span>Total Logins</span>
+            <strong>{dashboardStats.total_logins}</strong>
+          </p>
+          <p>
+            <span>Google Logins</span>
+            <strong>{dashboardStats.google_logins}</strong>
+          </p>
+          <p>
+            <span>Email Logins</span>
+            <strong>{dashboardStats.email_logins}</strong>
+          </p>
+          <p>
+            <span>Active Users (7d)</span>
+            <strong>{dashboardStats.active_users_7d}</strong>
+          </p>
+          <p>
+            <span>Last Login</span>
+            <strong>{dashboardStats.last_login_at || '-'}</strong>
+          </p>
+        </div>
+      </section>
+
+      <section className="order-detail-card dashboard-daily-orders">
+        <h3>Latest Users</h3>
+        <div className="dashboard-daily-list">
+          {Array.isArray(dashboardStats.latest_users) && dashboardStats.latest_users.length > 0 ? (
+            dashboardStats.latest_users.map((user) => (
+              <p key={`latest-user-${user.id}`}>
+                <span>
+                  {user.avatar_url ? (
+                    <img
+                      src={user.avatar_url}
+                      alt={user.name || user.email || `User ${user.id}`}
+                      className="admin-user-avatar"
+                    />
+                  ) : null}
+                  {user.name || user.email || `User ${user.id}`} ({user.provider})
+                </span>
+                <strong>{user.login_count}</strong>
+              </p>
+            ))
+          ) : (
+            <p>
+              <span>No user records yet.</span>
               <strong>0</strong>
             </p>
           )}

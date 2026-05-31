@@ -13,6 +13,11 @@ function AdminArtworksTab({
   imageIntelligenceById,
   selectedImageSuggestions,
   selectedDuplicateCandidates,
+  tagRegistry,
+  studioSuggestion,
+  newTagName,
+  newTagType,
+  tagQuery,
   onChange,
   onToggleFeaturedField,
   onSubmit,
@@ -23,6 +28,13 @@ function AdminArtworksTab({
   onDeleteArtwork,
   onToggleArtworkFeatured,
   onSuggestArtworkTags,
+  onToggleTagPill,
+  onCreateTag,
+  onTagQueryChange,
+  onNewTagNameChange,
+  onNewTagTypeChange,
+  onStudioSuggest,
+  onBulkPrefill,
 }) {
   return (
     <section className="admin-tab-panel">
@@ -68,9 +80,59 @@ function AdminArtworksTab({
             placeholder="minimal, calm, spiritual"
           />
         </label>
+        <label>
+          Tag search
+          <input
+            value={tagQuery}
+            onChange={(event) => onTagQueryChange(event.target.value)}
+            placeholder="Search global tags..."
+          />
+        </label>
+        <div className="mood-chip-row">
+          {tagRegistry.map((tag) => {
+            const currentTags = form.tags
+              .split(',')
+              .map((item) => item.trim().toLowerCase())
+              .filter(Boolean)
+            const isActive = currentTags.includes(String(tag.name || '').toLowerCase())
+            return (
+              <button
+                key={`tag-pill-${tag.id}`}
+                type="button"
+                className={`mood-chip ${isActive ? 'is-active' : ''}`}
+                onClick={() => onToggleTagPill(tag.name)}
+              >
+                {tag.name}
+              </button>
+            )
+          })}
+        </div>
+        <div className="btn-row">
+          <input
+            value={newTagName}
+            onChange={(event) => onNewTagNameChange(event.target.value)}
+            placeholder="new tag"
+          />
+          <select value={newTagType} onChange={(event) => onNewTagTypeChange(event.target.value)}>
+            <option value="style">style</option>
+            <option value="mood">mood</option>
+            <option value="color">color</option>
+            <option value="subject">subject</option>
+            <option value="space">space</option>
+            <option value="energy">energy</option>
+            <option value="medium">medium</option>
+            <option value="collection">collection</option>
+          </select>
+          <button type="button" className="btn-secondary" onClick={onCreateTag}>
+            + Add Tag
+          </button>
+        </div>
         <div className="btn-row">
           <button type="button" className="btn-secondary" onClick={onSuggestArtworkTags}>
             Suggest Tags
+          </button>
+          <button type="button" className="btn-secondary" onClick={onStudioSuggest}>
+            AI Studio Suggest
           </button>
         </div>
         {selectedImageSuggestions.length > 0 ? (
@@ -83,6 +145,22 @@ function AdminArtworksTab({
               .map((candidate) => `#${candidate.artwork_id} (${Math.round(candidate.score * 100)}%)`)
               .join(', ')}
           </p>
+        ) : null}
+        {studioSuggestion?.live_preview?.length ? (
+          <div className="commission-brief-preview">
+            <p><strong>Live AI Preview</strong></p>
+            <p>This artwork will likely appear in:</p>
+            {studioSuggestion.live_preview.map((reason) => (
+              <p key={reason}>- {reason}</p>
+            ))}
+            <p>Recommendation confidence: {Math.round(Number(studioSuggestion.recommendation_confidence || 0) * 100)}%</p>
+            <p>Metadata completeness: {Math.round(Number(studioSuggestion.metadata_completeness || 0))}%</p>
+            <p>Search discoverability: {Math.round(Number(studioSuggestion.search_discoverability || 0))}%</p>
+            <p>Artwork intelligence score: {Math.round(Number(studioSuggestion.health?.score || 0))}%</p>
+            {Array.isArray(studioSuggestion.health?.suggestions) && studioSuggestion.health.suggestions.length > 0 ? (
+              <p>Improvements: {studioSuggestion.health.suggestions.join(', ')}</p>
+            ) : null}
+          </div>
         ) : null}
         <label>
           Medium
@@ -148,6 +226,14 @@ function AdminArtworksTab({
           ) : null}
         </div>
       </form>
+      <section className="order-detail-card">
+        <h3>Bulk Upload Studio</h3>
+        <p>Paste one image URL per line to prefill upload metadata suggestions.</p>
+        <textarea
+          placeholder="https://...\nhttps://...\nhttps://..."
+          onBlur={(event) => onBulkPrefill(event.target.value)}
+        />
+      </section>
 
       <div className="filter-row">
         <span>Artwork filter:</span>

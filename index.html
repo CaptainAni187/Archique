@@ -21,6 +21,15 @@
       name="twitter:description"
       content="Discover curated fine artworks and collect with confidence."
     />
+    <script>
+      (function () {
+        try {
+          if (localStorage.getItem('archiverse-theme') === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

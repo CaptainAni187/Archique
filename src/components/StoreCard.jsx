@@ -7,7 +7,7 @@ function formatPrice(price) {
   return `Rs. ${Number(price).toLocaleString()}`
 }
 
-function StoreCard({ artwork }) {
+function StoreCard({ artwork, isSaved = false, onToggleSave = null }) {
   const navigate = useNavigate()
   const images = useMemo(
     () =>
@@ -51,6 +51,20 @@ function StoreCard({ artwork }) {
         {artwork.status === 'sold' ? (
           <span className="badge sold card-badge">SOLD OUT</span>
         ) : null}
+        {typeof onToggleSave === 'function' ? (
+          <button
+            type="button"
+            className={`save-artwork-button ${isSaved ? 'is-saved' : ''}`}
+            aria-label={isSaved ? `Unsave ${artwork.title}` : `Save ${artwork.title}`}
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              onToggleSave()
+            }}
+          >
+            {isSaved ? 'Saved' : 'Save'}
+          </button>
+        ) : null}
       </div>
       <div className="store-card-body">
         <h3>{artwork.title}</h3>
@@ -58,6 +72,9 @@ function StoreCard({ artwork }) {
         <p>{formatPrice(artwork.price)}</p>
         {artwork.smart_explanation ? (
           <p className="smart-result-explanation">{artwork.smart_explanation}</p>
+        ) : null}
+        {artwork.recommendation_reason_label ? (
+          <p className="smart-result-explanation">{artwork.recommendation_reason_label}</p>
         ) : null}
       </div>
     </article>
