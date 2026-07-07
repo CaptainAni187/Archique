@@ -208,3 +208,49 @@ export async function removeCollectionItem(itemId) {
     body: JSON.stringify({ item_id: itemId }),
   })
 }
+
+export async function fetchRoomProfiles() {
+  const token = getUserToken()
+  if (!token) {
+    return []
+  }
+
+  try {
+    const payload = await backendRequest('/api/user/room-profiles', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    return Array.isArray(payload.profiles) ? payload.profiles : []
+  } catch {
+    return []
+  }
+}
+
+export async function saveRoomProfile({ label, space_type, room_personality, profile }) {
+  const token = getUserToken()
+  const payload = await backendRequest('/api/user/room-profiles', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token || ''}`,
+    },
+    body: JSON.stringify({
+      label,
+      space_type,
+      room_personality,
+      profile,
+    }),
+  })
+  return payload.profile || null
+}
+
+export async function deleteRoomProfile(profileId) {
+  const token = getUserToken()
+  return backendRequest('/api/user/room-profiles', {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token || ''}`,
+    },
+    body: JSON.stringify({ profile_id: profileId }),
+  })
+}

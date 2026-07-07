@@ -770,6 +770,19 @@ async function handleStudioSuggest(req, res) {
 async function handleAiStudioMetrics(req, res) {
   const session = await requireAdminAuth(req, res)
   if (!session) return null
+
+  function incrementCounter(counter, key) {
+    if (!key) return
+    counter.set(key, (counter.get(key) || 0) + 1)
+  }
+
+  function topCounterItems(counter, limit = 8) {
+    return Array.from(counter.entries())
+      .map(([label, count]) => ({ label, count }))
+      .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label))
+      .slice(0, limit)
+  }
+
   const [tags, artworks, events, feedbackRows] = await Promise.all([
     fetchTagRegistry({ limit: 500, onlyActive: false }),
     fetchRecentArtworks(240),
@@ -801,6 +814,33 @@ async function handleAiStudioMetrics(req, res) {
   })
   const scored = Array.from(tagStats.values()).sort((a, b) => (b.purchases + b.saves + b.clicks) - (a.purchases + a.saves + a.clicks))
   const lowConfidenceArtworks = artworks.filter((artwork) => (Array.isArray(artwork.tags) ? artwork.tags.length : 0) < 3).slice(0, 12)
+  const roomEvents = events.filter((event) => String(event.event_type || '').startsWith('room_'))
+  const roomPersonalityCounts = new Map()
+  const roomStyleCounts = new Map()
+  const roomMoodCounts = new Map()
+  const roomSetCounts = new Map()
+
+  roomEvents.forEach((event) => {
+    const metadata = event.metadata || {}
+    if (event.event_type === 'room_personality_detected') {
+      incrementCounter(roomPersonalityCounts, String(metadata.room_personality || '').trim())
+      ;(Array.isArray(metadata.style) ? metadata.style : []).forEach((style) =>
+        incrementCounter(roomStyleCounts, String(style || '').trim()),
+      )
+      ;(Array.isArray(metadata.moods) ? metadata.moods : []).forEach((mood) =>
+        incrementCounter(roomMoodCounts, String(mood || '').trim()),
+      )
+    }
+    if (event.event_type === 'room_set_clicked') {
+      incrementCounter(roomSetCounts, String(metadata.combo_id || 'unknown'))
+    }
+  })
+
+  const roomUploads = roomEvents.filter((event) => event.event_type === 'room_upload').length
+  const roomMatches = roomEvents.filter((event) => event.event_type === 'room_match_clicked').length
+  const roomPreviews = roomEvents.filter((event) => event.event_type === 'room_preview_opened').length
+  const roomSaved = roomEvents.filter((event) => event.event_type === 'room_profile_saved').length
+
   return sendJson(res, 200, {
     success: true,
     data: {
@@ -829,6 +869,19 @@ async function handleAiStudioMetrics(req, res) {
         .slice(0, 12),
       search_coverage_gaps: scored.filter((row) => row.views > 0 && row.clicks === 0).slice(0, 12),
       human_feedback_summary: feedbackRows.slice(0, 20),
+      room_personality_distribution: topCounterItems(roomPersonalityCounts, 12),
+      room_matched_styles: topCounterItems(roomStyleCounts, 12),
+      room_matched_moods: topCounterItems(roomMoodCounts, 12),
+      best_performing_room_sets: topCounterItems(roomSetCounts, 12),
+      room_recommendation_conversion: {
+        uploads: roomUploads,
+        matches_clicked: roomMatches,
+        previews_opened: roomPreviews,
+        profiles_saved: roomSaved,
+        match_rate: roomUploads > 0 ? Number((roomMatches / roomUploads).toFixed(3)) : 0,
+        preview_rate: roomUploads > 0 ? Number((roomPreviews / roomUploads).toFixed(3)) : 0,
+        save_rate: roomUploads > 0 ? Number((roomSaved / roomUploads).toFixed(3)) : 0,
+      },
     },
   })
 }

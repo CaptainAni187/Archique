@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useOrderContext } from '../state/useOrderContext'
 import { fetchArtworks, fetchSingleArtwork } from '../services/artworkService'
 import { fetchActiveCombos } from '../services/comboService'
@@ -391,6 +391,27 @@ function Product() {
           >
             {isSoldOut ? 'Sold Out' : 'Buy This Work'}
           </button>
+        </div>
+      </Reveal>
+      <Reveal className="section-block-home room-match-entry">
+        <p className="eyebrow">SEE THIS IN YOUR ROOM</p>
+        <h2 className="section-title">Visualize In Your Space</h2>
+        <p className="section-copy">
+          Upload a room photo to preview how this artwork may feel in your environment.
+        </p>
+        <div className="room-match-actions">
+          <Link
+            to={`/room-match?artworkId=${encodeURIComponent(artwork.id)}`}
+            className="text-link-button action-button"
+          >
+            Upload Room Photo
+          </Link>
+          <Link
+            to={`/room-match?artworkId=${encodeURIComponent(artwork.id)}&camera=1`}
+            className="text-link-button action-button"
+          >
+            Take Photo
+          </Link>
         </div>
       </Reveal>
       {comboMatches.filter((combo) => combo.isAvailable !== false).length > 0 ? (

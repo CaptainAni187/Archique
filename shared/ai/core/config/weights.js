@@ -19,6 +19,13 @@ export const SUPPORTED_BEHAVIOR_EVENTS = [
   'recommendation_revisited',
   'favorite_added',
   'favorite_removed',
+  'room_upload',
+  'room_analysis_completed',
+  'room_personality_detected',
+  'room_match_clicked',
+  'room_preview_opened',
+  'room_profile_saved',
+  'room_set_clicked',
 ]
 
 export const EVENT_WEIGHTS = {
@@ -42,6 +49,13 @@ export const EVENT_WEIGHTS = {
   recommendation_revisited: 2.2,
   favorite_added: 2.4,
   favorite_removed: -0.6,
+  room_upload: 1.2,
+  room_analysis_completed: 1.4,
+  room_personality_detected: 1,
+  room_match_clicked: 2,
+  room_preview_opened: 1.6,
+  room_profile_saved: 2.8,
+  room_set_clicked: 2.2,
 }
 
 export const DEFAULT_RANKING_WEIGHTS = {

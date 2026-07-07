@@ -16,9 +16,11 @@ import {
   createUserSavedArtwork,
   createUserCollection,
   createUserCollectionArtwork,
+  createUserRoomProfile,
   deleteUserAccountById,
   deleteUserCollectionArtworkById,
   deleteUserCollectionById,
+  deleteUserRoomProfileById,
   deleteUserSavedArtworkById,
   fetchRecentVisitorEventsByUserId,
   fetchUserByGoogleId,
@@ -29,6 +31,7 @@ import {
   fetchUserSavedArtworksByUserId,
   fetchUserCollectionsByUserId,
   fetchUserCollectionArtworksByCollectionId,
+  fetchUserRoomProfilesByUserId,
   fetchUserTasteProfileByUserId,
   fetchVisitorTasteProfileBySessionId,
   updateUserAccountById,
@@ -596,6 +599,65 @@ async function handleCollections(req, res) {
   return methodNotAllowed(res, ['GET', 'POST', 'PUT', 'DELETE'])
 }
 
+async function handleRoomProfiles(req, res) {
+  const session = requireUserAuth(req, res)
+  if (!session) {
+    return null
+  }
+
+  if (req.method === 'GET') {
+    const profiles = await fetchUserRoomProfilesByUserId(session.id)
+    return sendJson(res, 200, { success: true, profiles })
+  }
+
+  if (!ensurePostWithCsrf({ ...req, method: 'POST' }, res)) {
+    return null
+  }
+
+  const body = await readJson(req)
+
+  if (req.method === 'POST') {
+    const label = String(body.label || 'My Space').trim() || 'My Space'
+    const spaceType = String(body.space_type || '').trim() || null
+    const profile = body.profile && typeof body.profile === 'object' ? body.profile : {}
+    const roomPersonality = String(body.room_personality || profile.room_personality || '').trim()
+
+    if (!roomPersonality) {
+      return sendJson(res, 400, {
+        success: false,
+        error: 'VALIDATION_ERROR',
+        message: 'room_personality is required.',
+      })
+    }
+
+    const saved = await createUserRoomProfile({
+      user_id: session.id,
+      label,
+      space_type: spaceType,
+      room_personality: roomPersonality,
+      profile,
+      updated_at: new Date().toISOString(),
+    })
+
+    return sendJson(res, 201, { success: true, profile: saved })
+  }
+
+  if (req.method === 'DELETE') {
+    const profileId = Number(body.profile_id)
+    if (!Number.isInteger(profileId) || profileId <= 0) {
+      return sendJson(res, 400, {
+        success: false,
+        error: 'VALIDATION_ERROR',
+        message: 'profile_id is required.',
+      })
+    }
+    await deleteUserRoomProfileById(profileId)
+    return sendJson(res, 200, { success: true, removed: true })
+  }
+
+  return methodNotAllowed(res, ['GET', 'POST', 'DELETE'])
+}
+
 async function handlePersonalization(req, res) {
   if (req.method !== 'GET') {
     return methodNotAllowed(res, ['GET'])
@@ -784,6 +846,10 @@ export default async function handler(req, res) {
 
     if (action === 'collections') {
       return await handleCollections(req, res)
+    }
+
+    if (action === 'room-profiles') {
+      return await handleRoomProfiles(req, res)
     }
 
     if (action === 'settings') {

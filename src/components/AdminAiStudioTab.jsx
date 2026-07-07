@@ -118,6 +118,60 @@ function AdminAiStudioTab({
           ))}
         </div>
       </section>
+      <section className="order-detail-card dashboard-daily-orders">
+        <h3>Room Personality Distribution</h3>
+        <div className="dashboard-daily-list">
+          {(metrics.room_personality_distribution || []).slice(0, 12).map((item) => (
+            <p key={`room-personality-${item.label}`}>
+              <span>{item.label}</span>
+              <strong>{item.count}</strong>
+            </p>
+          ))}
+        </div>
+      </section>
+      <section className="order-detail-card dashboard-daily-orders">
+        <h3>Most Matched Room Styles</h3>
+        <div className="dashboard-daily-list">
+          {(metrics.room_matched_styles || []).slice(0, 12).map((item) => (
+            <p key={`room-style-${item.label}`}>
+              <span>{item.label}</span>
+              <strong>{item.count}</strong>
+            </p>
+          ))}
+        </div>
+      </section>
+      <section className="order-detail-card dashboard-daily-orders">
+        <h3>Most Matched Room Moods</h3>
+        <div className="dashboard-daily-list">
+          {(metrics.room_matched_moods || []).slice(0, 12).map((item) => (
+            <p key={`room-mood-${item.label}`}>
+              <span>{item.label}</span>
+              <strong>{item.count}</strong>
+            </p>
+          ))}
+        </div>
+      </section>
+      <section className="order-detail-card dashboard-daily-orders">
+        <h3>Best Performing Room Sets</h3>
+        <div className="dashboard-daily-list">
+          {(metrics.best_performing_room_sets || []).slice(0, 12).map((item) => (
+            <p key={`room-set-${item.label}`}>
+              <span>{item.label}</span>
+              <strong>{item.count}</strong>
+            </p>
+          ))}
+        </div>
+      </section>
+      <section className="order-detail-card dashboard-daily-orders">
+        <h3>Room Recommendation Conversion</h3>
+        <div className="dashboard-daily-list">
+          <p><span>Uploads</span><strong>{metrics.room_recommendation_conversion?.uploads || 0}</strong></p>
+          <p><span>Matches clicked</span><strong>{metrics.room_recommendation_conversion?.matches_clicked || 0}</strong></p>
+          <p><span>Previews opened</span><strong>{metrics.room_recommendation_conversion?.previews_opened || 0}</strong></p>
+          <p><span>Profiles saved</span><strong>{metrics.room_recommendation_conversion?.profiles_saved || 0}</strong></p>
+          <p><span>Match rate</span><strong>{metrics.room_recommendation_conversion?.match_rate || 0}</strong></p>
+        </div>
+      </section>
     </section>
   )
 }

@@ -55,3 +55,10 @@ export async function trackRecommendationEvent(eventType, metadata = {}) {
     recommendation_signal: true,
   })
 }
+
+export async function trackRoomEvent(eventType, metadata = {}) {
+  return trackAnalyticsEvent(eventType, {
+    ...metadata,
+    room_signal: true,
+  })
+}

@@ -691,3 +691,31 @@ export async function fetchUserLoginEvents(limit = 1000) {
     `user_login_events?select=id,user_id,provider,login_at&order=login_at.desc&limit=${Number(limit)}`,
   )
 }
+
+export async function fetchUserRoomProfilesByUserId(userId) {
+  return supabaseAdminRequest(
+    `user_room_profiles?select=id,label,space_type,room_personality,profile,created_at,updated_at&user_id=eq.${Number(
+      userId,
+    )}&order=updated_at.desc`,
+  )
+}
+
+export async function createUserRoomProfile(payload) {
+  const response = await supabaseAdminRequest('user_room_profiles', {
+    method: 'POST',
+    headers: {
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify(payload),
+  })
+  return response?.[0] || null
+}
+
+export async function deleteUserRoomProfileById(id) {
+  await supabaseAdminRequest(`user_room_profiles?id=eq.${Number(id)}`, {
+    method: 'DELETE',
+    headers: {
+      Prefer: 'return=minimal',
+    },
+  })
+}

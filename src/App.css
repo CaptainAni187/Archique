@@ -2237,3 +2237,186 @@ html[data-theme='dark'] .stat-card,
 html[data-theme='dark'] .order-detail-card {
   transition: var(--theme-transition);
 }
+
+.room-match-entry,
+.room-personality-card,
+.room-match-section,
+.room-set-card {
+  display: grid;
+  gap: 14px;
+}
+
+.room-match-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: center;
+}
+
+.room-match-explanation {
+  margin-top: 8px;
+  max-width: 36ch;
+}
+
+.room-match-card-wrap {
+  display: grid;
+  gap: 10px;
+}
+
+.room-save-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: end;
+  max-width: 520px;
+}
+
+.room-overlay-preview-wrap {
+  display: grid;
+  gap: 12px;
+}
+
+.room-overlay-preview {
+  width: 100%;
+  border: 1px solid var(--border-gold-soft);
+  background: var(--bg-surface-muted);
+}
+
+.room-overlay-hint {
+  max-width: 52ch;
+}
+
+.room-camera-panel {
+  display: grid;
+  gap: 14px;
+  max-width: 720px;
+}
+
+.room-camera-video {
+  width: 100%;
+  max-height: 420px;
+  object-fit: cover;
+  border: 1px solid var(--border-gold-soft);
+  background: var(--bg-media);
+}
+
+.privacy-page {
+  display: grid;
+  justify-items: center;
+}
+
+.privacy-editorial {
+  width: min(100%, 50rem);
+  display: grid;
+  padding-bottom: 80px;
+}
+
+.privacy-header {
+  display: grid;
+  gap: 22px;
+  padding-bottom: 56px;
+  border-bottom: 1px solid var(--border-gold-soft);
+}
+
+.privacy-header .section-title {
+  font-family: var(--site-font);
+  font-size: clamp(1.7rem, 3vw, 3rem);
+  line-height: 1.08;
+  letter-spacing: var(--tracking-wide);
+}
+
+.privacy-subtitle {
+  margin: 0;
+  font-family: var(--site-font);
+  color: var(--text-color);
+  font-weight: 300;
+  font-size: clamp(1.05rem, 1.35vw, 1.22rem);
+  line-height: 1.48;
+  letter-spacing: 0.04em;
+}
+
+.privacy-body {
+  margin: 0;
+  font-family: var(--site-font);
+  color: var(--text-soft);
+  font-weight: 300;
+  font-size: clamp(1.02rem, 1.3vw, 1.12rem);
+  line-height: 1.58;
+  letter-spacing: 0.04em;
+}
+
+.privacy-section {
+  display: grid;
+  gap: 22px;
+  padding: 56px 0;
+  border-bottom: 1px solid var(--border-gold-soft);
+}
+
+.privacy-section:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.privacy-section .eyebrow {
+  margin-bottom: 6px;
+}
+
+.privacy-list {
+  display: grid;
+  gap: 14px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.privacy-list li {
+  font-family: var(--site-font);
+  color: var(--text-soft);
+  font-weight: 300;
+  font-size: clamp(1.02rem, 1.3vw, 1.12rem);
+  line-height: 1.58;
+  letter-spacing: 0.04em;
+  padding-left: 1.15em;
+  text-indent: -1.15em;
+}
+
+.privacy-list li::before {
+  content: '•';
+  color: var(--accent-color);
+  padding-right: 0.6em;
+}
+
+.privacy-contact-email {
+  display: inline-block;
+  width: fit-content;
+  font-family: var(--site-font);
+  color: var(--text-color);
+  text-decoration: none;
+  font-weight: 300;
+  letter-spacing: var(--tracking-wide);
+  font-size: clamp(0.92rem, 1.1vw, 1rem);
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--border-gold-medium);
+  transition: color 0.22s ease, border-color 0.22s ease;
+}
+
+.privacy-contact-email:hover {
+  color: var(--accent-color);
+  border-color: var(--accent-color);
+}
+
+@media (max-width: 720px) {
+  .privacy-editorial {
+    padding-bottom: 56px;
+  }
+
+  .privacy-header {
+    gap: 18px;
+    padding-bottom: 44px;
+  }
+
+  .privacy-section {
+    gap: 18px;
+    padding: 44px 0;
+  }
+}

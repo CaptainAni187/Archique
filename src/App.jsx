@@ -19,6 +19,7 @@ import Sketch from './pages/Sketch'
 import Feed from './pages/Feed'
 import CV from './pages/CV'
 import Commission from './pages/Commission'
+import RoomMatch from './pages/RoomMatch'
 import { OrderProvider } from './state/OrderContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import SiteHeader from './components/SiteHeader'
@@ -64,6 +65,7 @@ function AppLayout() {
           <Route path="/cv" element={<CV />} />
           <Route path="/store" element={<Gallery />} />
           <Route path="/gallery" element={<Gallery />} />
+          <Route path="/room-match" element={<RoomMatch />} />
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/commission" element={<Commission />} />
