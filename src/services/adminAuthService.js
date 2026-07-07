@@ -1,4 +1,9 @@
 const ADMIN_TOKEN_KEY = 'archiverse_admin_token'
+const ADMIN_API = '/api/admin'
+
+function adminAction(action) {
+  return `${ADMIN_API}?action=${encodeURIComponent(action)}`
+}
 
 export function getAdminToken() {
   return localStorage.getItem(ADMIN_TOKEN_KEY)
@@ -36,7 +41,7 @@ async function parseAuthResponse(response) {
 }
 
 export async function loginAdmin(email, password) {
-  const response = await fetch('/api/admin/login', {
+  const response = await fetch(adminAction('login'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -55,7 +60,7 @@ export async function loginAdmin(email, password) {
 
 export async function logoutAdmin() {
   const token = getAdminToken()
-  const response = await fetch('/api/admin/logout', {
+  const response = await fetch(adminAction('logout'), {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token || ''}`,
@@ -83,7 +88,7 @@ export async function fetchAdminSession() {
     throw new Error('Admin authentication required.')
   }
 
-  const response = await fetch('/api/admin/me', {
+  const response = await fetch(adminAction('me'), {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -93,7 +98,7 @@ export async function fetchAdminSession() {
 }
 
 export async function requestAdminPasswordReset(email) {
-  const response = await fetch('/api/admin/forgot-password', {
+  const response = await fetch(adminAction('forgot-password'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -105,7 +110,7 @@ export async function requestAdminPasswordReset(email) {
 }
 
 export async function resetAdminPassword(email, token, newPassword) {
-  const response = await fetch('/api/admin/reset-password', {
+  const response = await fetch(adminAction('reset-password'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

@@ -1,7 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
-    { "source": "/api/admin/(.*)", "destination": "/api/admin" },
     { "source": "/api/artworks/:id/status", "destination": "/api/artworks?id=:id&action=status" },
     { "source": "/api/artworks/:id", "destination": "/api/artworks?id=:id" },
     { "source": "/api/orders/code/:orderCode", "destination": "/api/orders?action=code&orderCode=:orderCode" },

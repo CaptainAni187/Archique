@@ -216,7 +216,7 @@ function Admin() {
   }
 
   const loadActivityLogs = async () => {
-    const response = await backendAdminRequest('/api/admin/activity')
+    const response = await backendAdminRequest('/api/admin?action=activity')
     setActivityLogs(Array.isArray(response.data) ? response.data : [])
   }
 
@@ -248,7 +248,7 @@ function Admin() {
           fetchDashboardAnalytics(),
           fetchAdminTestimonials(),
           fetchAdminSession(),
-          backendAdminRequest('/api/admin/activity'),
+          backendAdminRequest('/api/admin?action=activity'),
           fetchTagRegistry().catch(() => []),
           fetchAiStudioMetrics().catch(() => ({})),
           fetchTagGovernance().catch(() => ({ tags: [], aliases: [] })),
@@ -712,7 +712,7 @@ function Admin() {
     resetTastePreferences()
     setMessage('Recommendation preferences cleared for this browser.')
     try {
-      await backendAdminRequest('/api/admin/activity', {
+      await backendAdminRequest('/api/admin?action=activity', {
         method: 'POST',
         body: JSON.stringify({
           action_type: 'recommendation_reset',

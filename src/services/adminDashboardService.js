@@ -26,7 +26,7 @@ const emptyDashboard = {
 }
 
 export async function fetchDashboardAnalytics() {
-  const payload = await backendAdminRequest('/api/admin/dashboard')
+  const payload = await backendAdminRequest('/api/admin?action=dashboard')
   let aiSummary = {}
 
   try {
