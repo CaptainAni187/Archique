@@ -58,7 +58,12 @@ export async function finalizeGoogleLogin() {
   })
 
   storeSession(payload)
-  window.history.replaceState({}, document.title, '/login')
+  // Strip the OAuth hash from whatever URL we landed on, without forcing /login.
+  window.history.replaceState(
+    {},
+    document.title,
+    window.location.pathname + window.location.search,
+  )
 
   return payload.user
 }

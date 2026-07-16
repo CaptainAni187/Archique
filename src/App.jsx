@@ -1,5 +1,6 @@
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
+import { finalizeGoogleLogin } from './services/supabaseAuthService'
 import Home from './pages/Home'
 import Gallery from './pages/Gallery'
 import Product from './pages/Product'
@@ -26,7 +27,51 @@ import './App.css'
 
 function AppLayout() {
   const location = useLocation()
+  const navigate = useNavigate()
   const [isDarkHeroBackground, setIsDarkHeroBackground] = useState(false)
+
+  // Global OAuth callback handler. Supabase redirects back with the session in
+  // the URL hash (#access_token=...). Depending on the allow-listed Redirect
+  // URL it may land on any page, so we finalize the login wherever it lands.
+  useEffect(() => {
+    const hash = window.location.hash || ''
+    const hasToken = hash.includes('access_token=')
+    const hasError = hash.includes('error=')
+    if (!hasToken && !hasError) {
+      return
+    }
+
+    let cancelled = false
+
+    if (hasError) {
+      window.history.replaceState(
+        {},
+        document.title,
+        window.location.pathname + window.location.search,
+      )
+      navigate('/login', { replace: true })
+      return
+    }
+
+    finalizeGoogleLogin()
+      .then((user) => {
+        if (user && !cancelled) {
+          navigate('/account', { replace: true })
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          navigate('/login', { replace: true })
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+    // Run once on load — the OAuth redirect is a full page load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const isCarouselRoute = location.pathname === '/canvas' || location.pathname === '/sketch'
   const isAdminRoute = location.pathname.startsWith('/captain')
   const showFooter = !isCarouselRoute && !isAdminRoute
