@@ -14,9 +14,7 @@ const FOOTER_SECTIONS = [
   {
     title: 'Studio',
     links: [
-      { to: '/about', label: 'About' },
       { to: '/cv', label: 'CV' },
-      { to: '/commission', label: 'Commission' },
       { to: '/contact', label: 'Contact' },
     ],
   },
