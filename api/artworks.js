@@ -79,6 +79,17 @@ function isMissingComboTableError(error) {
   return message.includes('relation') && message.includes('combos')
 }
 
+function isMissingTagRegistryTable(error) {
+  const message = String(error?.message || '').toLowerCase()
+  return (
+    message.includes('tag_registry') &&
+    (message.includes('schema cache') ||
+      message.includes('could not find the table') ||
+      message.includes('relation') ||
+      message.includes('does not exist'))
+  )
+}
+
 function withoutOptionalArtworkColumns(payload) {
   const {
     category: _category,
@@ -156,27 +167,36 @@ function inferTagType(tag = '') {
 async function registerTags(tags = [], createdBy = 'system') {
   const normalized = Array.from(new Set(tags.map(normalizeTagName).filter(Boolean))).slice(0, 32)
   const rows = []
-  for (const tag of normalized) {
-    const existing = await fetchTagByName(tag)
-    if (existing) {
-      const updated = await updateTagRegistryEntryById(existing.id, {
-        usage_count: Number(existing.usage_count || 0) + 1,
+  try {
+    for (const tag of normalized) {
+      const existing = await fetchTagByName(tag)
+      if (existing) {
+        const updated = await updateTagRegistryEntryById(existing.id, {
+          usage_count: Number(existing.usage_count || 0) + 1,
+          is_active: true,
+        })
+        rows.push(updated || existing)
+        continue
+      }
+      const created = await createTagRegistryEntry({
+        name: tag,
+        type: inferTagType(tag),
+        usage_count: 1,
+        created_by: createdBy,
+        is_system: createdBy === 'system',
         is_active: true,
       })
-      rows.push(updated || existing)
-      continue
+      if (created) {
+        rows.push(created)
+      }
     }
-    const created = await createTagRegistryEntry({
-      name: tag,
-      type: inferTagType(tag),
-      usage_count: 1,
-      created_by: createdBy,
-      is_system: createdBy === 'system',
-      is_active: true,
-    })
-    if (created) {
-      rows.push(created)
+  } catch (error) {
+    // The tag_registry table is optional (added by a later migration). Never
+    // let tag bookkeeping block core artwork create/update.
+    if (isMissingTagRegistryTable(error)) {
+      return rows
     }
+    throw error
   }
   return rows
 }

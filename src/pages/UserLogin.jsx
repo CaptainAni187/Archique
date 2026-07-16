@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { loginUser, signupUser } from '../services/userAuthService'
+import {
+  loginUser,
+  signupUser,
+  requestPasswordReset,
+  resetPassword,
+} from '../services/userAuthService'
 import { continueWithGoogle, finalizeGoogleLogin } from '../services/supabaseAuthService'
 import usePageMeta from '../hooks/usePageMeta'
 import PasswordInput from '../components/PasswordInput'
@@ -17,6 +22,52 @@ function UserLogin() {
   const [errorMessage, setErrorMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
+  const [showReset, setShowReset] = useState(false)
+  const [resetToken, setResetToken] = useState('')
+  const [resetNewPassword, setResetNewPassword] = useState('')
+  const [resetMessage, setResetMessage] = useState('')
+  const [isResetSubmitting, setIsResetSubmitting] = useState(false)
+
+  const onRequestReset = async (event) => {
+    event.preventDefault()
+    setErrorMessage('')
+    setResetMessage('')
+    setIsResetSubmitting(true)
+
+    try {
+      const response = await requestPasswordReset(form.email.trim())
+      setResetMessage(
+        response.data?.message ||
+          'If an account exists for this email, reset instructions have been sent.',
+      )
+    } catch (error) {
+      setErrorMessage(error.message || 'Unable to request a password reset.')
+    } finally {
+      setIsResetSubmitting(false)
+    }
+  }
+
+  const onResetPassword = async (event) => {
+    event.preventDefault()
+    setErrorMessage('')
+    setResetMessage('')
+    setIsResetSubmitting(true)
+
+    try {
+      const response = await resetPassword({
+        email: form.email.trim(),
+        token: resetToken.trim(),
+        newPassword: resetNewPassword,
+      })
+      setResetMessage(response.data?.message || 'Password reset successful. You can now log in.')
+      setResetToken('')
+      setResetNewPassword('')
+    } catch (error) {
+      setErrorMessage(error.message || 'Unable to reset password.')
+    } finally {
+      setIsResetSubmitting(false)
+    }
+  }
 
   useEffect(() => {
     let isCancelled = false
@@ -141,12 +192,71 @@ function UserLogin() {
 
       {errorMessage ? <p className="status-message error">{errorMessage}</p> : null}
 
+      {mode === 'login' ? (
+        <div className="auth-link-row">
+          <button
+            type="button"
+            className="text-link-button"
+            onClick={() => {
+              setErrorMessage('')
+              setResetMessage('')
+              setShowReset((current) => !current)
+            }}
+          >
+            {showReset ? 'Hide password reset' : 'Forgot password?'}
+          </button>
+        </div>
+      ) : null}
+
+      {mode === 'login' && showReset ? (
+        <div className="auth-reset-panel">
+          <p className="auth-reset-hint">
+            Enter your account email above, then request a reset token. We&apos;ll email you a
+            token to set a new password.
+          </p>
+          <form className="admin-form" onSubmit={onRequestReset}>
+            <button type="submit" className="btn-secondary" disabled={isResetSubmitting}>
+              {isResetSubmitting ? 'Please wait...' : 'Email me a reset token'}
+            </button>
+          </form>
+          <form className="admin-form" onSubmit={onResetPassword}>
+            <label>
+              Reset token
+              <input
+                name="reset_token"
+                value={resetToken}
+                onChange={(event) => setResetToken(event.target.value)}
+                required
+              />
+            </label>
+            <label>
+              New password
+              <PasswordInput
+                name="reset_new_password"
+                value={resetNewPassword}
+                onChange={(event) => setResetNewPassword(event.target.value)}
+                minLength={8}
+                autoComplete="new-password"
+                revealLabel="new password"
+                required
+              />
+            </label>
+            <button type="submit" disabled={isResetSubmitting}>
+              {isResetSubmitting ? 'Updating...' : 'Set new password'}
+            </button>
+          </form>
+          {resetMessage ? <p className="status-message success">{resetMessage}</p> : null}
+        </div>
+      ) : null}
+
       <div className="auth-link-row">
         <button
           type="button"
           className="text-link-button"
           onClick={() => {
             setErrorMessage('')
+            setResetMessage('')
+            setShowReset(false)
             setMode((current) => (current === 'login' ? 'signup' : 'login'))
           }}
         >

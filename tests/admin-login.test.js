@@ -6,11 +6,23 @@ describe('admin login handler', () => {
     vi.resetModules()
     process.env.ADMIN_EMAIL = 'admin@example.com'
     process.env.ADMIN_PASSWORD = 'SuperSecret123!'
-    process.env.ADMIN_SESSION_SECRET = 'session-secret'
+    process.env.ADMIN_SESSION_SECRET = 'test-admin-session-secret-0123456789abcdef'
+    // Deterministic Supabase: every REST/RPC call resolves to an empty result
+    // so tests never depend on live network (rate-limit RPC, admin lookups).
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        text: async () => '[]',
+        json: async () => [],
+      })),
+    )
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it('returns a JWT for valid credentials', async () => {

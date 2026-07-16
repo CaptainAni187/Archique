@@ -42,6 +42,20 @@ export async function loginUser({ email, password }) {
   return storeSession(payload)
 }
 
+export async function requestPasswordReset(email) {
+  return backendRequest('/api/user/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  })
+}
+
+export async function resetPassword({ email, token, newPassword }) {
+  return backendRequest('/api/user/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({ email, token, new_password: newPassword }),
+  })
+}
+
 export async function logoutUser() {
   await backendRequest('/api/user/logout', {
     method: 'POST',

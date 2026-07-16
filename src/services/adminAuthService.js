@@ -31,7 +31,9 @@ async function parseAuthResponse(response) {
     throw new Error(`Server error (${response.status}). Admin API may be unavailable.`)
   }
 
-  console.log('API RESPONSE:', payload)
+  if (import.meta.env.DEV) {
+    console.log('API RESPONSE:', payload)
+  }
 
   if (!payload || !response.ok || payload.success === false) {
     throw new Error(payload?.message || `Server error (${response.status}).`)

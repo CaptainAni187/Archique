@@ -10,7 +10,9 @@ async function parseApiResponse(response) {
     throw new Error('Server returned an invalid response.')
   }
 
-  console.log('API RESPONSE:', payload)
+  if (import.meta.env.DEV) {
+    console.log('API RESPONSE:', payload)
+  }
 
   if (!response.ok || payload.success === false) {
     throw new Error(payload.message || `Request failed (${response.status}).`)

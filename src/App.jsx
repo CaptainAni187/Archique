@@ -23,12 +23,15 @@ import RoomMatch from './pages/RoomMatch'
 import { OrderProvider } from './state/OrderContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import SiteHeader from './components/SiteHeader'
+import SiteFooter from './components/SiteFooter'
 import './App.css'
 
 function AppLayout() {
   const location = useLocation()
   const [isDarkHeroBackground, setIsDarkHeroBackground] = useState(false)
   const isCarouselRoute = location.pathname === '/canvas' || location.pathname === '/sketch'
+  const isAdminRoute = location.pathname.startsWith('/captain')
+  const showFooter = !isCarouselRoute && !isAdminRoute
   const hasOverlayHeader =
     location.pathname === '/' ||
     location.pathname === '/canvas' ||
@@ -90,6 +93,8 @@ function AppLayout() {
           />
         </Routes>
       </main>
+
+      {showFooter ? <SiteFooter /> : null}
     </div>
   )
 }
