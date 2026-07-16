@@ -15,7 +15,11 @@ export function getBackendConfig() {
     adminNotificationEmail: readEnv('ADMIN_NOTIFICATION_EMAIL'),
     resendApiKey: readEnv('RESEND_API_KEY'),
     fromEmail: readEnv('FROM_EMAIL'),
-    userSessionSecret: readEnv('USER_SESSION_SECRET', readEnv('ADMIN_SESSION_SECRET')),
+    // Deliberately NOT falling back to ADMIN_SESSION_SECRET: user and admin
+    // tokens must be signed with independent keys.
+    userSessionSecret: readEnv('USER_SESSION_SECRET'),
+    adminSessionSecret: readEnv('ADMIN_SESSION_SECRET'),
+    inquiryNotificationRecipients: readEnv('INQUIRY_NOTIFICATION_RECIPIENTS'),
   }
 }
 

@@ -1,8 +1,8 @@
 import path from 'node:path'
 import dotenv from 'dotenv'
 
+// Single source of truth for local dev. In production (Vercel) these values
+// come from the platform environment, so a missing .env file is fine.
 const envPath = path.resolve(process.cwd(), '.env')
-const envLocalPath = path.resolve(process.cwd(), '.env.local')
 
-dotenv.config({ path: envLocalPath })
 dotenv.config({ path: envPath })

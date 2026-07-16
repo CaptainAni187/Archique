@@ -202,7 +202,7 @@ async function handleLogin(req, res) {
   const email = String(body.email || '').trim().toLowerCase()
   const password = body.password || ''
   const ipAddress = getClientIp(req)
-  const rateLimit = consumeRateLimit(`admin-login:${ipAddress}`, {
+  const rateLimit = await consumeRateLimit(`admin-login:${ipAddress}`, {
     limit: 5,
     windowMs: 15 * 60 * 1000,
   })
@@ -361,7 +361,7 @@ async function handleForgotPassword(req, res) {
   const body = await readJson(req)
   const email = body.email?.trim()
   const ipAddress = getClientIp(req)
-  const rateLimit = consumeRateLimit(`admin-password-reset:${ipAddress}`, {
+  const rateLimit = await consumeRateLimit(`admin-password-reset:${ipAddress}`, {
     limit: 3,
     windowMs: 60 * 60 * 1000,
   })
@@ -386,7 +386,7 @@ async function handleForgotPassword(req, res) {
     })
   }
 
-  const resetToken = createPasswordResetToken(admin)
+  const resetToken = await createPasswordResetToken(admin)
   const config = getBackendConfig()
   const recipients = Array.from(new Set([admin.email, getAdminBackupEmail()].filter(Boolean)))
   const emailHtml = `
@@ -443,7 +443,7 @@ async function handleResetPassword(req, res) {
     })
   }
 
-  const admin = consumePasswordResetToken(token, email)
+  const admin = await consumePasswordResetToken(token, email)
   if (!admin) {
     return sendJson(res, 401, {
       success: false,

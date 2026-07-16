@@ -199,6 +199,23 @@ export async function notifyCommissionRequest(commission, config) {
   }
 }
 
+export async function sendUserPasswordResetEmail({ email, name, token, config }) {
+  return sendResendEmail({
+    resendApiKey: config.resendApiKey,
+    fromEmail: config.fromEmail,
+    to: email,
+    subject: 'Reset your Archiverse password',
+    html: `
+      <h2>Reset your Archiverse password</h2>
+      <p>Hello ${escapeHtml(name || 'there')},</p>
+      <p>We received a request to reset the password for your Archiverse account.</p>
+      <p><strong>Your reset token:</strong> ${escapeHtml(token)}</p>
+      <p>Enter this token on the password reset form along with your new password. It expires in 30 minutes.</p>
+      <p>If you did not request this, you can safely ignore this email.</p>
+    `,
+  }).catch(() => ({ delivered: false, skipped: false }))
+}
+
 export async function sendUserWelcomeEmail({ email, name, config }) {
   return sendResendEmail({
     resendApiKey: config.resendApiKey,

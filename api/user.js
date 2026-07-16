@@ -1,9 +1,11 @@
 import { getBackendConfig, requireConfigValues } from './_lib/env.js'
 import { methodNotAllowed, readJson, sendJson } from './_lib/http.js'
-import { sendUserWelcomeEmail } from './_lib/notifications.js'
+import { sendUserPasswordResetEmail, sendUserWelcomeEmail } from './_lib/notifications.js'
 import { getClientIp, consumeRateLimit } from './_lib/rateLimit.js'
 import { fetchSupabaseUserFromAccessToken } from './_lib/supabaseAuth.js'
 import {
+  consumeUserPasswordResetToken,
+  createUserPasswordResetToken,
   createUserToken,
   hashUserPassword,
   normalizeEmail,
@@ -286,7 +288,7 @@ async function handleLogin(req, res) {
   const email = normalizeEmail(body.email)
   const password = String(body.password || '')
   const ipAddress = getClientIp(req)
-  const rateLimit = consumeRateLimit(`user-login:${ipAddress}`, {
+  const rateLimit = await consumeRateLimit(`user-login:${ipAddress}`, {
     limit: 10,
     windowMs: 15 * 60 * 1000,
   })
@@ -337,6 +339,116 @@ async function handleLogin(req, res) {
     success: true,
     token: createUserToken(safeUser),
     user: safeUser,
+  })
+}
+
+async function handleForgotPassword(req, res) {
+  if (!ensurePostWithCsrf(req, res)) {
+    return null
+  }
+
+  requireUserSessionSecret()
+
+  const body = await readJson(req)
+  const email = normalizeEmail(body.email)
+  const ipAddress = getClientIp(req)
+
+  const rateLimit = await consumeRateLimit(`user-password-reset:${ipAddress}`, {
+    limit: 5,
+    windowMs: 60 * 60 * 1000,
+  })
+  if (!rateLimit.allowed) {
+    res.setHeader('Retry-After', String(rateLimit.retryAfterSeconds))
+    return sendJson(res, 429, {
+      success: false,
+      error: 'RATE_LIMITED',
+      message: 'Too many reset attempts. Please try again later.',
+    })
+  }
+
+  // Always respond the same way to avoid leaking which emails have accounts.
+  const genericResponse = () =>
+    sendJson(res, 200, {
+      success: true,
+      data: {
+        message: 'If an account exists for this email, reset instructions have been sent.',
+      },
+    })
+
+  if (!email) {
+    return genericResponse()
+  }
+
+  const user = await fetchUserByEmail(email)
+
+  // Only email-based accounts (with a password) can reset. Google-only accounts
+  // have no password to reset — silently no-op with the same generic response.
+  if (user && !user.deleted_at && user.password_hash) {
+    const token = await createUserPasswordResetToken(user)
+    await sendUserPasswordResetEmail({
+      email: user.email,
+      name: user.name,
+      token,
+      config: getBackendConfig(),
+    })
+  }
+
+  return genericResponse()
+}
+
+async function handleResetPassword(req, res) {
+  if (!ensurePostWithCsrf(req, res)) {
+    return null
+  }
+
+  requireUserSessionSecret()
+
+  const body = await readJson(req)
+  const email = normalizeEmail(body.email)
+  const token = String(body.token || '').trim()
+  const newPassword = String(body.new_password || body.password || '')
+
+  if (!email || !token || !newPassword) {
+    return sendJson(res, 400, {
+      success: false,
+      error: 'VALIDATION_ERROR',
+      message: 'Email, token, and new password are required.',
+    })
+  }
+
+  if (newPassword.length < 8) {
+    return sendJson(res, 400, {
+      success: false,
+      error: 'WEAK_PASSWORD',
+      message: 'Password must be at least 8 characters.',
+    })
+  }
+
+  const record = await consumeUserPasswordResetToken(token, email)
+  if (!record) {
+    return sendJson(res, 401, {
+      success: false,
+      error: 'INVALID_RESET_TOKEN',
+      message: 'Reset token is invalid or expired.',
+    })
+  }
+
+  const user = record.user_id ? await fetchUserById(record.user_id) : await fetchUserByEmail(email)
+  if (!user || user.deleted_at) {
+    return sendJson(res, 401, {
+      success: false,
+      error: 'INVALID_RESET_TOKEN',
+      message: 'Reset token is invalid or expired.',
+    })
+  }
+
+  await updateUserAccountById(user.id, {
+    password_hash: await hashUserPassword(newPassword),
+  })
+
+  return sendJson(res, 200, {
+    success: true,
+    data: { message: 'Password reset successful. You can now log in.' },
   })
 }
 
@@ -818,6 +930,14 @@ export default async function handler(req, res) {
 
     if (action === 'login') {
       return await handleLogin(req, res)
+    }
+
+    if (action === 'forgot-password') {
+      return await handleForgotPassword(req, res)
+    }
+
+    if (action === 'reset-password') {
+      return await handleResetPassword(req, res)
     }
 
     if (action === 'logout') {

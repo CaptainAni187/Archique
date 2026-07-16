@@ -12,6 +12,8 @@
     { "source": "/api/upload-images", "destination": "/api/upload" },
     { "source": "/api/user/signup", "destination": "/api/user?action=signup" },
     { "source": "/api/user/login", "destination": "/api/user?action=login" },
+    { "source": "/api/user/forgot-password", "destination": "/api/user?action=forgot-password" },
+    { "source": "/api/user/reset-password", "destination": "/api/user?action=reset-password" },
     { "source": "/api/user/logout", "destination": "/api/user?action=logout" },
     { "source": "/api/user/me", "destination": "/api/user?action=me" },
     { "source": "/api/user/orders", "destination": "/api/user?action=orders" },

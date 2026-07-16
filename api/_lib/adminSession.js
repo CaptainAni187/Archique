@@ -4,22 +4,36 @@ import jwt from 'jsonwebtoken'
 import crypto from 'node:crypto'
 import { unauthorized } from './http.js'
 import {
+  createAdminResetTokenRecord,
   createAdminSession,
   fetchAdminByEmail,
   fetchAdminById,
+  fetchAdminResetTokenByHash,
   fetchAdminSessionById,
+  markAdminResetTokenUsed,
   updateAdminPasswordHash,
   updateAdminSessionById,
 } from './supabaseAdmin.js'
 
 const SESSION_EXPIRES_IN = '1h'
-const resetTokens = new Map()
+const RESET_TOKEN_TTL_MS = 1000 * 60 * 30
+// Best-effort in-memory store for the env bootstrap admin only (no DB row to
+// persist to). Table-backed admins persist to the database.
 let runtimePasswordHash = null
-const DEFAULT_ADMIN_EMAIL = 'kanimesh187@gmail.com'
-const DEFAULT_ADMIN_BACKUP_EMAIL = 'kanimesh1878@gmail.com'
+
+function hashResetToken(token) {
+  return crypto.createHash('sha256').update(String(token)).digest('hex')
+}
 
 function getSessionSecret() {
-  return process.env.ADMIN_SESSION_SECRET || ''
+  const secret = process.env.ADMIN_SESSION_SECRET || ''
+  if (!secret || secret.length < 32) {
+    const error = new Error('ADMIN_SESSION_SECRET is not configured or is too weak (min 32 chars).')
+    error.status = 500
+    error.error = 'ADMIN_SESSION_MISCONFIGURED'
+    throw error
+  }
+  return secret
 }
 
 function normalizeEmail(email) {
@@ -32,26 +46,29 @@ function isMissingTableError(error, tableName) {
 }
 
 function isAdminStoreUnavailable(error, tableName) {
-  const message = String(error?.message || '').toLowerCase()
-  return (
-    isMissingTableError(error, tableName) ||
-    message.includes('supabase_url') ||
-    message.includes('supabase_service_role_key') ||
-    message.includes('fetch failed')
-  )
+  // Only fall back to the env bootstrap admin when the table genuinely does not
+  // exist yet (fresh project). Transient failures (network, timeouts, auth) must
+  // NOT downgrade to the weaker env-admin path — otherwise an attacker who can
+  // disrupt Supabase reachability could force it.
+  return isMissingTableError(error, tableName)
 }
 
 function getFallbackAdminEmail() {
-  return normalizeEmail(process.env.ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL)
+  return normalizeEmail(process.env.ADMIN_EMAIL || '')
 }
 
 export function getAdminBackupEmail() {
-  return normalizeEmail(process.env.ADMIN_BACKUP_EMAIL || DEFAULT_ADMIN_BACKUP_EMAIL)
+  return normalizeEmail(process.env.ADMIN_BACKUP_EMAIL || '')
 }
 
 export function isAdminRecoveryEmail(email) {
   const normalizedEmail = normalizeEmail(email)
-  return normalizedEmail === getFallbackAdminEmail() || normalizedEmail === getAdminBackupEmail()
+  if (!normalizedEmail) {
+    return false
+  }
+  const primary = getFallbackAdminEmail()
+  const backup = getAdminBackupEmail()
+  return (primary && normalizedEmail === primary) || (backup && normalizedEmail === backup)
 }
 
 function getPasswordHash() {
@@ -295,32 +312,46 @@ export async function requireAdminAuth(req, res) {
   }
 }
 
-export function createPasswordResetToken(admin) {
-  const token = crypto.randomBytes(20).toString('hex')
-  resetTokens.set(token, {
-    admin,
-    expiresAt: Date.now() + 1000 * 60 * 30,
+export async function createPasswordResetToken(admin) {
+  const token = crypto.randomBytes(32).toString('hex')
+
+  await createAdminResetTokenRecord({
+    token_hash: hashResetToken(token),
+    admin_email: normalizeEmail(admin?.email),
+    admin_id: admin?.id ?? null,
+    expires_at: new Date(Date.now() + RESET_TOKEN_TTL_MS).toISOString(),
   })
+
   return token
 }
 
-export function consumePasswordResetToken(token, email) {
-  const entry = resetTokens.get(token)
-  if (!entry) {
+export async function consumePasswordResetToken(token, email) {
+  if (!token) {
+    return null
+  }
+
+  const record = await fetchAdminResetTokenByHash(hashResetToken(token))
+  if (!record || record.used_at) {
     return null
   }
 
   const normalizedEmail = normalizeEmail(email)
+  const backupEmail = getAdminBackupEmail()
   const isAllowedEmail =
-    normalizeEmail(entry.admin?.email) === normalizedEmail || normalizedEmail === getAdminBackupEmail()
+    normalizeEmail(record.admin_email) === normalizedEmail ||
+    (backupEmail && normalizedEmail === backupEmail)
 
-  if (entry.expiresAt < Date.now() || !isAllowedEmail) {
-    resetTokens.delete(token)
+  const isExpired = new Date(record.expires_at).getTime() < Date.now()
+
+  if (isExpired || !isAllowedEmail) {
     return null
   }
 
-  resetTokens.delete(token)
-  return entry.admin
+  await markAdminResetTokenUsed(record.id)
+
+  // Re-resolve the admin from the authoritative store so the returned record
+  // matches the current DB/env state.
+  return findAdminByEmail(record.admin_email)
 }
 
 export async function updateAdminPassword(admin, newPassword) {

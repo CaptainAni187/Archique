@@ -2420,3 +2420,132 @@ html[data-theme='dark'] .order-detail-card {
     padding: 44px 0;
   }
 }
+
+/* ── Site footer ─────────────────────────────────────────────── */
+.site-footer {
+  margin-top: 80px;
+  padding: 56px 6vw 32px;
+  border-top: 1px solid var(--border-gold-soft);
+  background: var(--bg-elevated);
+  color: var(--text-color);
+}
+
+.site-footer-inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 48px;
+  justify-content: space-between;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.site-footer-brand {
+  max-width: 320px;
+}
+
+.site-footer-mark {
+  font-size: 1.1rem;
+  letter-spacing: 0.34em;
+  color: var(--text-color);
+  text-decoration: none;
+}
+
+.site-footer-tagline {
+  margin: 16px 0 20px;
+  font-size: 0.82rem;
+  line-height: 1.7;
+  color: var(--text-soft);
+}
+
+.site-footer-social {
+  display: flex;
+  gap: 16px;
+}
+
+.site-footer-social .social-icon {
+  width: 18px;
+  height: 18px;
+  fill: var(--text-soft);
+}
+
+.site-footer-social a:hover .social-icon {
+  fill: var(--accent-color);
+}
+
+.site-footer-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 48px;
+}
+
+.site-footer-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.site-footer-heading {
+  font-size: 0.7rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--accent-color);
+  margin-bottom: 6px;
+}
+
+.site-footer-link {
+  font-size: 0.8rem;
+  letter-spacing: 0.16em;
+  color: var(--text-soft);
+  text-decoration: none;
+  transition: color 0.2s ease;
+  width: fit-content;
+}
+
+.site-footer-link:hover {
+  color: var(--accent-color);
+}
+
+.site-footer-base {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1200px;
+  margin: 40px auto 0;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-gold-soft);
+  font-size: 0.74rem;
+  letter-spacing: 0.16em;
+  color: var(--text-soft);
+}
+
+@media (max-width: 640px) {
+  .site-footer {
+    padding: 44px 6vw 28px;
+  }
+
+  .site-footer-inner {
+    gap: 32px;
+  }
+
+  .site-footer-nav {
+    gap: 32px;
+  }
+}
+
+/* ── Auth password-reset panel ───────────────────────────────── */
+.auth-reset-panel {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-gold-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auth-reset-hint {
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--text-soft);
+}

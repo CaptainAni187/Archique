@@ -101,7 +101,10 @@ export default async function handler(req, res) {
     })
 
     const config = getBackendConfig()
-    const recipients = ['archikri07@gmail.com', 'kanimesh187@gmail.com']
+    const recipients = String(config.inquiryNotificationRecipients || '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)
     const emailHtml = `
       <h2>New ARCHIVERSE inquiry</h2>
       <p><strong>Name:</strong> ${escapeHtml(name)}</p>

@@ -35,7 +35,12 @@ export function verifyRazorpaySignature({
     .update(`${razorpayOrderId}|${razorpayPaymentId}`)
     .digest('hex')
 
-  return expectedSignature === razorpaySignature
+  const received = String(razorpaySignature || '')
+  // Constant-time comparison to avoid leaking the signature via timing.
+  if (received.length !== expectedSignature.length) {
+    return false
+  }
+  return crypto.timingSafeEqual(Buffer.from(expectedSignature), Buffer.from(received))
 }
 
 export async function createRazorpayOrder({

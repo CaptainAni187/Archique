@@ -17,7 +17,22 @@ export async function readJson(req) {
   return rawBody ? JSON.parse(rawBody) : {}
 }
 
+function applySecurityHeaders(res) {
+  // Defensive headers for every API response. The API returns sensitive data,
+  // so it must never be cached, framed, or MIME-sniffed.
+  try {
+    res.setHeader('X-Content-Type-Options', 'nosniff')
+    res.setHeader('X-Frame-Options', 'DENY')
+    res.setHeader('Referrer-Policy', 'no-referrer')
+    res.setHeader('Cache-Control', 'no-store')
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+  } catch {
+    // Headers may already be sent in edge cases; ignore.
+  }
+}
+
 export function sendJson(res, statusCode, payload) {
+  applySecurityHeaders(res)
   res.status(statusCode).json(payload)
 }
 

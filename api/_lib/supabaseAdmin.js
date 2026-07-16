@@ -719,3 +719,72 @@ export async function deleteUserRoomProfileById(id) {
     },
   })
 }
+
+// ── Rate limiting (atomic, via SQL RPC) ─────────────────────────────────────
+export async function consumeRateLimitRecord(key, { limit, windowMs }) {
+  const rows = await supabaseAdminRequest('rpc/consume_rate_limit', {
+    method: 'POST',
+    body: JSON.stringify({
+      p_key: String(key),
+      p_limit: Number(limit),
+      p_window_ms: Number(windowMs),
+    }),
+  })
+
+  const row = Array.isArray(rows) ? rows[0] : rows
+  return {
+    allowed: row?.allowed !== false,
+    remaining: Number(row?.remaining ?? 0),
+    retryAfterSeconds: Number(row?.retry_after_seconds ?? Math.ceil(windowMs / 1000)),
+  }
+}
+
+// ── Admin password reset tokens ─────────────────────────────────────────────
+export async function createAdminResetTokenRecord(payload) {
+  const response = await supabaseAdminRequest('admin_password_reset_tokens', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify(payload),
+  })
+  return response?.[0] || null
+}
+
+export async function fetchAdminResetTokenByHash(tokenHash) {
+  const response = await supabaseAdminRequest(
+    `admin_password_reset_tokens?select=*&token_hash=eq.${encodeURIComponent(tokenHash)}&limit=1`,
+  )
+  return response?.[0] || null
+}
+
+export async function markAdminResetTokenUsed(id) {
+  await supabaseAdminRequest(`admin_password_reset_tokens?id=eq.${Number(id)}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({ used_at: new Date().toISOString() }),
+  })
+}
+
+// ── User password reset tokens ──────────────────────────────────────────────
+export async function createUserResetTokenRecord(payload) {
+  const response = await supabaseAdminRequest('user_password_reset_tokens', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify(payload),
+  })
+  return response?.[0] || null
+}
+
+export async function fetchUserResetTokenByHash(tokenHash) {
+  const response = await supabaseAdminRequest(
+    `user_password_reset_tokens?select=*&token_hash=eq.${encodeURIComponent(tokenHash)}&limit=1`,
+  )
+  return response?.[0] || null
+}
+
+export async function markUserResetTokenUsed(id) {
+  await supabaseAdminRequest(`user_password_reset_tokens?id=eq.${Number(id)}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({ used_at: new Date().toISOString() }),
+  })
+}
