@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   loginUser,
@@ -6,7 +6,7 @@ import {
   requestPasswordReset,
   resetPassword,
 } from '../services/userAuthService'
-import { continueWithGoogle, finalizeGoogleLogin } from '../services/supabaseAuthService'
+import { continueWithGoogle } from '../services/supabaseAuthService'
 import usePageMeta from '../hooks/usePageMeta'
 import PasswordInput from '../components/PasswordInput'
 
@@ -68,45 +68,6 @@ function UserLogin() {
       setIsResetSubmitting(false)
     }
   }
-
-  useEffect(() => {
-    let isCancelled = false
-    async function handleGoogleCallback() {
-      const hasAccessToken = window.location.hash.includes('access_token=')
-      const hasOauthError = window.location.hash.includes('error=')
-      if (!hasAccessToken && !hasOauthError) {
-        return
-      }
-
-      if (hasOauthError) {
-        const errorParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
-        setErrorMessage(errorParams.get('error_description') || 'Google login was cancelled.')
-        window.history.replaceState({}, document.title, '/login')
-        return
-      }
-
-      setIsGoogleLoading(true)
-      try {
-        await finalizeGoogleLogin()
-        if (!isCancelled) {
-          navigate('/account')
-        }
-      } catch (error) {
-        if (!isCancelled) {
-          setErrorMessage(error.message || 'Unable to finish Google login.')
-        }
-      } finally {
-        if (!isCancelled) {
-          setIsGoogleLoading(false)
-        }
-      }
-    }
-
-    handleGoogleCallback()
-    return () => {
-      isCancelled = true
-    }
-  }, [navigate])
 
   const onChange = (event) => {
     const { name, value } = event.target
