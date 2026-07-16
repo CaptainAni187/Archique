@@ -46,11 +46,20 @@ function isMissingTableError(error, tableName) {
 }
 
 function isAdminStoreUnavailable(error, tableName) {
-  // Only fall back to the env bootstrap admin when the table genuinely does not
-  // exist yet (fresh project). Transient failures (network, timeouts, auth) must
-  // NOT downgrade to the weaker env-admin path — otherwise an attacker who can
-  // disrupt Supabase reachability could force it.
-  return isMissingTableError(error, tableName)
+  // Fall back to the env bootstrap admin only in genuine deploy/bootstrap
+  // states: the table doesn't exist yet (fresh project) OR Supabase isn't
+  // configured at all (missing URL / service-role key). These are deploy-time
+  // conditions, not attacker-inducible at runtime.
+  //
+  // Deliberately NOT included: 'fetch failed' / timeouts. A transient network
+  // failure must not silently downgrade to the env-admin path, since an
+  // attacker able to disrupt Supabase reachability could otherwise force it.
+  const message = String(error?.message || '').toLowerCase()
+  return (
+    isMissingTableError(error, tableName) ||
+    message.includes('supabase_url') ||
+    message.includes('supabase_service_role_key')
+  )
 }
 
 function getFallbackAdminEmail() {
