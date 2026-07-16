@@ -8,7 +8,6 @@ import Admin from './pages/Admin'
 import AdminLogin from './pages/AdminLogin'
 import UserLogin from './pages/UserLogin'
 import UserAccount from './pages/UserAccount'
-import About from './pages/About'
 import Contact from './pages/Contact'
 import Policies from './pages/Policies'
 import Privacy from './pages/Privacy'
@@ -18,7 +17,6 @@ import Canvas from './pages/Canvas'
 import Sketch from './pages/Sketch'
 import Feed from './pages/Feed'
 import CV from './pages/CV'
-import Commission from './pages/Commission'
 import RoomMatch from './pages/RoomMatch'
 import { OrderProvider } from './state/OrderContext'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -69,9 +67,7 @@ function AppLayout() {
           <Route path="/store" element={<Gallery />} />
           <Route path="/gallery" element={<Gallery />} />
           <Route path="/room-match" element={<RoomMatch />} />
-          <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
-          <Route path="/commission" element={<Commission />} />
           <Route path="/policies" element={<Policies />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/product/:id" element={<Product />} />

@@ -36,7 +36,6 @@ function SiteHeader({ isDarkBackground = false }) {
   const location = useLocation()
   const isAccountRoute = location.pathname === '/account' || location.pathname === '/login'
   const aboutItems = [
-    { to: '/about', label: 'ABOUT' },
     { to: '/feed', label: 'FEED' },
     { to: '/privacy', label: 'PRIVACY' },
     { to: '/contact', label: 'CONTACT' },
