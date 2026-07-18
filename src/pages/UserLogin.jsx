@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   loginUser,
@@ -6,7 +6,7 @@ import {
   requestPasswordReset,
   resetPassword,
 } from '../services/userAuthService'
-import { continueWithGoogle } from '../services/supabaseAuthService'
+import { continueWithGoogle, OAUTH_ERROR_KEY } from '../services/supabaseAuthService'
 import usePageMeta from '../hooks/usePageMeta'
 import PasswordInput from '../components/PasswordInput'
 
@@ -27,6 +27,15 @@ function UserLogin() {
   const [resetNewPassword, setResetNewPassword] = useState('')
   const [resetMessage, setResetMessage] = useState('')
   const [isResetSubmitting, setIsResetSubmitting] = useState(false)
+
+  // Show why a Google login failed, if the global handler recorded a reason.
+  useEffect(() => {
+    const oauthError = window.sessionStorage.getItem(OAUTH_ERROR_KEY)
+    if (oauthError) {
+      setErrorMessage(oauthError)
+      window.sessionStorage.removeItem(OAUTH_ERROR_KEY)
+    }
+  }, [])
 
   const onRequestReset = async (event) => {
     event.preventDefault()

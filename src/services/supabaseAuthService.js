@@ -1,8 +1,10 @@
+import { createClient } from '@supabase/supabase-js'
 import { getAnonymousSessionId } from './analyticsService'
 import { backendRequest } from './backendApiService'
 
 const USER_TOKEN_KEY = 'archiverse_user_token'
 const USER_PROFILE_KEY = 'archiverse_user_profile'
+export const OAUTH_ERROR_KEY = 'archiverse_oauth_error'
 
 const SUPABASE_URL =
   import.meta.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co'
@@ -13,8 +15,20 @@ const hasValidSupabaseConfig =
   SUPABASE_URL !== 'https://your-project.supabase.co' &&
   SUPABASE_ANON_KEY !== 'your-public-anon-key'
 
+// The SDK handles both PKCE (?code=) and implicit (#access_token=) callbacks,
+// and parses whichever one Supabase returns out of the URL for us.
+const supabase = hasValidSupabaseConfig
+  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    })
+  : null
+
 function ensureSupabaseConfig() {
-  if (!hasValidSupabaseConfig) {
+  if (!supabase) {
     throw new Error('Google login is not configured yet.')
   }
 }
@@ -26,25 +40,31 @@ function storeSession(payload) {
 
 export async function continueWithGoogle() {
   ensureSupabaseConfig()
-  const redirectTo = `${window.location.origin}/login`
-  const authorizeUrl = new URL(`${SUPABASE_URL}/auth/v1/authorize`)
-  authorizeUrl.searchParams.set('provider', 'google')
-  authorizeUrl.searchParams.set('redirect_to', redirectTo)
-  authorizeUrl.searchParams.set('response_type', 'token')
-  authorizeUrl.searchParams.set('flow_type', 'implicit')
-  authorizeUrl.searchParams.set('prompt', 'select_account')
-  authorizeUrl.searchParams.set('scopes', 'email profile')
-  authorizeUrl.searchParams.set('apikey', SUPABASE_ANON_KEY)
 
-  window.location.assign(authorizeUrl.toString())
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: `${window.location.origin}/login`,
+      queryParams: { prompt: 'select_account' },
+    },
+  })
+
+  if (error) {
+    throw new Error(error.message || 'Unable to start Google login.')
+  }
 }
 
+/**
+ * Completes a Google login if Supabase has established a session.
+ * Safe to call on any page load: returns null when there's nothing to do.
+ */
 export async function finalizeGoogleLogin() {
-  ensureSupabaseConfig()
-  const hash = String(window.location.hash || '').replace(/^#/, '')
-  const hashParams = new URLSearchParams(hash)
-  const accessToken = hashParams.get('access_token')
-  if (!accessToken) {
+  if (!supabase) {
+    return null
+  }
+
+  const { data, error } = await supabase.auth.getSession()
+  if (error || !data?.session?.access_token) {
     return null
   }
 
@@ -52,18 +72,22 @@ export async function finalizeGoogleLogin() {
     method: 'POST',
     body: JSON.stringify({
       provider: 'google',
-      access_token: accessToken,
+      access_token: data.session.access_token,
       session_id: getAnonymousSessionId(),
     }),
   })
 
   storeSession(payload)
-  // Strip the OAuth hash from whatever URL we landed on, without forcing /login.
-  window.history.replaceState(
-    {},
-    document.title,
-    window.location.pathname + window.location.search,
-  )
+
+  // Drop any leftover OAuth params from the URL without forcing a route.
+  window.history.replaceState({}, document.title, window.location.pathname)
 
   return payload.user
+}
+
+export async function signOutSupabase() {
+  if (!supabase) {
+    return
+  }
+  await supabase.auth.signOut().catch(() => null)
 }
