@@ -26,10 +26,24 @@ import SiteHeader from './components/SiteHeader'
 import SiteFooter from './components/SiteFooter'
 import './App.css'
 
+// Detected synchronously on first render, before the SDK strips the params —
+// so we can show the sign-in overlay instead of flashing the login form.
+function hasOAuthCallbackInUrl() {
+  if (typeof window === 'undefined') {
+    return false
+  }
+  const search = window.location.search || ''
+  const hash = window.location.hash || ''
+  return /[?&]code=/.test(search) || hash.includes('access_token=')
+}
+
 function AppLayout() {
   const location = useLocation()
   const navigate = useNavigate()
   const [isDarkHeroBackground, setIsDarkHeroBackground] = useState(false)
+  const [isCompletingLogin, setIsCompletingLogin] = useState(
+    () => hasOAuthCallbackInUrl() && !getUserToken(),
+  )
 
   // Global OAuth completion. Rather than sniffing the URL (Supabase may return
   // either ?code= or #access_token=, and the SDK strips it before we could
@@ -59,6 +73,11 @@ function AppLayout() {
         )
         navigate('/login', { replace: true })
       })
+      .finally(() => {
+        if (!cancelled) {
+          setIsCompletingLogin(false)
+        }
+      })
 
     return () => {
       cancelled = true
@@ -79,6 +98,17 @@ function AppLayout() {
     document.body.classList.toggle('is-carousel-route', isCarouselRoute)
     return () => document.body.classList.remove('is-carousel-route')
   }, [isCarouselRoute])
+
+  // Returning from Google: hold a calm overlay until the session is exchanged,
+  // rather than flashing the login form the user just came from.
+  if (isCompletingLogin) {
+    return (
+      <div className="auth-transition" role="status" aria-live="polite">
+        <span className="auth-transition-mark">ARCHIVERSE</span>
+        <span className="auth-transition-text">Signing you in...</span>
+      </div>
+    )
+  }
 
   return (
     <div className={`app-shell ${isCarouselRoute ? 'is-carousel-route' : ''}`.trim()}>
