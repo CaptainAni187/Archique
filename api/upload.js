@@ -1,7 +1,54 @@
+import fs from 'node:fs/promises'
 import formidable from 'formidable'
 import { requireAdminAuth } from './_lib/adminSession.js'
 import { methodNotAllowed, sendJson } from './_lib/http.js'
 import { uploadArtworkImageFile } from './_lib/supabaseStorage.js'
+
+// The client-supplied mimetype is trivially spoofable, so verify the actual
+// file signature (magic bytes) before anything is stored.
+function matchesImageSignature(buffer) {
+  if (!buffer || buffer.length < 12) {
+    return false
+  }
+
+  const isJpeg = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff
+  const isPng =
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0d &&
+    buffer[5] === 0x0a &&
+    buffer[6] === 0x1a &&
+    buffer[7] === 0x0a
+  const isGif = buffer.subarray(0, 6).toString('ascii') === 'GIF87a' ||
+    buffer.subarray(0, 6).toString('ascii') === 'GIF89a'
+  const isWebp =
+    buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    buffer.subarray(8, 12).toString('ascii') === 'WEBP'
+  // HEIC/AVIF and friends use an ISO-BMFF "ftyp" box at offset 4.
+  const isIsoBmffImage = buffer.subarray(4, 8).toString('ascii') === 'ftyp'
+
+  return isJpeg || isPng || isGif || isWebp || isIsoBmffImage
+}
+
+async function hasImageContent(file) {
+  if (!file?.filepath) {
+    return false
+  }
+
+  let handle = null
+  try {
+    handle = await fs.open(file.filepath, 'r')
+    const buffer = Buffer.alloc(12)
+    const { bytesRead } = await handle.read(buffer, 0, 12, 0)
+    return matchesImageSignature(buffer.subarray(0, bytesRead))
+  } catch {
+    return false
+  } finally {
+    await handle?.close().catch(() => null)
+  }
+}
 
 export const config = {
   api: {
@@ -77,8 +124,12 @@ export default async function handler(req, res) {
       })
     }
 
+    const signatureChecks = await Promise.all(imageFiles.map((file) => hasImageContent(file)))
     const invalidFile = imageFiles.find(
-      (file) => typeof file.mimetype !== 'string' || !file.mimetype.startsWith('image/'),
+      (file, index) =>
+        typeof file.mimetype !== 'string' ||
+        !file.mimetype.startsWith('image/') ||
+        !signatureChecks[index],
     )
 
     if (invalidFile) {
