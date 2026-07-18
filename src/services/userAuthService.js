@@ -62,6 +62,10 @@ export async function logoutUser() {
   })
   localStorage.removeItem(USER_TOKEN_KEY)
   localStorage.removeItem(USER_PROFILE_KEY)
+  // Also clear the Supabase session, otherwise the next page load would
+  // silently sign the user back in from the lingering OAuth session.
+  const { signOutSupabase } = await import('./supabaseAuthService')
+  await signOutSupabase()
 }
 
 export async function fetchCurrentUser() {

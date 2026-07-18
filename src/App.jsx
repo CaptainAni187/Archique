@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { finalizeGoogleLogin } from './services/supabaseAuthService'
+import { finalizeGoogleLogin, OAUTH_ERROR_KEY } from './services/supabaseAuthService'
+import { getUserToken } from './services/userAuthService'
 import Home from './pages/Home'
 import Gallery from './pages/Gallery'
 import Product from './pages/Product'
@@ -30,28 +31,16 @@ function AppLayout() {
   const navigate = useNavigate()
   const [isDarkHeroBackground, setIsDarkHeroBackground] = useState(false)
 
-  // Global OAuth callback handler. Supabase redirects back with the session in
-  // the URL hash (#access_token=...). Depending on the allow-listed Redirect
-  // URL it may land on any page, so we finalize the login wherever it lands.
+  // Global OAuth completion. Rather than sniffing the URL (Supabase may return
+  // either ?code= or #access_token=, and the SDK strips it before we could
+  // read it), we simply ask the SDK whether a Supabase session exists and, if
+  // so, exchange it for an Archiverse session. Safe no-op otherwise.
   useEffect(() => {
-    const hash = window.location.hash || ''
-    const hasToken = hash.includes('access_token=')
-    const hasError = hash.includes('error=')
-    if (!hasToken && !hasError) {
-      return
+    if (getUserToken()) {
+      return undefined
     }
 
     let cancelled = false
-
-    if (hasError) {
-      window.history.replaceState(
-        {},
-        document.title,
-        window.location.pathname + window.location.search,
-      )
-      navigate('/login', { replace: true })
-      return
-    }
 
     finalizeGoogleLogin()
       .then((user) => {
@@ -59,10 +48,16 @@ function AppLayout() {
           navigate('/account', { replace: true })
         }
       })
-      .catch(() => {
-        if (!cancelled) {
-          navigate('/login', { replace: true })
+      .catch((error) => {
+        if (cancelled) {
+          return
         }
+        // Surface the reason instead of silently bouncing back to /login.
+        window.sessionStorage.setItem(
+          OAUTH_ERROR_KEY,
+          error?.message || 'Google login could not be completed.',
+        )
+        navigate('/login', { replace: true })
       })
 
     return () => {
