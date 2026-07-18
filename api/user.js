@@ -91,9 +91,16 @@ function ensurePostWithCsrf(req, res) {
     return false
   }
 
-  const origin = String(req.headers.origin || '')
-  const host = String(req.headers.host || '')
-  const forwardedHost = String(req.headers['x-forwarded-host'] || '')
+  return ensureSameOriginRequest(req, res)
+}
+
+// Origin/CSRF validation without a method constraint. Callers that accept more
+// than POST (e.g. POST + DELETE) use this directly — never spread `req` to fake
+// the method, because `req.headers` is a prototype getter and would be lost.
+function ensureSameOriginRequest(req, res) {
+  const origin = String(req.headers?.origin || '')
+  const host = String(req.headers?.host || '')
+  const forwardedHost = String(req.headers?.['x-forwarded-host'] || '')
 
   if (origin && (host || forwardedHost)) {
     try {
@@ -616,7 +623,7 @@ async function handleSavedArtworks(req, res) {
     return methodNotAllowed(res, ['GET', 'POST', 'DELETE'])
   }
 
-  if (!ensurePostWithCsrf({ ...req, method: 'POST' }, res)) {
+  if (!ensureSameOriginRequest(req, res)) {
     return null
   }
 
@@ -665,7 +672,7 @@ async function handleCollections(req, res) {
     return sendJson(res, 200, { success: true, collections: withItems })
   }
 
-  if (!ensurePostWithCsrf({ ...req, method: 'POST' }, res)) {
+  if (!ensureSameOriginRequest(req, res)) {
     return null
   }
   const body = await readJson(req)
@@ -722,7 +729,7 @@ async function handleRoomProfiles(req, res) {
     return sendJson(res, 200, { success: true, profiles })
   }
 
-  if (!ensurePostWithCsrf({ ...req, method: 'POST' }, res)) {
+  if (!ensureSameOriginRequest(req, res)) {
     return null
   }
 
