@@ -12,10 +12,10 @@
     "build": "vite build",
     "lint": "eslint .",
     "test": "vitest run",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:embeddings": "node scripts/build-artwork-embeddings.mjs"
   },
   "dependencies": {
-    "@langchain/ollama": "^1.2.7",
     "@supabase/supabase-js": "^2.103.2",
     "bcrypt": "^6.0.0",
     "dotenv": "^17.4.2",
@@ -33,6 +33,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "@xenova/transformers": "^2.17.2",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",

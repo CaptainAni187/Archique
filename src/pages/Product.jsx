@@ -22,6 +22,32 @@ import {
   isArtworkAvailable,
 } from '../utils/comboPricing'
 import { fetchSavedArtworks, saveArtwork, unsaveArtwork } from '../services/userAuthService'
+import artworkSimilarity from '../../shared/ai/data/artwork-similarity.js'
+
+/**
+ * Re-orders eligible pairings by precomputed semantic similarity (generated
+ * offline by `npm run build:embeddings`). Pairing eligibility — availability
+ * and combo-discount rules — still comes from getSmartPairings; this only
+ * changes the order, and is a no-op when there are no precomputed neighbours.
+ */
+function rankPairingsBySimilarity(artwork, pairings) {
+  const neighbours = artworkSimilarity?.[String(artwork?.id)]
+  if (!Array.isArray(neighbours) || neighbours.length === 0) {
+    return pairings
+  }
+
+  const rankById = new Map(neighbours.map((entry, index) => [Number(entry.id), index]))
+
+  return [...pairings].sort((left, right) => {
+    const leftRank = rankById.has(Number(left.artwork.id))
+      ? rankById.get(Number(left.artwork.id))
+      : Number.MAX_SAFE_INTEGER
+    const rightRank = rankById.has(Number(right.artwork.id))
+      ? rankById.get(Number(right.artwork.id))
+      : Number.MAX_SAFE_INTEGER
+    return leftRank - rightRank || right.similarityScore - left.similarityScore
+  })
+}
 
 function formatPrice(price) {
   return `Rs. ${Number(price).toLocaleString()}`
@@ -230,7 +256,11 @@ function Product() {
     return <p className="status-message">Artwork not found.</p>
   }
 
-  const smartPairings = getSmartPairings(artwork, allArtworks, 3)
+  // Pull a wider eligible pool, order it semantically, then take the top 3.
+  const smartPairings = rankPairingsBySimilarity(
+    artwork,
+    getSmartPairings(artwork, allArtworks, 8),
+  ).slice(0, 3)
 
   const buyNow = () => {
     if (artwork.status === 'sold' || Number(artwork.quantity) <= 0) {
