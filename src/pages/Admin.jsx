@@ -44,6 +44,7 @@ import AdminSidebar from '../components/AdminSidebar'
 import AdminDashboardTab from '../components/AdminDashboardTab'
 import AdminArtworksTab from '../components/AdminArtworksTab'
 import AdminCombosTab from '../components/AdminCombosTab'
+import AdminCouponsTab from '../components/AdminCouponsTab'
 import AdminOrdersTab from '../components/AdminOrdersTab'
 import AdminTestimonialsTab from '../components/AdminTestimonialsTab'
 import AdminInquiriesTab from '../components/AdminInquiriesTab'
@@ -108,6 +109,7 @@ const adminTabs = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'artworks', label: 'Artworks' },
   { id: 'combos', label: 'Combos' },
+  { id: 'coupons', label: 'Coupons' },
   { id: 'orders', label: 'Orders' },
   { id: 'testimonials', label: 'Testimonials' },
   { id: 'inquiries', label: 'Inquiries' },
@@ -999,6 +1001,7 @@ function Admin() {
               onDeleteCombo={onDeleteCombo}
             />
           ) : null}
+          {activeTab === 'coupons' ? <AdminCouponsTab /> : null}
           {activeTab === 'orders' ? (
             <AdminOrdersTab
               orders={orders}

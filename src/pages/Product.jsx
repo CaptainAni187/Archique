@@ -75,7 +75,7 @@ function Product() {
   usePageMeta({
     title: artwork ? `${artwork.title} | Archiverse` : 'Artwork | Archiverse',
     description:
-      artwork?.description || 'Explore artwork details and pay 50% advance at Archiverse.',
+      artwork?.description || 'Explore artwork details and secure your purchase at Archiverse.',
   })
 
   useEffect(() => {

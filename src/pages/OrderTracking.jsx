@@ -7,10 +7,25 @@ import { findOrderByCode } from '../services/orderService'
 import { downloadInvoicePdf } from '../utils/invoicePdf'
 import { getUserFriendlyError } from '../utils/userErrors'
 
+// The DB status key stays 'advance_paid' for backward compatibility with
+// existing orders; it now means "payment received in full".
+const PAYMENT_STATUS_LABELS = {
+  pending: 'Pending',
+  advance_paid: 'Payment Confirmed',
+  processing: 'Processing',
+  shipped: 'Shipped',
+  delivered: 'Delivered',
+  cancelled: 'Cancelled',
+}
+
+function formatStatusLabel(status) {
+  return PAYMENT_STATUS_LABELS[status] || status
+}
+
 const timelineSteps = [
   {
     key: 'advance_paid',
-    label: 'Advance Paid',
+    label: 'Payment Confirmed',
     timestampKey: 'payment_verified_at',
   },
   {
@@ -122,8 +137,6 @@ function OrderTracking() {
     return null
   }
 
-  const remainingAmount = Number(order.total_amount) - Number(order.advance_amount)
-
   return (
     <Reveal className="confirmation-card order-tracking-card">
       <p className="eyebrow">Order Tracking</p>
@@ -133,22 +146,16 @@ function OrderTracking() {
           <p>{order.product_title}</p>
         </div>
         <span className={`badge status-${order.payment_status}`}>
-          {order.payment_status}
+          {formatStatusLabel(order.payment_status)}
         </span>
       </div>
 
       <div className="order-detail-grid">
         <p>
-          <strong>Order Status:</strong> {order.payment_status}
+          <strong>Order Status:</strong> {formatStatusLabel(order.payment_status)}
         </p>
         <p>
-          <strong>Payment Status:</strong> {order.payment_status}
-        </p>
-        <p>
-          <strong>Advance Paid:</strong> {formatPrice(order.advance_amount)}
-        </p>
-        <p>
-          <strong>Remaining on Delivery:</strong> {formatPrice(remainingAmount)}
+          <strong>Amount Paid:</strong> {formatPrice(order.advance_amount)}
         </p>
       </div>
 
@@ -183,7 +190,6 @@ function OrderTracking() {
                 productTitle: order.product_title,
                 totalAmount: order.total_amount,
                 advanceAmount: order.advance_amount,
-                remainingAmount,
                 paymentId: order.razorpay_payment_id,
                 paymentStatus: order.payment_status,
                 paymentVerifiedAt: order.payment_verified_at,

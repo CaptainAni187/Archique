@@ -1,4 +1,5 @@
 import { getBackendConfig, requireConfigValues } from './_lib/env.js'
+import { validateCoupon } from './_lib/coupons.js'
 import { methodNotAllowed, readJson, sendJson } from './_lib/http.js'
 import { createPaymentLog } from './_lib/paymentLogs.js'
 import {
@@ -6,7 +7,12 @@ import {
   fetchRazorpayPayment,
   verifyRazorpaySignature,
 } from './_lib/razorpay.js'
-import { fetchArtworkById, fetchComboById, fetchOrderByPaymentId } from './_lib/supabaseAdmin.js'
+import {
+  fetchArtworkById,
+  fetchComboById,
+  fetchOrderByPaymentId,
+  fetchShopSetting,
+} from './_lib/supabaseAdmin.js'
 import {
   paymentVerificationSchema,
   sendValidationError,
@@ -20,8 +26,15 @@ import {
   mergeUniqueArtworks,
 } from '../src/utils/comboPricing.js'
 
+const DEFAULT_SHIPPING_RATES = { canvas: 1200, sketch: 350 }
+
 function getAction(req) {
   return String(req.query?.action || '').trim().toLowerCase()
+}
+
+async function getShippingRates() {
+  const setting = await fetchShopSetting('shipping_rates').catch(() => null)
+  return setting?.value || DEFAULT_SHIPPING_RATES
 }
 
 async function handleCreatePaymentOrder(req, res) {
@@ -93,10 +106,41 @@ async function handleCreatePaymentOrder(req, res) {
     curatedCombo = hydratedCombo
   }
 
+  const shippingRates = await getShippingRates()
+
+  let appliedCoupon = null
+  const couponCode = String(body.coupon_code || '').trim()
+  if (couponCode) {
+    const preDiscountSelection = buildPurchaseSelection(availableArtworks, {
+      comboId: curatedCombo?.id || null,
+      comboTitle: curatedCombo?.title || '',
+      curatedDiscountPercent: curatedCombo?.discount_percent || 0,
+      shippingRates,
+      type: availableArtworks.length > 1 ? 'smart-pair' : 'single',
+    })
+    const couponResult = await validateCoupon({
+      code: couponCode,
+      email: body.customer_email,
+      subtotal: preDiscountSelection.pricing.subtotal - preDiscountSelection.pricing.discountAmount,
+    })
+
+    if (!couponResult.valid) {
+      return sendJson(res, 400, {
+        success: false,
+        error: 'COUPON_INVALID',
+        message: couponResult.message,
+      })
+    }
+
+    appliedCoupon = couponResult.coupon
+  }
+
   const selection = buildPurchaseSelection(availableArtworks, {
     comboId: curatedCombo?.id || null,
     comboTitle: curatedCombo?.title || '',
     curatedDiscountPercent: curatedCombo?.discount_percent || 0,
+    shippingRates,
+    coupon: appliedCoupon,
     type: availableArtworks.length > 1 ? 'smart-pair' : 'single',
   })
   const amountInPaise = Math.round(selection.pricing.advanceAmount * 100)
@@ -131,41 +175,32 @@ async function handleCreatePaymentOrder(req, res) {
     },
   })
 
+  const orderSummary = {
+    id: razorpayOrder.id,
+    amount: razorpayOrder.amount,
+    currency: razorpayOrder.currency,
+  }
+  const productSummary = {
+    id: uniqueProductIds[0],
+    title: selection.title,
+    itemIds: uniqueProductIds,
+    comboId: curatedCombo?.id || null,
+    discountPercent: selection.pricing.discountPercent,
+    discountAmount: selection.pricing.discountAmount,
+    couponCode: appliedCoupon?.code || null,
+    couponDiscountAmount: selection.pricing.couponDiscountAmount,
+    shippingCost: selection.pricing.shippingCost,
+    totalAmount: selection.pricing.totalAmount,
+    advanceAmount: selection.pricing.advanceAmount,
+  }
+
   return sendJson(res, 200, {
     success: true,
-    order: {
-      id: razorpayOrder.id,
-      amount: razorpayOrder.amount,
-      currency: razorpayOrder.currency,
-    },
-    product: {
-      id: uniqueProductIds[0],
-      title: selection.title,
-      itemIds: uniqueProductIds,
-      comboId: curatedCombo?.id || null,
-      discountPercent: selection.pricing.discountPercent,
-      discountAmount: selection.pricing.discountAmount,
-      shippingCost: selection.pricing.shippingCost,
-      totalAmount: selection.pricing.totalAmount,
-      advanceAmount: selection.pricing.advanceAmount,
-    },
+    order: orderSummary,
+    product: productSummary,
     data: {
-      order: {
-        id: razorpayOrder.id,
-        amount: razorpayOrder.amount,
-        currency: razorpayOrder.currency,
-      },
-      product: {
-        id: uniqueProductIds[0],
-        title: selection.title,
-        itemIds: uniqueProductIds,
-        comboId: curatedCombo?.id || null,
-        discountPercent: selection.pricing.discountPercent,
-        discountAmount: selection.pricing.discountAmount,
-        shippingCost: selection.pricing.shippingCost,
-        totalAmount: selection.pricing.totalAmount,
-        advanceAmount: selection.pricing.advanceAmount,
-      },
+      order: orderSummary,
+      product: productSummary,
     },
   })
 }

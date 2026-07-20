@@ -788,3 +788,93 @@ export async function markUserResetTokenUsed(id) {
     body: JSON.stringify({ used_at: new Date().toISOString() }),
   })
 }
+
+// ── Shop settings (admin-editable, e.g. shipping rates) ─────────────────────
+export async function fetchShopSetting(key) {
+  const response = await supabaseAdminRequest(
+    `shop_settings?select=*&key=eq.${encodeURIComponent(key)}&limit=1`,
+  )
+  return response?.[0] || null
+}
+
+export async function upsertShopSetting(key, value) {
+  const response = await supabaseAdminRequest('shop_settings', {
+    method: 'POST',
+    headers: {
+      Prefer: 'return=representation,resolution=merge-duplicates',
+    },
+    body: JSON.stringify({ key, value, updated_at: new Date().toISOString() }),
+  })
+  return response?.[0] || null
+}
+
+// ── Coupons ──────────────────────────────────────────────────────────────────
+export async function fetchCoupons() {
+  return supabaseAdminRequest('coupons?select=*&order=created_at.desc')
+}
+
+export async function fetchCouponByCode(code) {
+  const response = await supabaseAdminRequest(
+    `coupons?select=*&code=eq.${encodeURIComponent(code)}&limit=1`,
+  )
+  return response?.[0] || null
+}
+
+export async function fetchCouponById(id) {
+  const response = await supabaseAdminRequest(
+    `coupons?select=*&id=eq.${encodeURIComponent(id)}&limit=1`,
+  )
+  return response?.[0] || null
+}
+
+export async function createCoupon(payload) {
+  const response = await supabaseAdminRequest('coupons', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify(payload),
+  })
+  return response?.[0] || null
+}
+
+export async function updateCouponById(id, payload) {
+  const response = await supabaseAdminRequest(`coupons?id=eq.${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({ ...payload, updated_at: new Date().toISOString() }),
+  })
+  return response?.[0] || null
+}
+
+export async function deleteCouponById(id) {
+  await supabaseAdminRequest(`coupons?id=eq.${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: { Prefer: 'return=minimal' },
+  })
+}
+
+export async function countCouponRedemptions(couponId, customerEmail) {
+  const [totalResponse, customerResponse] = await Promise.all([
+    supabaseAdminRequest(`coupon_redemptions?select=id&coupon_id=eq.${encodeURIComponent(couponId)}`, {
+      headers: { Prefer: 'count=exact' },
+    }),
+    customerEmail
+      ? supabaseAdminRequest(
+          `coupon_redemptions?select=id&coupon_id=eq.${encodeURIComponent(couponId)}&customer_email=eq.${encodeURIComponent(customerEmail)}`,
+        )
+      : Promise.resolve([]),
+  ])
+
+  return {
+    total: Array.isArray(totalResponse) ? totalResponse.length : 0,
+    byCustomer: Array.isArray(customerResponse) ? customerResponse.length : 0,
+  }
+}
+
+export async function createCouponRedemption(payload) {
+  const response = await supabaseAdminRequest('coupon_redemptions', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify(payload),
+  })
+  return response?.[0] || null
+}

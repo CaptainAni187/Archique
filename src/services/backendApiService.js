@@ -46,7 +46,7 @@ export async function backendAdminRequest(path, options = {}) {
   })
 }
 
-export async function createPaymentOrder(selection) {
+export async function createPaymentOrder(selection, { couponCode, customerEmail } = {}) {
   const payloadBody =
     typeof selection === 'number'
       ? { product_id: selection }
@@ -58,6 +58,8 @@ export async function createPaymentOrder(selection) {
           combo_id: selection?.comboId || undefined,
           combo_title: selection?.comboTitle || undefined,
           discount_percent: selection?.pricing?.discountPercent || undefined,
+          coupon_code: couponCode || undefined,
+          customer_email: customerEmail || undefined,
         }
   const payload = await backendRequest('/api/create-order', {
     method: 'POST',

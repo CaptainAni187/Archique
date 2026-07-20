@@ -46,7 +46,8 @@ describe('order creation handler', () => {
         return createJsonResponse({
           id: paymentId,
           status: 'captured',
-          amount: 310000,
+          // Full payment is collected upfront: Rs. 5000 artwork + Rs. 1200 shipping.
+          amount: 620000,
           order_id: razorpayOrderId,
         })
       }
@@ -105,7 +106,8 @@ describe('order creation handler', () => {
     expect(res.body.order.payment_status).toBe('advance_paid')
     expect(res.body.order.razorpay_payment_id).toBe(paymentId)
     expect(res.body.order.total_amount).toBe(6200)
-    expect(res.body.order.advance_amount).toBe(3100)
+    // Full payment is collected upfront — advance equals the total.
+    expect(res.body.order.advance_amount).toBe(6200)
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining('/rest/v1/artworks?id=eq.1'),
       expect.objectContaining({

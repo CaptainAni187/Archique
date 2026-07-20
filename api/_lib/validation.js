@@ -74,6 +74,7 @@ export const orderCreationSchema = z.object({
   combo_id: z.preprocess(trimString, z.string().uuid().optional()),
   combo_title: optionalTrimmedString,
   discount_percent: z.coerce.number().int().min(0).max(50).optional(),
+  coupon_code: optionalTrimmedString,
   customer_name: nonEmptyString,
   customer_phone: nonEmptyString,
   customer_address: nonEmptyString,
@@ -83,6 +84,41 @@ export const orderCreationSchema = z.object({
   razorpay_signature: nonEmptyString,
   total_amount: z.coerce.number().positive().optional(),
   advance_amount: z.coerce.number().positive().optional(),
+})
+
+export const couponPayloadSchema = z.object({
+  code: z.preprocess(trimString, z.string().min(2).max(32)).transform((value) => value.toUpperCase()),
+  label: optionalTrimmedString,
+  discount_type: z.enum(['percent', 'flat']),
+  discount_value: z.coerce.number().positive(),
+  expires_at: z.preprocess(
+    (value) => (value === '' ? null : value),
+    z.string().datetime().nullable().optional(),
+  ),
+  usage_limit: z.preprocess(
+    (value) => (value === '' || value == null ? null : value),
+    z.coerce.number().int().positive().nullable().optional(),
+  ),
+  per_customer_limit: z.preprocess(
+    (value) => (value === '' || value == null ? null : value),
+    z.coerce.number().int().positive().nullable().optional(),
+  ),
+  min_order_value: z.coerce.number().min(0).default(0),
+  is_active: z.boolean().default(true),
+}).refine((data) => data.discount_type !== 'percent' || data.discount_value <= 100, {
+  message: 'Percentage discounts cannot exceed 100.',
+  path: ['discount_value'],
+})
+
+export const couponValidateSchema = z.object({
+  code: nonEmptyString,
+  email: z.preprocess(trimString, z.string().email().optional().or(z.literal(''))),
+  subtotal: z.coerce.number().min(0),
+})
+
+export const shippingRatesSchema = z.object({
+  canvas: z.coerce.number().min(0),
+  sketch: z.coerce.number().min(0),
 })
 
 export const paymentVerificationSchema = z.object({

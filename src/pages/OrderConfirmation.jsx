@@ -19,7 +19,7 @@ function OrderConfirmation() {
 
   usePageMeta({
     title: 'Order Confirmation | Archiverse',
-    description: 'Review your Archiverse advance payment confirmation details.',
+    description: 'Review your Archiverse payment confirmation details.',
   })
 
   if (!confirmation) {
@@ -30,7 +30,7 @@ function OrderConfirmation() {
     <Reveal className="confirmation-card">
       <p className="eyebrow">Confirmation</p>
       <h1 className="section-title">Payment Confirmed</h1>
-      <p>Your advance payment has been received successfully.</p>
+      <p>Your payment has been received in full. The work is reserved for you.</p>
       <p>
         <strong>Order ID:</strong> {confirmation.orderId}
       </p>
@@ -43,10 +43,7 @@ function OrderConfirmation() {
         <strong>Product:</strong> {confirmation.productTitle}
       </p>
       <p>
-        <strong>Advance Paid:</strong> {formatPrice(confirmation.advanceAmount)}
-      </p>
-      <p>
-        <strong>Remaining on Delivery:</strong> {formatPrice(confirmation.remainingAmount)}
+        <strong>Amount Paid:</strong> {formatPrice(confirmation.advanceAmount)}
       </p>
       <div className="confirmation-actions">
         <button

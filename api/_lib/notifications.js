@@ -119,8 +119,8 @@ export async function notifyAdmin(order, config) {
       <h2>New order received</h2>
       <p><strong>Order:</strong> ${escapeHtml(order.order_code)}</p>
       <p><strong>Artwork:</strong> ${escapeHtml(order.product_title)}</p>
-      <p><strong>Advance Paid:</strong> ${formatCurrency(order.advance_amount)}</p>
-      <p><strong>Total:</strong> ${formatCurrency(order.total_amount)}</p>
+      <p><strong>Amount Paid (in full):</strong> ${formatCurrency(order.advance_amount)}</p>
+      ${order.coupon_code ? `<p><strong>Coupon Used:</strong> ${escapeHtml(order.coupon_code)} (-${formatCurrency(order.coupon_discount_amount)})</p>` : ''}
       <p><strong>Customer:</strong> ${escapeHtml(order.customer_name)}</p>
       <p><strong>Email:</strong> ${escapeHtml(order.customer_email)}</p>
       <p><strong>Phone:</strong> ${escapeHtml(order.customer_phone)}</p>
@@ -140,13 +140,10 @@ export async function notifyCustomer(order, config) {
     subject: `Your Archiverse order ${order.order_code}`,
     html: `
       <h2>Payment confirmed</h2>
-      <p>Thank you for your Archiverse order.</p>
+      <p>Thank you for your Archiverse order. Your payment has been received in full and the work is reserved for you.</p>
       <p><strong>Order:</strong> ${escapeHtml(order.order_code)}</p>
       <p><strong>Artwork:</strong> ${escapeHtml(order.product_title)}</p>
-      <p><strong>Advance Paid:</strong> ${formatCurrency(order.advance_amount)}</p>
-      <p><strong>Remaining on Delivery:</strong> ${formatCurrency(
-        Number(order.total_amount) - Number(order.advance_amount),
-      )}</p>
+      <p><strong>Amount Paid:</strong> ${formatCurrency(order.advance_amount)}</p>
       <p>You can track your order here: /order/${encodeURIComponent(order.order_code || '')}</p>
     `,
   }).catch(() => ({ delivered: false, skipped: false }))
