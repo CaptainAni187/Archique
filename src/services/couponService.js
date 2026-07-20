@@ -45,12 +45,12 @@ export async function deleteAdminCoupon(couponId) {
 }
 
 export async function fetchShippingRates() {
-  const payload = await backendRequest('/api/settings?key=shipping_rates')
+  const payload = await backendRequest('/api/coupons?action=shipping-rates')
   return payload.data
 }
 
 export async function updateShippingRates(rates) {
-  const payload = await backendAdminRequest('/api/settings?key=shipping_rates', {
+  const payload = await backendAdminRequest('/api/coupons?action=shipping-rates', {
     method: 'PUT',
     body: JSON.stringify(rates),
   })
