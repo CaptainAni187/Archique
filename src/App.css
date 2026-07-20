@@ -2616,3 +2616,135 @@ html[data-theme='dark'] .order-detail-card {
     animation: none;
   }
 }
+
+/* ── Auth: provider button + divider ─────────────────────────── */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 4px 0;
+  color: var(--text-soft);
+  font-size: 0.68rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-gold-soft);
+}
+
+.btn-provider {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  padding: 0 0 6px;
+  border: none;
+  border-bottom: 1px solid var(--accent-color);
+  background: transparent;
+  color: var(--text-color);
+  font-weight: 300;
+  font-size: 0.78rem;
+  letter-spacing: 0.24em;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.btn-provider:hover:not(:disabled) {
+  color: var(--accent-color);
+}
+
+.btn-provider:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.btn-provider-icon {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  color: currentColor;
+}
+
+/* ── Auth card spacing ───────────────────────────────────────── */
+.auth-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.auth-card .admin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.auth-card .auth-link-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: center;
+}
+
+/* ── Checkout price breakdown + coupon ───────────────────────── */
+.checkout-price-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border-gold-soft);
+  border-bottom: 1px solid var(--border-gold-soft);
+}
+
+.checkout-price-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 0.88rem;
+  color: var(--text-soft);
+}
+
+.checkout-price-row-discount {
+  color: var(--accent-color);
+}
+
+.checkout-price-row-total {
+  padding-top: 8px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border-gold-soft);
+  color: var(--text-color);
+  font-size: 1.05rem;
+}
+
+.checkout-coupon {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.checkout-coupon-input-row {
+  display: flex;
+  gap: 10px;
+}
+
+.checkout-coupon-input-row input {
+  flex: 1;
+  text-transform: uppercase;
+}
+
+.checkout-coupon-applied {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border-gold);
+  border-radius: 2px;
+  color: var(--text-color);
+  font-size: 0.85rem;
+}

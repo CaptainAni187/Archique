@@ -22,12 +22,15 @@
       content="Discover curated fine artworks and collect with confidence."
     />
     <script>
+      // Dark is the default. Applied before paint so there is no light flash.
       (function () {
         try {
-          if (localStorage.getItem('archiverse-theme') === 'dark') {
+          if (localStorage.getItem('archiverse-theme') !== 'light') {
             document.documentElement.setAttribute('data-theme', 'dark');
           }
-        } catch (e) {}
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
       })();
     </script>
   </head>

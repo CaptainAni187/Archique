@@ -5,7 +5,6 @@ const FOOTER_SECTIONS = [
     title: 'Explore',
     links: [
       { to: '/store', label: 'Store' },
-      { to: '/room-match', label: 'Room Match' },
       { to: '/canvas', label: 'Canvas' },
       { to: '/sketch', label: 'Sketch' },
       { to: '/feed', label: 'Feed' },
@@ -14,7 +13,7 @@ const FOOTER_SECTIONS = [
   {
     title: 'Studio',
     links: [
-      { to: '/cv', label: 'CV' },
+      { to: '/room-match', label: 'Room Match' },
       { to: '/contact', label: 'Contact' },
     ],
   },

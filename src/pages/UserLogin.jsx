@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import {
   loginUser,
   signupUser,
@@ -141,9 +141,14 @@ function UserLogin() {
         <button type="submit" disabled={isSubmitting}>
           {isSubmitting ? 'Please wait...' : mode === 'signup' ? 'Sign Up' : 'Login'}
         </button>
+
+        <div className="auth-divider">
+          <span>or</span>
+        </div>
+
         <button
           type="button"
-          className="btn-secondary"
+          className="btn-provider"
           disabled={isGoogleLoading}
           onClick={async () => {
             setErrorMessage('')
@@ -156,6 +161,9 @@ function UserLogin() {
             }
           }}
         >
+          <svg className="btn-provider-icon" aria-hidden="true">
+            <use href="/icons.svg#google-icon" />
+          </svg>
           {isGoogleLoading ? 'Redirecting...' : 'Continue with Google'}
         </button>
       </form>
@@ -232,9 +240,6 @@ function UserLogin() {
         >
           {mode === 'login' ? 'Create an account' : 'Already have an account? Login'}
         </button>
-        <Link to="/store" className="text-link-button">
-          Back to Store
-        </Link>
       </div>
     </section>
   )
