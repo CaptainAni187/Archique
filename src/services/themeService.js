@@ -5,12 +5,13 @@ export const THEMES = {
   dark: 'dark',
 }
 
+// Dark is the default: only an explicit stored 'light' opts out.
 export function getStoredTheme() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
-    return stored === THEMES.dark ? THEMES.dark : THEMES.light
+    return stored === THEMES.light ? THEMES.light : THEMES.dark
   } catch {
-    return THEMES.light
+    return THEMES.dark
   }
 }
 

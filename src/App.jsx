@@ -18,7 +18,6 @@ import OrderTracking from './pages/OrderTracking'
 import Canvas from './pages/Canvas'
 import Sketch from './pages/Sketch'
 import Feed from './pages/Feed'
-import CV from './pages/CV'
 import RoomMatch from './pages/RoomMatch'
 import { OrderProvider } from './state/OrderContext'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -133,7 +132,6 @@ function AppLayout() {
             element={<Sketch onHeroContrastChange={setIsDarkHeroBackground} />}
           />
           <Route path="/feed" element={<Feed />} />
-          <Route path="/cv" element={<CV />} />
           <Route path="/store" element={<Gallery />} />
           <Route path="/gallery" element={<Gallery />} />
           <Route path="/room-match" element={<RoomMatch />} />
