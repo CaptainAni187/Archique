@@ -1,12 +1,15 @@
-import { ChatOllama, OllamaEmbeddings } from '@langchain/ollama'
 import { z } from 'zod'
 import {
-  createArtworkSearchDocument,
   explainSmartSearchMatch,
   getSearchScoreBreakdown,
   searchArtworks,
   tokenizeText,
 } from '../shared/ai/core/index.js'
+import {
+  embeddingMeta,
+  hasEmbeddingData,
+  scoreArtworksByEmbedding,
+} from '../shared/ai/core/search/embedding-search.js'
 import { fetchArtworks } from './_lib/supabaseAdmin.js'
 import { methodNotAllowed, readJson, sendJson } from './_lib/http.js'
 import { sendValidationError, validateWithSchema } from './_lib/validation.js'
@@ -27,7 +30,7 @@ function logAssistantSearch(stage, details = {}) {
 
 function logResultScoring(mode, artworks, query, moods, rankedResults, queryEmbedding = null, documentEmbeddings = []) {
   const modeWeights =
-    mode === 'ollama-embeddings'
+    mode === 'precomputed-embeddings'
       ? {
           embedding_weight: 1,
           tag_weight: 0,
@@ -48,7 +51,7 @@ function logResultScoring(mode, artworks, query, moods, rankedResults, queryEmbe
     const breakdown = getSearchScoreBreakdown(artwork, query, moods)
     const embeddingIndex = artworks.findIndex((candidate) => Number(candidate.id) === Number(artwork.id))
     const embeddingScore =
-      mode === 'ollama-embeddings' &&
+      mode === 'precomputed-embeddings' &&
       queryEmbedding &&
       Array.isArray(documentEmbeddings?.[embeddingIndex])
         ? Number(cosineSimilarity(queryEmbedding, documentEmbeddings[embeddingIndex]).toFixed(4))
@@ -70,7 +73,7 @@ function logResultScoring(mode, artworks, query, moods, rankedResults, queryEmbe
       final_score_formula:
         'final_score = (embedding_weight * embedding_score) + (tag_weight * tag_score) + (keyword_weight * keyword_score) + (category_weight * category_score) + (price_weight * price_score)',
       final_score:
-        mode === 'ollama-embeddings'
+        mode === 'precomputed-embeddings'
           ? Number((modeWeights.embedding_weight * embeddingScore).toFixed(4))
           : Number(
               (
@@ -87,7 +90,7 @@ function logResultScoring(mode, artworks, query, moods, rankedResults, queryEmbe
 
 function buildResultScoreAudit(mode, artworks, query, moods, rankedResults, queryEmbedding = null, documentEmbeddings = []) {
   const modeWeights =
-    mode === 'ollama-embeddings'
+    mode === 'precomputed-embeddings'
       ? {
           embedding_weight: 1,
           tag_weight: 0,
@@ -108,13 +111,13 @@ function buildResultScoreAudit(mode, artworks, query, moods, rankedResults, quer
     const breakdown = getSearchScoreBreakdown(artwork, query, moods)
     const embeddingIndex = artworks.findIndex((candidate) => Number(candidate.id) === Number(artwork.id))
     const embeddingScore =
-      mode === 'ollama-embeddings' &&
+      mode === 'precomputed-embeddings' &&
       queryEmbedding &&
       Array.isArray(documentEmbeddings?.[embeddingIndex])
         ? Number(cosineSimilarity(queryEmbedding, documentEmbeddings[embeddingIndex]).toFixed(4))
         : 0
     const finalScore =
-      mode === 'ollama-embeddings'
+      mode === 'precomputed-embeddings'
         ? Number((modeWeights.embedding_weight * embeddingScore).toFixed(4))
         : Number(
             (
@@ -171,6 +174,38 @@ function checkSortConsistency(scoredResults) {
   }
 }
 
+/**
+ * Deterministic, offline replacement for the old LLM-written summary. No model
+ * call, so it is instant and free — and it never hallucinates.
+ */
+function buildSemanticSummary(query, moods, results) {
+  if (results.length === 0) {
+    return ''
+  }
+
+  const intent = [query, ...moods].filter(Boolean).join(', ').trim()
+  const categories = [
+    ...new Set(results.map((result) => result.artwork.category).filter(Boolean)),
+  ]
+  const topTags = [
+    ...new Set(results.flatMap((result) => result.artwork.tags || []).filter(Boolean)),
+  ].slice(0, 3)
+
+  const parts = [
+    intent ? `Matched "${intent}"` : 'Matched your search',
+    `across ${results.length} ${results.length === 1 ? 'work' : 'works'}`,
+  ]
+
+  if (categories.length > 0) {
+    parts.push(`in ${categories.join(' and ')}`)
+  }
+  if (topTags.length > 0) {
+    parts.push(`with ${topTags.join(', ')} qualities`)
+  }
+
+  return `${parts.join(' ')}.`
+}
+
 function normalizeArtwork(artwork) {
   const images = [
     ...(Array.isArray(artwork.images) ? artwork.images : []),
@@ -208,53 +243,58 @@ function cosineSimilarity(left, right) {
   return dot / (Math.sqrt(leftMagnitude) * Math.sqrt(rightMagnitude))
 }
 
-async function searchWithOllama(artworks, query, moods, limit) {
+/**
+ * Semantic pass over precomputed vectors. Costs nothing at request time: the
+ * artwork and lexicon vectors are generated offline by
+ * `npm run build:embeddings`. Returns null when the query mentions nothing we
+ * have a vector for, so the caller falls back to keyword search.
+ */
+function searchWithEmbeddings(artworks, query, moods, limit) {
   const prompt = [query, ...moods].filter(Boolean).join(' ')
   if (!prompt.trim()) {
-    logAssistantSearch('ollama-skipped-empty-prompt', {
-      rawQuery: query,
-      moods,
+    logAssistantSearch('embeddings-skipped-empty-prompt', { rawQuery: query, moods })
+    return null
+  }
+
+  if (!hasEmbeddingData()) {
+    logAssistantSearch('embeddings-unavailable', {
+      reason: 'No precomputed vectors bundled. Run: npm run build:embeddings',
     })
     return null
   }
 
-  logAssistantSearch('OLLAMA MODE ACTIVE', {
+  const { scores, matchedTerms } = scoreArtworksByEmbedding(prompt)
+  if (scores.size === 0) {
+    logAssistantSearch('embeddings-no-known-terms', {
+      prompt,
+      promptTokens: tokenizeText(prompt),
+    })
+    return null
+  }
+
+  logAssistantSearch('EMBEDDING MODE ACTIVE', {
     prompt,
-    promptTokens: tokenizeText(prompt),
+    matchedTerms,
+    model: embeddingMeta.model,
+    dimensions: embeddingMeta.dimensions,
     artworkCount: artworks.length,
     limit,
   })
 
-  const embeddings = new OllamaEmbeddings({
-    model: process.env.OLLAMA_EMBED_MODEL || 'nomic-embed-text',
-    baseUrl: process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434',
-  })
-
-  const queryEmbedding = await embeddings.embedQuery(prompt)
-  const documents = artworks.map((artwork) => createArtworkSearchDocument(artwork))
-  const documentEmbeddings = await embeddings.embedDocuments(documents)
-  logAssistantSearch('embedding-generated', {
-    queryEmbeddingDimensions: Array.isArray(queryEmbedding) ? queryEmbedding.length : 0,
-    documentCount: documents.length,
-    documentEmbeddingDimensions: Array.isArray(documentEmbeddings?.[0])
-      ? documentEmbeddings[0].length
-      : 0,
-  })
-
   const rankedResults = artworks
-    .map((artwork, index) => ({
+    .map((artwork) => ({
       artwork,
-      score: Number(cosineSimilarity(queryEmbedding, documentEmbeddings[index]).toFixed(4)),
+      score: Number(scores.get(Number(artwork.id)) || 0),
       explanation: explainSmartSearchMatch(artwork, query, moods, []),
-      source: 'ollama-embeddings',
+      source: 'precomputed-embeddings',
     }))
     .filter((result) => result.score > 0)
     .sort((left, right) => right.score - left.score || Number(left.artwork.id) - Number(right.artwork.id))
     .slice(0, limit)
 
-  logAssistantSearch('ollama-scoring-complete', {
+  logAssistantSearch('embedding-scoring-complete', {
     scoredArtworkCount: rankedResults.length,
-    embeddingVectorLength: Array.isArray(queryEmbedding) ? queryEmbedding.length : 0,
+    matchedTerms,
     topResults: rankedResults.slice(0, 5).map((result, index) => ({
       rank: index + 1,
       artworkId: result.artwork.id,
@@ -262,23 +302,15 @@ async function searchWithOllama(artworks, query, moods, limit) {
       score: result.score,
     })),
   })
-  logResultScoring('ollama-embeddings', artworks, query, moods, rankedResults, queryEmbedding, documentEmbeddings)
-  const scoreAudit = buildResultScoreAudit(
-    'ollama-embeddings',
-    artworks,
-    query,
-    moods,
-    rankedResults,
-    queryEmbedding,
-    documentEmbeddings,
-  )
+
+  const scoreAudit = buildResultScoreAudit('precomputed-embeddings', artworks, query, moods, rankedResults)
   const sortCheck = checkSortConsistency(scoreAudit)
   logAssistantSearch('top-10-ranked-results', {
-    mode: 'ollama-embeddings',
+    mode: 'precomputed-embeddings',
     results: scoreAudit,
   })
   logAssistantSearch(sortCheck.isConsistent ? 'sort-order-confirmed' : 'SORT_ORDER_MISMATCH', {
-    mode: 'ollama-embeddings',
+    mode: 'precomputed-embeddings',
     isConsistent: sortCheck.isConsistent,
     mismatches: sortCheck.mismatches,
   })
@@ -286,38 +318,6 @@ async function searchWithOllama(artworks, query, moods, limit) {
   return rankedResults
 }
 
-async function summarizeWithOllama(query, moods, results) {
-  if (results.length === 0) {
-    return ''
-  }
-
-  try {
-    const model = new ChatOllama({
-      model: process.env.OLLAMA_CHAT_MODEL || 'llama3.2',
-      baseUrl: process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434',
-      temperature: 0.2,
-    })
-
-    const response = await model.invoke([
-      [
-        'human',
-        [
-          'You are the local Archiverse art assistant.',
-          'Write one short sentence explaining why these artworks match.',
-          `Search: ${query || moods.join(', ')}`,
-          `Artworks: ${results
-            .slice(0, 5)
-            .map((result) => `${result.artwork.title} (${result.artwork.category}, ${result.artwork.tags?.join(', ') || 'no tags'}, Rs. ${result.artwork.price})`)
-            .join('; ')}`,
-        ].join('\n'),
-      ],
-    ])
-
-    return typeof response?.content === 'string' ? response.content.trim() : ''
-  } catch {
-    return ''
-  }
-}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -345,22 +345,22 @@ export default async function handler(req, res) {
     let results = null
 
     try {
-      results = await searchWithOllama(artworks, payload.query, payload.moods, payload.limit)
+      results = searchWithEmbeddings(artworks, payload.query, payload.moods, payload.limit)
     } catch (error) {
-      logAssistantSearch('ollama-error', {
-        message: error?.message || 'Unknown Ollama error',
+      logAssistantSearch('embedding-error', {
+        message: error?.message || 'Unknown embedding error',
         stack: error?.stack || '',
       })
       logAssistantSearch('FALLBACK MODE ACTIVE', {
-        reason: 'Ollama search failed',
+        reason: 'Embedding search failed',
         fallback: 'smartKeywordSearch',
       })
       results = null
     }
 
-    const usedOllamaResults = Boolean(results && results.length > 0)
+    const usedSemanticResults = Boolean(results && results.length > 0)
     const semanticScoresById = new Map(
-      usedOllamaResults
+      usedSemanticResults
         ? results.map((result) => [Number(result.artwork.id), Number(result.score || 0)])
         : [],
     )
@@ -371,7 +371,7 @@ export default async function handler(req, res) {
       limit: payload.limit,
       semanticScoresById,
     })
-    if (!usedOllamaResults) {
+    if (!usedSemanticResults) {
       logAssistantSearch('keyword-scoring-complete', {
         rawQuery: payload.query,
         normalizedQuery,
@@ -398,11 +398,10 @@ export default async function handler(req, res) {
         mismatches: sortCheck.mismatches,
       })
     }
-    const resolvedSource = usedOllamaResults ? 'hybrid-ollama-keyword' : 'keyword'
-    const summary =
-      usedOllamaResults
-        ? await summarizeWithOllama(payload.query, payload.moods, resolvedResults)
-        : ''
+    const resolvedSource = usedSemanticResults ? 'hybrid-embeddings-keyword' : 'keyword'
+    const summary = usedSemanticResults
+      ? buildSemanticSummary(payload.query, payload.moods, resolvedResults)
+      : ''
 
     logAssistantSearch('pipeline-complete', {
       mode: resolvedSource,
