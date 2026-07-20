@@ -7,14 +7,22 @@ import {
   deleteCouponById,
   fetchCouponById,
   fetchCoupons,
+  fetchShopSetting,
   updateCouponById,
+  upsertShopSetting,
 } from './_lib/supabaseAdmin.js'
 import {
   couponPayloadSchema,
   couponValidateSchema,
   sendValidationError,
+  shippingRatesSchema,
   validateWithSchema,
 } from './_lib/validation.js'
+
+// Sharing this file with coupon endpoints keeps the serverless function count
+// under Vercel's Hobby-plan limit (12) rather than shipping a separate
+// api/settings.js — one function fewer to pay for.
+const DEFAULT_SHIPPING_RATES = { canvas: 1200, sketch: 350 }
 
 function normalizeCoupon(coupon) {
   return {
@@ -55,6 +63,42 @@ async function handleValidate(req, res) {
       coupon: result.coupon,
     },
   })
+}
+
+async function handleGetShippingRates(req, res) {
+  if (req.method !== 'GET') {
+    return methodNotAllowed(res, ['GET'])
+  }
+
+  const setting = await fetchShopSetting('shipping_rates').catch(() => null)
+  return sendJson(res, 200, {
+    success: true,
+    data: setting?.value || DEFAULT_SHIPPING_RATES,
+  })
+}
+
+async function handleUpdateShippingRates(req, res) {
+  if (req.method !== 'PUT') {
+    return methodNotAllowed(res, ['PUT'])
+  }
+
+  const session = await requireAdminAuth(req, res)
+  if (!session) {
+    return null
+  }
+
+  const body = await readJson(req)
+  const payload = validateWithSchema(shippingRatesSchema, body)
+  const setting = await upsertShopSetting('shipping_rates', payload)
+
+  await logAdminActivity(session, {
+    action_type: 'shipping_rates_updated',
+    resource_type: 'shop_settings',
+    resource_id: 'shipping_rates',
+    details: payload,
+  })
+
+  return sendJson(res, 200, { success: true, data: setting?.value || payload })
 }
 
 async function handleList(req, res) {
@@ -170,6 +214,16 @@ export default async function handler(req, res) {
 
     if (action === 'validate') {
       return await handleValidate(req, res)
+    }
+
+    if (action === 'shipping-rates') {
+      if (req.method === 'GET') {
+        return await handleGetShippingRates(req, res)
+      }
+      if (req.method === 'PUT') {
+        return await handleUpdateShippingRates(req, res)
+      }
+      return methodNotAllowed(res, ['GET', 'PUT'])
     }
 
     if (req.method === 'GET') {
