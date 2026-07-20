@@ -66,11 +66,7 @@ function drawText(text, x, y, size = 12) {
 
 function buildInvoiceLines(invoice) {
   const totalAmount = Number(invoice.totalAmount || 0)
-  const advanceAmount = Number(invoice.advanceAmount || 0)
-  const remainingAmount =
-    invoice.remainingAmount != null
-      ? Number(invoice.remainingAmount)
-      : Number((totalAmount - advanceAmount).toFixed(2))
+  const amountPaid = Number(invoice.advanceAmount || 0)
 
   const lines = [
     { text: 'ARCHIVERSE', x: 48, y: 792, size: 20 },
@@ -100,10 +96,9 @@ function buildInvoiceLines(invoice) {
   lines.push(
     { text: 'Order Details', x: 48, y: detailsTop, size: 14 },
     { text: `Artwork: ${invoice.productTitle || 'Original artwork'}`, x: 48, y: detailsTop - 24 },
-    { text: `Payment Status: ${invoice.paymentStatus || 'advance_paid'}`, x: 48, y: detailsTop - 42 },
-    { text: `Advance Paid: ${formatPrice(advanceAmount)}`, x: 48, y: detailsTop - 78 },
-    { text: `Remaining on Delivery: ${formatPrice(remainingAmount)}`, x: 48, y: detailsTop - 96 },
-    { text: `Total Amount: ${formatPrice(totalAmount)}`, x: 48, y: detailsTop - 114 },
+    { text: `Payment Status: Paid in full`, x: 48, y: detailsTop - 42 },
+    { text: `Amount Paid: ${formatPrice(amountPaid)}`, x: 48, y: detailsTop - 78 },
+    { text: `Total Amount: ${formatPrice(totalAmount)}`, x: 48, y: detailsTop - 96 },
   )
 
   if (invoice.deliveryEstimate) {

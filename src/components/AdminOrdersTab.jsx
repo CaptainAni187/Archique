@@ -34,8 +34,13 @@ function AdminOrdersTab({
             <div>
               <h4>Product</h4>
               <p>{selectedOrder.product_title}</p>
-              <p>Total: {formatPrice(selectedOrder.total_amount)}</p>
-              <p>Advance: {formatPrice(selectedOrder.advance_amount)}</p>
+              <p>Total Paid: {formatPrice(selectedOrder.total_amount)}</p>
+              {selectedOrder.coupon_code ? (
+                <p>
+                  Coupon: {selectedOrder.coupon_code} (-
+                  {formatPrice(selectedOrder.coupon_discount_amount)})
+                </p>
+              ) : null}
               {selectedArtwork ? (
                 <>
                   <p>Medium: {selectedArtwork.medium}</p>
@@ -86,7 +91,8 @@ function AdminOrdersTab({
                 <p>Phone: {order.customer_phone}</p>
                 <p>Email: {order.customer_email}</p>
                 <p>
-                  Total: {formatPrice(order.total_amount)} | Advance: {formatPrice(order.advance_amount)}
+                  Total Paid: {formatPrice(order.total_amount)}
+                  {order.coupon_code ? ` | Coupon: ${order.coupon_code}` : ''}
                 </p>
                 <p>
                   Payment: <span className={`badge status-${order.payment_status}`}>{order.payment_status}</span>

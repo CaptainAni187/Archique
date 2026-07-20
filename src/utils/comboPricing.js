@@ -114,11 +114,18 @@ export function getDynamicDiscountPercent(artworks = []) {
   return 0
 }
 
+/**
+ * @param {object} options
+ * @param {Record<string, number>} [options.shippingRates] admin-configured
+ *   shipping rates by category; falls back to defaults when omitted.
+ * @param {{type: 'percent'|'flat', value: number, code: string}} [options.coupon]
+ *   a pre-validated coupon to apply on top of any curated/dynamic discount.
+ */
 export function calculateComboPricing(artworks = [], options = {}) {
   const uniqueArtworks = mergeUniqueArtworks(artworks)
   const subtotal = uniqueArtworks.reduce((sum, artwork) => sum + Number(artwork?.price || 0), 0)
   const shippingCost = uniqueArtworks.reduce(
-    (sum, artwork) => sum + Number(getDeliveryDetails(artwork).shippingCost || 0),
+    (sum, artwork) => sum + Number(getDeliveryDetails(artwork, options.shippingRates).shippingCost || 0),
     0,
   )
 
@@ -127,9 +134,22 @@ export function calculateComboPricing(artworks = [], options = {}) {
     curatedDiscountPercent > 0 ? 0 : getDynamicDiscountPercent(uniqueArtworks)
   const discountPercent = curatedDiscountPercent > 0 ? curatedDiscountPercent : dynamicDiscountPercent
   const discountAmount = Number(((subtotal * discountPercent) / 100).toFixed(2))
-  const discountedSubtotal = Number((subtotal - discountAmount).toFixed(2))
+
+  const remainingAfterDiscount = Math.max(0, subtotal - discountAmount)
+  let couponDiscountAmount = 0
+  const coupon = options.coupon || null
+  if (coupon) {
+    const rawCouponDiscount =
+      coupon.type === 'percent'
+        ? (remainingAfterDiscount * Number(coupon.value || 0)) / 100
+        : Number(coupon.value || 0)
+    couponDiscountAmount = Number(
+      Math.min(Math.max(rawCouponDiscount, 0), remainingAfterDiscount).toFixed(2),
+    )
+  }
+
+  const discountedSubtotal = Number((remainingAfterDiscount - couponDiscountAmount).toFixed(2))
   const totalAmount = Number((discountedSubtotal + shippingCost).toFixed(2))
-  const advanceAmount = Number((totalAmount / 2).toFixed(2))
 
   return {
     items: uniqueArtworks,
@@ -137,10 +157,13 @@ export function calculateComboPricing(artworks = [], options = {}) {
     shippingCost,
     discountPercent,
     discountAmount,
+    couponCode: coupon?.code || null,
+    couponDiscountAmount,
     discountedSubtotal,
     totalAmount,
-    advanceAmount,
-    remainingAmount: Number((totalAmount - advanceAmount).toFixed(2)),
+    // Full payment is collected upfront — nothing is owed on delivery.
+    advanceAmount: totalAmount,
+    remainingAmount: 0,
     source:
       curatedDiscountPercent > 0
         ? 'curated-combo'
@@ -211,6 +234,8 @@ export function buildPurchaseSelection(items = [], options = {}) {
   const curatedDiscountPercent = Number(options.curatedDiscountPercent || 0)
   const pricing = calculateComboPricing(uniqueItems, {
     curatedDiscountPercent,
+    shippingRates: options.shippingRates,
+    coupon: options.coupon,
   })
 
   return {

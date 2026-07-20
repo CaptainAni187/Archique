@@ -12,6 +12,7 @@ import {
 } from '../services/backendApiService'
 import { trackAnalyticsEvent } from '../services/analyticsService'
 import { findOrderByPaymentId } from '../services/orderService'
+import { fetchShippingRates, validateCoupon } from '../services/couponService'
 import Reveal from '../components/Reveal'
 import ErrorState from '../components/ErrorState'
 import usePageMeta from '../hooks/usePageMeta'
@@ -69,11 +70,29 @@ function Checkout() {
   const [recoveryMessage, setRecoveryMessage] = useState('')
   const [paymentSetupMessage, setPaymentSetupMessage] = useState('')
   const [paymentSetupRetryKey, setPaymentSetupRetryKey] = useState(0)
+  const [couponInput, setCouponInput] = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useState(null)
+  const [couponMessage, setCouponMessage] = useState('')
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false)
+  const [shippingRates, setShippingRates] = useState(null)
+
+  useEffect(() => {
+    let isActive = true
+    fetchShippingRates()
+      .then((rates) => {
+        if (isActive && rates) {
+          setShippingRates(rates)
+        }
+      })
+      .catch(() => null)
+    return () => {
+      isActive = false
+    }
+  }, [])
 
   usePageMeta({
     title: 'Checkout | Archiverse',
-    description:
-      'Securely pay 50% advance for your selected artwork from Archiverse.',
+    description: 'Securely complete payment for your selected artwork from Archiverse.',
   })
 
   useEffect(() => {
@@ -91,8 +110,57 @@ function Checkout() {
     setSelectedPurchase,
   ])
 
-  const checkoutSelection =
+  const baseSelection =
     selectedPurchase || (selectedProduct ? buildPurchaseSelection([selectedProduct]) : null)
+
+  const checkoutSelection = baseSelection
+    ? buildPurchaseSelection(baseSelection.items, {
+        comboId: baseSelection.comboId,
+        comboTitle: baseSelection.comboTitle,
+        curatedDiscountPercent: baseSelection.curatedDiscountPercent,
+        type: baseSelection.type,
+        coupon: appliedCoupon,
+        shippingRates: shippingRates || undefined,
+      })
+    : null
+
+  const onApplyCoupon = async () => {
+    const trimmedCode = couponInput.trim()
+    if (!trimmedCode || !baseSelection) {
+      return
+    }
+
+    setIsApplyingCoupon(true)
+    setCouponMessage('')
+
+    try {
+      const result = await validateCoupon({
+        code: trimmedCode,
+        email: form.email.trim(),
+        subtotal: baseSelection.pricing.subtotal - baseSelection.pricing.discountAmount,
+      })
+
+      if (!result?.valid) {
+        setAppliedCoupon(null)
+        setCouponMessage(result?.message || 'This coupon code is not valid.')
+        return
+      }
+
+      setAppliedCoupon(result.coupon)
+      setCouponMessage(`Coupon "${result.coupon.code}" applied.`)
+    } catch (error) {
+      setAppliedCoupon(null)
+      setCouponMessage(getUserFriendlyError(error, 'Unable to apply this coupon right now.'))
+    } finally {
+      setIsApplyingCoupon(false)
+    }
+  }
+
+  const onRemoveCoupon = () => {
+    setAppliedCoupon(null)
+    setCouponInput('')
+    setCouponMessage('')
+  }
 
   useEffect(() => {
     if (!checkoutSelection?.primaryItem) {
@@ -203,10 +271,9 @@ function Checkout() {
   const subtotal = checkoutSelection.pricing.subtotal
   const shippingCost = checkoutSelection.pricing.shippingCost
   const totalAmount = checkoutSelection.pricing.totalAmount
-  const advanceAmount = checkoutSelection.pricing.advanceAmount
-  const remainingAmount = checkoutSelection.pricing.remainingAmount
   const discountAmount = checkoutSelection.pricing.discountAmount
   const discountPercent = checkoutSelection.pricing.discountPercent
+  const couponDiscountAmount = checkoutSelection.pricing.couponDiscountAmount
 
   const onChange = (event) => {
     const { name, value } = event.target
@@ -283,6 +350,7 @@ function Checkout() {
         product_ids: pendingCheckout.product.itemIds,
         combo_id: pendingCheckout.product.comboId || undefined,
         discount_percent: pendingCheckout.product.discountPercent || undefined,
+        coupon_code: pendingCheckout.product.couponCode || undefined,
         payment_status: 'advance_paid',
         ...pendingCheckout.payment,
       })
@@ -341,7 +409,10 @@ function Checkout() {
         throw new Error('Payment service is not ready. Please refresh and try again.')
       }
 
-      const paymentOrder = await createPaymentOrder(checkoutSelection)
+      const paymentOrder = await createPaymentOrder(checkoutSelection, {
+        couponCode: appliedCoupon?.code,
+        customerEmail: trimmedEmail,
+      })
       if (!paymentOrder?.id || !paymentOrder?.amount) {
         throw new Error('Unable to initialize payment. Please try again.')
       }
@@ -380,6 +451,7 @@ function Checkout() {
             itemIds: checkoutSelection.items.map((artwork) => artwork.id),
             comboId: checkoutSelection.comboId || null,
             discountPercent: checkoutSelection.pricing.discountPercent,
+            couponCode: appliedCoupon?.code || null,
           },
         }),
       )
@@ -400,6 +472,7 @@ function Checkout() {
         combo_id: checkoutSelection.comboId || undefined,
         combo_title: checkoutSelection.comboTitle || undefined,
         discount_percent: checkoutSelection.pricing.discountPercent,
+        coupon_code: appliedCoupon?.code || undefined,
         payment_status: 'advance_paid',
         ...paymentResult,
       })
@@ -432,9 +505,9 @@ function Checkout() {
       <Reveal className="checkout-layout">
         <div className="checkout-product">
           <p className="eyebrow">CHECKOUT</p>
-          <h1 className="section-title">COMPLETE YOUR ADVANCE PAYMENT</h1>
+          <h1 className="section-title">COMPLETE YOUR PAYMENT</h1>
           <p className="checkout-note">
-            A 50% ADVANCE SECURES THE WORK
+            PAYMENT IN FULL SECURES THE ORIGINAL WORK FOR YOU
           </p>
           {checkoutImage ? (
             <img
@@ -452,16 +525,68 @@ function Checkout() {
             {checkoutSelection.items.length > 1 ? (
               <p>Includes: {checkoutSelection.items.map((artwork) => artwork.title).join(', ')}</p>
             ) : null}
-            <p>Artwork subtotal: {formatPrice(subtotal)}</p>
-            {discountPercent > 0 ? (
-              <p>
-                Discount ({discountPercent}%): -{formatPrice(discountAmount)}
-              </p>
-            ) : null}
-            <p>Shipping: {formatPrice(shippingCost)}</p>
-            <p>Total: {formatPrice(totalAmount)}</p>
-            <p className="checkout-advance">Advance Today: {formatPrice(advanceAmount)}</p>
-            <p>Remaining on delivery: {formatPrice(remainingAmount)}</p>
+
+            <div className="checkout-price-breakdown">
+              <div className="checkout-price-row">
+                <span>Artwork subtotal</span>
+                <span>{formatPrice(subtotal)}</span>
+              </div>
+              {discountPercent > 0 ? (
+                <div className="checkout-price-row checkout-price-row-discount">
+                  <span>Discount ({discountPercent}%)</span>
+                  <span>-{formatPrice(discountAmount)}</span>
+                </div>
+              ) : null}
+              {appliedCoupon ? (
+                <div className="checkout-price-row checkout-price-row-discount">
+                  <span>Coupon ({appliedCoupon.code})</span>
+                  <span>-{formatPrice(couponDiscountAmount)}</span>
+                </div>
+              ) : null}
+              <div className="checkout-price-row">
+                <span>Shipping</span>
+                <span>{formatPrice(shippingCost)}</span>
+              </div>
+              <div className="checkout-price-row checkout-price-row-total">
+                <span>Total payable now</span>
+                <span>{formatPrice(totalAmount)}</span>
+              </div>
+            </div>
+
+            <div className="checkout-coupon">
+              {appliedCoupon ? (
+                <div className="checkout-coupon-applied">
+                  <span>
+                    Coupon <strong>{appliedCoupon.code}</strong> applied
+                  </span>
+                  <button type="button" className="text-link-button" onClick={onRemoveCoupon}>
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <div className="checkout-coupon-input-row">
+                  <input
+                    type="text"
+                    placeholder="Coupon code"
+                    value={couponInput}
+                    onChange={(event) => setCouponInput(event.target.value.toUpperCase())}
+                  />
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={isApplyingCoupon || !couponInput.trim()}
+                    onClick={onApplyCoupon}
+                  >
+                    {isApplyingCoupon ? 'Checking...' : 'Apply'}
+                  </button>
+                </div>
+              )}
+              {couponMessage ? (
+                <p className={`status-message ${appliedCoupon ? 'success' : 'error'}`}>
+                  {couponMessage}
+                </p>
+              ) : null}
+            </div>
           </div>
         </div>
 
@@ -518,7 +643,7 @@ function Checkout() {
             className="text-link-button action-button"
             disabled={isSubmitting || Boolean(successMessage)}
           >
-            {isSubmitting ? 'Processing Payment...' : 'Pay 50% Advance'}
+            {isSubmitting ? 'Processing Payment...' : `Pay ${formatPrice(totalAmount)}`}
           </button>
           {recoveryMessage ? <p className="status-message">{recoveryMessage}</p> : null}
           {errorMessage ? <p className="status-message error">{errorMessage}</p> : null}

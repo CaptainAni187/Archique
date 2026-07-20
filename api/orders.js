@@ -1,5 +1,6 @@
 import { requireAdminAuth } from './_lib/adminSession.js'
 import { logAdminActivity } from './_lib/adminActivity.js'
+import { validateCoupon } from './_lib/coupons.js'
 import { getBackendConfig } from './_lib/env.js'
 import { methodNotAllowed, readJson, sendJson } from './_lib/http.js'
 import { notifyAdmin, notifyCustomer } from './_lib/notifications.js'
@@ -10,6 +11,7 @@ import {
 import { createPaymentLog } from './_lib/paymentLogs.js'
 import { fetchRazorpayPayment, verifyRazorpaySignature } from './_lib/razorpay.js'
 import {
+  createCouponRedemption,
   decrementArtworkStock,
   fetchArtworkById,
   fetchComboById,
@@ -18,6 +20,7 @@ import {
   fetchOrderById,
   fetchOrderByPaymentId,
   fetchOrders,
+  fetchShopSetting,
   supabaseAdminRequest,
   updateOrderById,
 } from './_lib/supabaseAdmin.js'
@@ -35,6 +38,13 @@ import {
   isArtworkAvailable,
   mergeUniqueArtworks,
 } from '../src/utils/comboPricing.js'
+
+const DEFAULT_SHIPPING_RATES = { canvas: 1200, sketch: 350 }
+
+async function getShippingRates() {
+  const setting = await fetchShopSetting('shipping_rates').catch(() => null)
+  return setting?.value || DEFAULT_SHIPPING_RATES
+}
 
 function normalizeOrder(order) {
   return {
@@ -128,7 +138,7 @@ async function createOrderRecord(payload) {
   throw new Error('Unable to allocate a unique order code. Please retry.')
 }
 
-async function loadOrderSelection(validatedBody) {
+async function loadOrderSelection(validatedBody, { shippingRates, coupon } = {}) {
   const requestedProductIds = Array.isArray(validatedBody.product_ids)
     ? validatedBody.product_ids.map((productId) => Number(productId))
     : [Number(validatedBody.product_id)]
@@ -188,6 +198,8 @@ async function loadOrderSelection(validatedBody) {
     comboTitle: curatedCombo?.title || String(validatedBody.combo_title || '').trim(),
     curatedDiscountPercent:
       curatedCombo?.discount_percent || Number(validatedBody.discount_percent || 0),
+    shippingRates,
+    coupon,
     type: availableArtworks.length > 1 ? 'smart-pair' : 'single',
   })
 }
@@ -265,7 +277,30 @@ async function handleCreateOrder(req, res) {
     })
   }
 
-  const selection = await loadOrderSelection(validatedBody)
+  const shippingRates = await getShippingRates()
+
+  let appliedCoupon = null
+  const couponCode = String(validatedBody.coupon_code || '').trim()
+  if (couponCode) {
+    const preDiscountSelection = await loadOrderSelection(validatedBody, { shippingRates })
+    const couponResult = await validateCoupon({
+      code: couponCode,
+      email: customerEmail,
+      subtotal: preDiscountSelection.pricing.subtotal - preDiscountSelection.pricing.discountAmount,
+    })
+
+    if (!couponResult.valid) {
+      return sendJson(res, 400, {
+        success: false,
+        error: 'COUPON_INVALID',
+        message: couponResult.message,
+      })
+    }
+
+    appliedCoupon = couponResult.coupon
+  }
+
+  const selection = await loadOrderSelection(validatedBody, { shippingRates, coupon: appliedCoupon })
   const primaryArtwork = selection.primaryItem
 
   const config = getBackendConfig()
@@ -363,10 +398,23 @@ async function handleCreateOrder(req, res) {
     razorpay_signature: razorpaySignature,
     payment_provider: 'razorpay',
     payment_verified_at: new Date().toISOString(),
+    coupon_code: appliedCoupon?.code || null,
+    coupon_discount_amount: selection.pricing.couponDiscountAmount || 0,
   })
 
   const order = normalizeOrder(createdOrder)
   await decrementArtworkSelection(selection)
+
+  if (appliedCoupon) {
+    await createCouponRedemption({
+      coupon_id: appliedCoupon.id,
+      customer_email: customerEmail,
+      order_id: order.id,
+      discount_amount: selection.pricing.couponDiscountAmount || 0,
+    }).catch((error) => {
+      console.warn('[orders] Failed to record coupon redemption:', error.message)
+    })
+  }
 
   await createPaymentLog({
     event_type: 'create_order',

@@ -1,6 +1,100 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { resetTastePreferences } from '../services/tasteService'
+import { fetchShippingRates, updateShippingRates } from '../services/couponService'
+import { getUserFriendlyError } from '../utils/userErrors'
 import PasswordInput from './PasswordInput'
+
+function DeliveryChargesSettings() {
+  const [rates, setRates] = useState({ canvas: '', sketch: '' })
+  const [loading, setLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [message, setMessage] = useState('')
+  const [errorMessage, setErrorMessage] = useState('')
+
+  useEffect(() => {
+    let isActive = true
+    fetchShippingRates()
+      .then((current) => {
+        if (isActive && current) {
+          setRates({ canvas: String(current.canvas ?? ''), sketch: String(current.sketch ?? '') })
+        }
+      })
+      .catch((error) => {
+        if (isActive) {
+          setErrorMessage(getUserFriendlyError(error, 'Could not load delivery charges.'))
+        }
+      })
+      .finally(() => {
+        if (isActive) {
+          setLoading(false)
+        }
+      })
+    return () => {
+      isActive = false
+    }
+  }, [])
+
+  const onSubmit = async (event) => {
+    event.preventDefault()
+    setIsSaving(true)
+    setMessage('')
+    setErrorMessage('')
+
+    try {
+      await updateShippingRates({
+        canvas: Number(rates.canvas),
+        sketch: Number(rates.sketch),
+      })
+      setMessage('Delivery charges updated.')
+    } catch (error) {
+      setErrorMessage(getUserFriendlyError(error, 'Could not update delivery charges.'))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <form className="admin-form" onSubmit={onSubmit}>
+      <h3>Delivery Charges</h3>
+      <p>Shipping cost added at checkout, by artwork category.</p>
+      {loading ? (
+        <p className="status-message">Loading...</p>
+      ) : (
+        <>
+          <label>
+            Canvas Shipping (Rs.)
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={rates.canvas}
+              onChange={(event) => setRates((current) => ({ ...current, canvas: event.target.value }))}
+              required
+            />
+          </label>
+          <label>
+            Sketch Shipping (Rs.)
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={rates.sketch}
+              onChange={(event) => setRates((current) => ({ ...current, sketch: event.target.value }))}
+              required
+            />
+          </label>
+          <div className="btn-row">
+            <button type="submit" disabled={isSaving}>
+              {isSaving ? 'Saving...' : 'Save Delivery Charges'}
+            </button>
+          </div>
+        </>
+      )}
+      {message ? <p className="status-message success">{message}</p> : null}
+      {errorMessage ? <p className="status-message error">{errorMessage}</p> : null}
+    </form>
+  )
+}
 
 function AdminSettingsTab({
   adminSession,
@@ -36,6 +130,10 @@ function AdminSettingsTab({
           Session Expires:{' '}
           {adminSession?.expires_at ? new Date(adminSession.expires_at).toLocaleString() : 'Unavailable'}
         </p>
+      </section>
+
+      <section className="order-detail-card">
+        <DeliveryChargesSettings />
       </section>
 
       <section className="order-detail-card">

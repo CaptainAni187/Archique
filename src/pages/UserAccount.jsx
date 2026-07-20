@@ -139,10 +139,7 @@ function UserAccount() {
                 <h3>{order.order_code || `Order #${order.id}`}</h3>
                 <p>Artwork: {order.product_title}</p>
                 <p>Status: {order.payment_status}</p>
-                <p>
-                  Total: {formatPrice(order.total_amount)} | Advance:{' '}
-                  {formatPrice(order.advance_amount)}
-                </p>
+                <p>Total: {formatPrice(order.total_amount)}</p>
               </div>
               {order.order_code ? (
                 <Link to={`/order/${encodeURIComponent(order.order_code)}`} className="text-link-button">

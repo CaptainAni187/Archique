@@ -52,7 +52,7 @@ function Home({ onHeroContrastChange }) {
   usePageMeta({
     title: 'Archiverse | Curated Fine Art',
     description:
-      'Discover original fine art, pay 50% advance, and collect timeless works from Archiverse.',
+      'Discover original fine art and collect timeless works from Archiverse.',
   })
 
   useEffect(() => {
