@@ -211,16 +211,39 @@ export async function updateArtwork(id, payload) {
   return response?.[0] || null
 }
 
+// Atomic compare-and-swap: the PATCH only matches (and applies) if the row's
+// quantity in the database still equals what we read. If a concurrent buyer
+// already claimed the last unit, this matches zero rows and we know to reject
+// the order instead of silently overselling a one-of-a-kind artwork.
 export async function decrementArtworkStock(artwork) {
   const currentQuantity = Number.isFinite(Number(artwork.quantity))
     ? Number(artwork.quantity)
     : 1
   const nextQuantity = Math.max(0, currentQuantity - 1)
 
-  return updateArtwork(artwork.id, {
-    quantity: nextQuantity,
-    status: nextQuantity <= 0 ? 'sold' : artwork.status || 'available',
-  })
+  const response = await supabaseAdminRequest(
+    `artworks?id=eq.${Number(artwork.id)}&quantity=eq.${currentQuantity}`,
+    {
+      method: 'PATCH',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({
+        quantity: nextQuantity,
+        status: nextQuantity <= 0 ? 'sold' : artwork.status || 'available',
+      }),
+    },
+  )
+
+  const updated = response?.[0]
+  if (!updated) {
+    const error = new Error(
+      `"${artwork.title || 'This artwork'}" was just claimed by another buyer.`,
+    )
+    error.status = 409
+    error.error = 'ARTWORK_SOLD_RACE'
+    throw error
+  }
+
+  return updated
 }
 
 export async function deleteArtwork(id) {

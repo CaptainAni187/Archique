@@ -54,7 +54,7 @@ export function openRazorpayCheckout({
     currency: 'INR',
     order_id: orderId,
     name: 'Archiverse',
-    description: `50% advance for ${productTitle}`,
+    description: `Full payment for ${productTitle}`,
     handler: (response) => {
       onSuccess({
         razorpay_payment_id: response.razorpay_payment_id,

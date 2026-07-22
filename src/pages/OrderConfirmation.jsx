@@ -14,8 +14,15 @@ function OrderConfirmation() {
   const { orderConfirmation } = useOrderContext()
   const [errorMessage, setErrorMessage] = useState('')
   const savedConfirmation = sessionStorage.getItem('archiverse_order_confirmation')
-  const confirmation =
-    orderConfirmation || (savedConfirmation ? JSON.parse(savedConfirmation) : null)
+  let parsedConfirmation = null
+  if (savedConfirmation) {
+    try {
+      parsedConfirmation = JSON.parse(savedConfirmation)
+    } catch {
+      sessionStorage.removeItem('archiverse_order_confirmation')
+    }
+  }
+  const confirmation = orderConfirmation || parsedConfirmation
 
   usePageMeta({
     title: 'Order Confirmation | Archiverse',

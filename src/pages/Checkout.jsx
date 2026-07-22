@@ -75,6 +75,7 @@ function Checkout() {
   const [couponMessage, setCouponMessage] = useState('')
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false)
   const [shippingRates, setShippingRates] = useState(null)
+  const [previousOrderCode, setPreviousOrderCode] = useState(null)
 
   useEffect(() => {
     let isActive = true
@@ -226,14 +227,14 @@ function Checkout() {
           return
         }
 
+        // The order from that earlier payment already exists — nothing left
+        // to recover. Clear the stale marker so it doesn't keep coming back,
+        // and let the customer know where to find it without derailing
+        // whatever they came to this page to do now.
+        sessionStorage.removeItem(PENDING_CHECKOUT_STORAGE_KEY)
         const confirmation = buildConfirmation(existingOrder)
-        sessionStorage.setItem(
-          CONFIRMATION_STORAGE_KEY,
-          JSON.stringify(confirmation),
-        )
-        setOrderDetails(existingOrder)
-        setOrderConfirmation(confirmation)
-        navigate('/checkout/confirmation', { replace: true })
+        sessionStorage.setItem(CONFIRMATION_STORAGE_KEY, JSON.stringify(confirmation))
+        setPreviousOrderCode(existingOrder.order_code || null)
       } catch (error) {
         if (isActive) {
           setRecoveryMessage(
@@ -251,7 +252,9 @@ function Checkout() {
     return () => {
       isActive = false
     }
-  }, [navigate, setOrderConfirmation, setOrderDetails])
+    // Runs once per page load — session storage is only ever written by this
+    // same tab's own checkout attempts.
+  }, [])
 
   const checkoutImage = Array.isArray(checkoutSelection?.primaryItem?.images)
     ? checkoutSelection.primaryItem.images[0] || ''
@@ -293,6 +296,10 @@ function Checkout() {
     setOrderConfirmation(confirmation)
     setSuccessMessage(successCopy)
     setForm(initialForm)
+    // Clear the purchased item from context so a browser-back to /checkout
+    // doesn't re-prime a "Pay" screen for something already bought.
+    setSelectedProduct(null)
+    setSelectedPurchase(null)
     void trackAnalyticsEvent('order_completed', {
       order_id: createdOrder.id,
       order_code: createdOrder.order_code || null,
@@ -335,7 +342,23 @@ function Checkout() {
         )
       }
 
-      const verificationResult = await verifyPayment(pendingCheckout.payment)
+      let verificationResult
+      try {
+        verificationResult = await verifyPayment(pendingCheckout.payment)
+      } catch (error) {
+        // A concurrent attempt (e.g. another tab) may have already turned
+        // this same payment into a real order between our check above and
+        // now — look once more before giving up, so the customer lands on
+        // their actual order instead of a dead-end error.
+        if (String(error?.message || '').toLowerCase().includes('already been used')) {
+          const existingOrder = await findOrderByPaymentId(
+            pendingCheckout.payment.razorpay_payment_id,
+          )
+          finalizeSuccessfulOrder(existingOrder, 'Payment already confirmed. Restoring your order.')
+          return
+        }
+        throw error
+      }
 
       if (!verificationResult.verified) {
         throw new Error('Payment could not be verified. Please contact support before retrying.')
@@ -502,6 +525,26 @@ function Checkout() {
 
   return (
     <section className="page-flow page-with-header-gap">
+      {previousOrderCode ? (
+        <div className="status-message checkout-previous-order-banner">
+          <span>
+            Your earlier order <strong>{previousOrderCode}</strong> was already confirmed.
+          </span>
+          <Link
+            to={`/order/${encodeURIComponent(previousOrderCode)}`}
+            className="text-link-button"
+          >
+            View it
+          </Link>
+          <button
+            type="button"
+            className="text-link-button"
+            onClick={() => setPreviousOrderCode(null)}
+          >
+            Dismiss
+          </button>
+        </div>
+      ) : null}
       <Reveal className="checkout-layout">
         <div className="checkout-product">
           <p className="eyebrow">CHECKOUT</p>

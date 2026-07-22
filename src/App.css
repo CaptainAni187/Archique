@@ -2748,3 +2748,12 @@ html[data-theme='dark'] .order-detail-card {
   color: var(--text-color);
   font-size: 0.85rem;
 }
+
+/* ── Checkout: stale pending-payment notice ──────────────────── */
+.checkout-previous-order-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}

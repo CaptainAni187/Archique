@@ -216,6 +216,20 @@ async function updateArtworkByIdForRollback(id, payload) {
   return response?.[0] || null
 }
 
+function rollbackArtworkSelection(updatedArtworks) {
+  return Promise.allSettled(
+    updatedArtworks.map(({ previous }) =>
+      updateArtworkByIdForRollback(previous.id, {
+        quantity: previous.quantity,
+        status: previous.status || 'available',
+      }),
+    ),
+  )
+}
+
+// Atomically claims stock for every item in the selection. Returns the list
+// of {previous, updated} pairs so the caller can roll everything back if a
+// later step (e.g. creating the order row) fails.
 async function decrementArtworkSelection(selection) {
   const updatedArtworks = []
 
@@ -228,16 +242,11 @@ async function decrementArtworkSelection(selection) {
       })
     }
   } catch (error) {
-    await Promise.allSettled(
-      updatedArtworks.map(({ previous }) =>
-        updateArtworkByIdForRollback(previous.id, {
-          quantity: previous.quantity,
-          status: previous.status || 'available',
-        }),
-      ),
-    )
+    await rollbackArtworkSelection(updatedArtworks)
     throw error
   }
+
+  return updatedArtworks
 }
 
 async function handleCreateOrder(req, res) {
@@ -279,6 +288,13 @@ async function handleCreateOrder(req, res) {
 
   const shippingRates = await getShippingRates()
 
+  // At this point the customer has already paid via Razorpay — never hard-reject
+  // the order because a coupon became invalid between payment and this step
+  // (e.g. its usage limit was hit by another customer in the last few seconds).
+  // If that happens we simply don't apply the coupon here; the payment-amount
+  // check further down (which already logs with the payment ID) is what
+  // decides whether the order can proceed, so a captured payment is never
+  // silently dropped without a trace for the admin to reconcile.
   let appliedCoupon = null
   const couponCode = String(validatedBody.coupon_code || '').trim()
   if (couponCode) {
@@ -289,15 +305,20 @@ async function handleCreateOrder(req, res) {
       subtotal: preDiscountSelection.pricing.subtotal - preDiscountSelection.pricing.discountAmount,
     })
 
-    if (!couponResult.valid) {
-      return sendJson(res, 400, {
-        success: false,
-        error: 'COUPON_INVALID',
-        message: couponResult.message,
-      })
+    if (couponResult.valid) {
+      appliedCoupon = couponResult.coupon
+    } else {
+      await createPaymentLog({
+        event_type: 'create_order',
+        status: 'coupon_invalid_at_order_creation',
+        razorpay_payment_id: razorpayPaymentId,
+        razorpay_order_id: razorpayOrderId,
+        details: {
+          coupon_code: couponCode,
+          reason: couponResult.message,
+        },
+      }).catch(() => null)
     }
-
-    appliedCoupon = couponResult.coupon
   }
 
   const selection = await loadOrderSelection(validatedBody, { shippingRates, coupon: appliedCoupon })
@@ -383,27 +404,75 @@ async function handleCreateOrder(req, res) {
     })
   }
 
-  const createdOrder = await createOrderRecord({
-    customer_name: customerName,
-    customer_phone: customerPhone,
-    customer_address: customerAddress,
-    customer_email: customerEmail,
-    product_id: primaryArtwork.id,
-    product_title: selection.title,
-    total_amount: totalAmount,
-    advance_amount: advanceAmount,
-    payment_status: 'advance_paid',
-    razorpay_payment_id: razorpayPaymentId,
-    razorpay_order_id: razorpayOrderId,
-    razorpay_signature: razorpaySignature,
-    payment_provider: 'razorpay',
-    payment_verified_at: new Date().toISOString(),
-    coupon_code: appliedCoupon?.code || null,
-    coupon_discount_amount: selection.pricing.couponDiscountAmount || 0,
-  })
+  // Narrow the window for a duplicate/retried request (e.g. a flaky network
+  // resending the same "Resume Confirmation" call) racing itself here: if an
+  // order for this exact payment was just created by a concurrent request,
+  // stop before claiming stock a second time for it.
+  const concurrentOrder = await fetchOrderByPaymentId(razorpayPaymentId)
+  if (concurrentOrder) {
+    return sendJson(res, 200, {
+      success: true,
+      duplicated: true,
+      order: normalizeOrder(concurrentOrder),
+      data: { duplicated: true, order: normalizeOrder(concurrentOrder) },
+    })
+  }
+
+  // Claim stock atomically BEFORE creating the order row. If two customers
+  // both pay for the last unit of a one-of-a-kind artwork at nearly the same
+  // moment, whoever loses this compare-and-swap gets a clean, immediate
+  // rejection here — with no order ever created for stock that's already
+  // gone — rather than an order row that was "confirmed" for a piece that
+  // was simultaneously sold to someone else.
+  let stockClaim
+  try {
+    stockClaim = await decrementArtworkSelection(selection)
+  } catch (error) {
+    await createPaymentLog({
+      event_type: 'create_order',
+      status: 'artwork_sold_race',
+      razorpay_payment_id: razorpayPaymentId,
+      razorpay_order_id: razorpayOrderId,
+      details: {
+        product_ids: selection.items.map((artwork) => artwork.id),
+        message: error.message,
+      },
+    }).catch(() => null)
+
+    return sendJson(res, 409, {
+      success: false,
+      error: 'ARTWORK_SOLD_RACE',
+      message:
+        'This artwork was just purchased by another buyer. Your payment was received — our team will contact you to refund it or offer an alternative piece.',
+    })
+  }
+
+  let createdOrder
+  try {
+    createdOrder = await createOrderRecord({
+      customer_name: customerName,
+      customer_phone: customerPhone,
+      customer_address: customerAddress,
+      customer_email: customerEmail,
+      product_id: primaryArtwork.id,
+      product_title: selection.title,
+      total_amount: totalAmount,
+      advance_amount: advanceAmount,
+      payment_status: 'advance_paid',
+      razorpay_payment_id: razorpayPaymentId,
+      razorpay_order_id: razorpayOrderId,
+      razorpay_signature: razorpaySignature,
+      payment_provider: 'razorpay',
+      payment_verified_at: new Date().toISOString(),
+      coupon_code: appliedCoupon?.code || null,
+      coupon_discount_amount: selection.pricing.couponDiscountAmount || 0,
+    })
+  } catch (error) {
+    await rollbackArtworkSelection(stockClaim)
+    throw error
+  }
 
   const order = normalizeOrder(createdOrder)
-  await decrementArtworkSelection(selection)
 
   if (appliedCoupon) {
     await createCouponRedemption({
