@@ -90,6 +90,11 @@ function isMissingTagRegistryTable(error) {
   )
 }
 
+function isReferencedByOrdersError(error) {
+  const message = String(error?.message || '').toLowerCase()
+  return message.includes('foreign key constraint') && message.includes('orders')
+}
+
 function withoutOptionalArtworkColumns(payload) {
   const {
     category: _category,
@@ -1170,7 +1175,20 @@ async function handleDeleteArtwork(req, res) {
   }
 
   const existingArtwork = await fetchArtworkById(artworkId)
-  await deleteArtwork(artworkId)
+
+  try {
+    await deleteArtwork(artworkId)
+  } catch (error) {
+    if (isReferencedByOrdersError(error)) {
+      return sendJson(res, 409, {
+        success: false,
+        error: 'ARTWORK_HAS_ORDERS',
+        message:
+          'This artwork can\'t be deleted because it has existing orders — deleting it would break that order history. Mark it as "sold" instead to hide it from the store, or remove the orders first if they were test data.',
+      })
+    }
+    throw error
+  }
 
   await logAdminActivity(session, {
     action_type: 'artwork_deleted',
