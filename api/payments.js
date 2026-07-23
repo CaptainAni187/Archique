@@ -144,6 +144,18 @@ async function handleCreatePaymentOrder(req, res) {
     type: availableArtworks.length > 1 ? 'smart-pair' : 'single',
   })
   const amountInPaise = Math.round(selection.pricing.advanceAmount * 100)
+
+  // A coupon (or a combination of discounts) that brings the payable amount
+  // to zero or below can't go through Razorpay, which requires a positive
+  // amount. Fail with a clear message instead of a raw provider error.
+  if (amountInPaise <= 0) {
+    return sendJson(res, 400, {
+      success: false,
+      error: 'INVALID_PAYABLE_AMOUNT',
+      message: 'This discount brings the order to zero, which cannot be processed as a payment.',
+    })
+  }
+
   const config = getBackendConfig()
 
   requireConfigValues({
