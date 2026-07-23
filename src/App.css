@@ -2757,3 +2757,61 @@ html[data-theme='dark'] .order-detail-card {
   gap: 16px;
   margin-bottom: 24px;
 }
+
+/* ── AR view trigger ──────────────────────────────────────────── */
+.ar-trigger {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ar-status-message {
+  font-size: 0.78rem;
+  color: var(--text-soft);
+}
+
+/* ── Room Match: AR entry point ──────────────────────────────── */
+.room-match-ar-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-gold-soft);
+}
+
+/* ── See It On Your Wall (AR / 3D) ───────────────────────────── */
+.visualise-wall {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.visualise-wall-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.visualise-wall-stage model-viewer {
+  border: 1px solid var(--border-gold-soft);
+  border-radius: 2px;
+}
+
+.visualise-wall-hint {
+  font-size: 0.8rem;
+  color: var(--text-soft);
+  line-height: 1.5;
+}
+
+.visualise-wall-desktop {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.visualise-wall-desktop img {
+  border: 6px solid #ffffff;
+  border-radius: 4px;
+}

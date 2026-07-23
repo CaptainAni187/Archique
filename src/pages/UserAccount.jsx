@@ -4,11 +4,9 @@ import {
   addArtworkToCollection,
   createCollection,
   deleteMyAccount,
-  deleteRoomProfile,
   exportMyData,
   fetchCollections,
   fetchCurrentUser,
-  fetchRoomProfiles,
   fetchUserOrders,
   fetchSavedArtworks,
   getStoredUser,
@@ -43,7 +41,6 @@ function UserAccount() {
   const [settingsMessage, setSettingsMessage] = useState('')
   const [collections, setCollections] = useState([])
   const [newCollectionName, setNewCollectionName] = useState('')
-  const [roomProfiles, setRoomProfiles] = useState([])
 
   useEffect(() => {
     let isCancelled = false
@@ -59,12 +56,11 @@ function UserAccount() {
           return
         }
 
-        const [response, saved, artworks, collectionsResponse, roomProfilesResponse] = await Promise.all([
+        const [response, saved, artworks, collectionsResponse] = await Promise.all([
           fetchUserOrders(),
           fetchSavedArtworks(),
           fetchArtworks(),
           fetchCollections().catch(() => []),
-          fetchRoomProfiles().catch(() => []),
         ])
         if (!isCancelled) {
           setUser(currentUser)
@@ -74,7 +70,6 @@ function UserAccount() {
           const savedIdSet = new Set(saved.map((item) => Number(item.artwork_id)))
           setSavedArtworks(artworks.filter((artwork) => savedIdSet.has(Number(artwork.id))).slice(0, 8))
           setCollections(Array.isArray(collectionsResponse) ? collectionsResponse : [])
-          setRoomProfiles(Array.isArray(roomProfilesResponse) ? roomProfilesResponse : [])
         }
       } catch (error) {
         if (!isCancelled) {
@@ -204,36 +199,6 @@ function UserAccount() {
         ) : (
           <p>No personalization profile yet.</p>
         )}
-      </div>
-
-      <h3 className="orders-heading">My Spaces</h3>
-      <div className="admin-list">
-        {roomProfiles.length === 0 ? (
-          <p>No saved room profiles yet.</p>
-        ) : (
-          roomProfiles.map((profile) => (
-            <article key={profile.id} className="admin-item order-item">
-              <div>
-                <h3>{profile.label || 'My Space'}</h3>
-                <p>{profile.room_personality}</p>
-                {profile.space_type ? <p>{profile.space_type.replace('_', ' ')}</p> : null}
-              </div>
-              <button
-                type="button"
-                className="text-link-button secondary-action"
-                onClick={async () => {
-                  await deleteRoomProfile(profile.id)
-                  setRoomProfiles((current) => current.filter((item) => item.id !== profile.id))
-                }}
-              >
-                Remove
-              </button>
-            </article>
-          ))
-        )}
-        <Link to="/room-match" className="text-link-button">
-          Match a new room
-        </Link>
       </div>
 
       <h3 className="orders-heading">Named Collections</h3>

@@ -16,6 +16,7 @@ It extends beyond a basic storefront by adding **behavior-based personalization,
 * Commission brief parsing (unstructured → structured)
 * Admin-controlled tagging, combos, and activity tracking
 * Optional image similarity (PyTorch, offline)
+* **"See It On Your Wall" — true-to-scale AR preview from the artwork page (no app install)**
 
 ---
 
@@ -104,6 +105,20 @@ Additional logic:
   * 2 items → 10%
   * 3+ items → 15%
 * Inventory-safe multi-item handling
+
+### See It On Your Wall (AR)
+
+* One tap on the artwork page launches augmented reality — no separate app
+* Renders each piece at its **true real-world size** (`ar-scale="fixed"`), anchored to a vertical wall
+* Uses Google's `<model-viewer>` so AR is handled by each platform's built-in, device-tested viewer:
+
+  * iOS Safari → AR Quick Look (`.usdz`)
+  * Android → Scene Viewer / WebXR (`.glb`)
+  * Desktop → interactive 3D preview + QR code to continue on a phone
+* Camera runs entirely on-device; no room images are uploaded or stored
+* AR assets (`.glb` + `.usdz`) are generated offline per artwork by `scripts/build-ar-assets.mjs` (three.js exporters + node-canvas polyfill), written to `public/ar/`, and indexed in `public/ar/manifest.json`
+* `.github/workflows/build-ar-assets.yml` regenerates assets on demand / daily and commits them back (artwork data lives in Supabase, not git)
+* The heavy viewer library is code-split and loaded only when the buyer opts in
 
 ### Commission Builder
 
@@ -219,6 +234,7 @@ Overall choice:
 2. Apply Supabase migrations
 3. Deploy to Vercel
 4. Verify checkout and order flow
+5. Generate AR assets: `npm run build:ar-assets` (or run the "Build AR assets" GitHub Action). This needs `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` set — locally as env vars, and in the repo as GitHub Actions secrets for the automated workflow.
 
 ---
 

@@ -13,7 +13,6 @@ const FOOTER_SECTIONS = [
   {
     title: 'Studio',
     links: [
-      { to: '/room-match', label: 'Room Match' },
       { to: '/contact', label: 'Contact' },
     ],
   },

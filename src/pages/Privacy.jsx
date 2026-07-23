@@ -12,7 +12,6 @@ const SECTIONS = [
       'Your account information',
       'Saved artworks and personal collections',
       'Order history',
-      'Room profiles created through Room Match',
       'Activity such as searches, views, clicks, and purchases',
     ],
     closing:
@@ -31,7 +30,15 @@ const SECTIONS = [
     label: 'AI AS A QUIET CURATOR',
     paragraphs: [
       'Artificial intelligence within Archiverse is designed to assist discovery—not replace human taste.',
-      'It helps organize artworks, refine search, understand visual styles, personalize recommendations, and match artworks to your room. Every suggestion is meant to inspire exploration, while every decision remains entirely yours.',
+      'It helps organize artworks, refine search, understand visual styles, and personalize recommendations. Every suggestion is meant to inspire exploration, while every decision remains entirely yours.',
+    ],
+  },
+  {
+    id: 'ar',
+    label: 'SEE IT ON YOUR WALL',
+    paragraphs: [
+      'You can preview a piece at its true size on your own wall using your phone camera, straight from the artwork page.',
+      'This augmented-reality view runs entirely on your device through your phone’s built-in AR viewer. Your camera feed is never uploaded, recorded, or seen by Archiverse—we only send the artwork model to your device, and nothing about your room comes back to us.',
     ],
   },
   {
@@ -60,7 +67,7 @@ const SECTIONS = [
     label: 'OUR PHILOSOPHY',
     paragraphs: [
       'Technology should quietly support the experience of discovering art, never become the center of it.',
-      'Every feature—from personalized recommendations to Room Match—is built to help you find artwork that feels at home in your space, while treating your privacy with the same care and respect given to every piece in the collection.',
+      'Every feature—from personalized recommendations to previewing a piece on your own wall—is built to help you find artwork that feels at home in your space, while treating your privacy with the same care and respect given to every piece in the collection.',
     ],
   },
   {
