@@ -22,6 +22,7 @@ import { OrderProvider } from './state/OrderContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import SiteHeader from './components/SiteHeader'
 import SiteFooter from './components/SiteFooter'
+import ScrollToTop from './components/ScrollToTop'
 import './App.css'
 
 // Detected synchronously on first render, before the SDK strips the params —
@@ -110,6 +111,7 @@ function AppLayout() {
 
   return (
     <div className={`app-shell ${isCarouselRoute ? 'is-carousel-route' : ''}`.trim()}>
+      <ScrollToTop />
       <SiteHeader isDarkBackground={hasOverlayHeader && isDarkHeroBackground} />
 
       <main

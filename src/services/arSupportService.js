@@ -35,6 +35,29 @@ export function isAndroid() {
 }
 
 /**
+ * iOS AR Quick Look is a Safari/WebKit feature triggered via `rel="ar"`. Every
+ * iOS browser runs on WebKit, but only Safari honours that hand-off — Chrome
+ * (CriOS), Firefox (FxiOS), Edge (EdgiOS) and Brave cannot launch AR and would
+ * otherwise present a button that silently does nothing. Detect those so we can
+ * point the buyer to Safari instead.
+ */
+export function isIOSNonSafariBrowser() {
+  if (!isIOS() || typeof navigator === 'undefined') {
+    return false
+  }
+  const ua = navigator.userAgent || ''
+  // Chrome / Firefox / Edge / Opera on iOS all carry a distinct UA token.
+  if (/CriOS|FxiOS|EdgiOS|OPT\//.test(ua)) {
+    return true
+  }
+  // Brave on iOS masquerades as Safari in its UA but exposes navigator.brave.
+  if (typeof navigator.brave !== 'undefined') {
+    return true
+  }
+  return false
+}
+
+/**
  * A device that can actually launch camera AR: iOS (AR Quick Look) or Android
  * (Scene Viewer / WebXR — both handled natively by <model-viewer>). Desktop
  * gets the interactive 3D preview and a QR code to continue on a phone.

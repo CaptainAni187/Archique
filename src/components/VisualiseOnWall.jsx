@@ -3,6 +3,7 @@ import {
   currentPageUrl,
   getArAssetsForArtwork,
   isArCapableDevice,
+  isIOSNonSafariBrowser,
 } from '../services/arSupportService'
 import { trackAnalyticsEvent } from '../services/analyticsService'
 
@@ -28,6 +29,7 @@ function VisualiseOnWall({ artworkId, artworkTitle }) {
   const [qrDataUrl, setQrDataUrl] = useState('')
   const modelViewerRef = useRef(null)
   const arCapable = isArCapableDevice()
+  const needsSafari = isIOSNonSafariBrowser()
 
   useEffect(() => {
     let isActive = true
@@ -135,9 +137,16 @@ function VisualiseOnWall({ artworkId, artworkTitle }) {
               >
                 View in Your Room (Camera)
               </button>
-              <p className="visualise-wall-hint">
-                Point your camera at a wall — the artwork appears at its true size.
-              </p>
+              {needsSafari ? (
+                <p className="visualise-wall-hint">
+                  On iPhone, the live camera view opens in Safari. If nothing happens,
+                  open this page in Safari and tap again.
+                </p>
+              ) : (
+                <p className="visualise-wall-hint">
+                  Point your camera at a wall — the artwork appears at its true size.
+                </p>
+              )}
             </>
           ) : (
             <div className="visualise-wall-desktop">

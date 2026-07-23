@@ -129,6 +129,43 @@
   gap: 22px;
 }
 
+/* Hamburger toggle — only shown on narrow viewports (see media queries). */
+.nav-toggle {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 44px;
+  height: 44px;
+  padding: 10px;
+  margin: -6px -8px -6px 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-color);
+}
+
+.nav-toggle-bar {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background: currentColor;
+  border-radius: 2px;
+  transition: transform 240ms ease, opacity 200ms ease;
+}
+
+.topbar.menu-open .nav-toggle-bar:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+
+.topbar.menu-open .nav-toggle-bar:nth-child(2) {
+  opacity: 0;
+}
+
+.topbar.menu-open .nav-toggle-bar:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
 .topbar-nav a,
 .nav-dropdown-trigger {
   position: relative;
@@ -2076,10 +2113,105 @@ body.is-carousel-route {
     letter-spacing: 0.34em;
   }
 
-  .topbar,
+  /* Header collapses to: logo on the left, hamburger on the right. */
+  .topbar {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .nav-toggle {
+    display: flex;
+  }
+
+  /* The nav + social icons drop into a panel revealed by the hamburger. */
   .topbar-cluster {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
+    gap: 4px;
+    padding: 8px 22px 20px;
+    background: var(--bg-page);
+    border-top: 1px solid var(--hairline, rgba(128, 128, 128, 0.18));
+    box-shadow: 0 24px 40px rgba(0, 0, 0, 0.28);
+    max-height: calc(100vh - 74px);
+    overflow-y: auto;
+    display: none;
+  }
+
+  .topbar-cluster.is-open {
+    display: flex;
+  }
+
+  /* On mobile the header always needs a solid backdrop so the dropdown reads,
+     even on the transparent overlay (home/canvas/sketch) routes. */
+  .topbar.is-overlay.menu-open,
+  .topbar.menu-open {
+    background: var(--bg-page);
+  }
+
+  .topbar-nav {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    width: 100%;
+  }
+
+  .topbar-nav a,
+  .nav-dropdown-trigger {
+    padding: 14px 6px;
+    width: 100%;
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .theme-toggle {
+    align-self: flex-start;
+    margin: 6px 0;
+  }
+
+  .topbar-nav a.profile-nav-link {
+    justify-content: flex-start;
+  }
+
+  .social-links {
+    padding: 12px 6px 0;
+  }
+
+  /* ABOUT submenu flows inline inside the mobile panel instead of floating
+     as an absolute box that would cover the links beneath it. */
+  .nav-dropdown {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .nav-dropdown-menu {
+    position: static;
+    transform: none;
+    min-width: 0;
+    gap: 2px;
+    padding: 0 0 6px 20px;
+    background: transparent;
+    box-shadow: none;
+    display: none;
+  }
+
+  .nav-dropdown.is-open .nav-dropdown-menu {
+    display: grid;
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+
+  .nav-dropdown-menu::before,
+  .nav-dropdown-bridge {
+    display: none;
   }
 
   .home-section-split,
@@ -2125,11 +2257,6 @@ body.is-carousel-route {
 @media (max-width: 720px) {
   .page-flow {
     gap: 56px;
-  }
-
-  .topbar-nav {
-    flex-wrap: wrap;
-    gap: 16px;
   }
 
   .carousel-stage,
