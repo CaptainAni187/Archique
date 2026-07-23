@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useOrderContext } from '../state/useOrderContext'
 import { fetchArtworks, fetchSingleArtwork } from '../services/artworkService'
 import { fetchActiveCombos } from '../services/comboService'
@@ -23,6 +23,7 @@ import {
 } from '../utils/comboPricing'
 import { fetchSavedArtworks, saveArtwork, unsaveArtwork } from '../services/userAuthService'
 import artworkSimilarity from '../../shared/ai/data/artwork-similarity.js'
+import VisualiseOnWall from '../components/VisualiseOnWall'
 
 /**
  * Re-orders eligible pairings by precomputed semantic similarity (generated
@@ -423,26 +424,14 @@ function Product() {
           </button>
         </div>
       </Reveal>
-      <Reveal className="section-block-home room-match-entry">
-        <p className="eyebrow">SEE THIS IN YOUR ROOM</p>
-        <h2 className="section-title">Visualize In Your Space</h2>
+      <Reveal className="section-block-home visualise-wall-section">
+        <p className="eyebrow">SEE IT ON YOUR WALL</p>
+        <h2 className="section-title">Preview it at real size</h2>
         <p className="section-copy">
-          Upload a room photo to preview how this artwork may feel in your environment.
+          View this piece at its true dimensions on your own wall, straight from your phone camera —
+          no app needed.
         </p>
-        <div className="room-match-actions">
-          <Link
-            to={`/room-match?artworkId=${encodeURIComponent(artwork.id)}`}
-            className="text-link-button action-button"
-          >
-            Upload Room Photo
-          </Link>
-          <Link
-            to={`/room-match?artworkId=${encodeURIComponent(artwork.id)}&camera=1`}
-            className="text-link-button action-button"
-          >
-            Take Photo
-          </Link>
-        </div>
+        <VisualiseOnWall artworkId={artwork.id} artworkTitle={artwork.title} />
       </Reveal>
       {comboMatches.filter((combo) => combo.isAvailable !== false).length > 0 ? (
         <Reveal className="section-block-home">

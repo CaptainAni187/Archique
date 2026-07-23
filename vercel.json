@@ -13,5 +13,15 @@
     { "source": "/api/user/:action", "destination": "/api/user?action=:action" },
     { "source": "/api/admin/:action", "destination": "/api/admin?action=:action" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/ar/(.*).usdz",
+      "headers": [{ "key": "Content-Type", "value": "model/vnd.usdz+zip" }]
+    },
+    {
+      "source": "/ar/(.*).glb",
+      "headers": [{ "key": "Content-Type", "value": "model/gltf-binary" }]
+    }
   ]
 }

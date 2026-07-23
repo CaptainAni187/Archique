@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { fetchArtworks } from '../services/artworkService'
 import Reveal from '../components/Reveal'
 import StoreCard from '../components/StoreCard'
@@ -331,15 +330,6 @@ function Gallery() {
       <Reveal className="portfolio-header">
         <p className="eyebrow">STORE</p>
         <p className="store-tagline">ORIGINAL WORKS AVAILABLE FOR COLLECTION.</p>
-      </Reveal>
-      <Reveal className="order-detail-card room-match-entry">
-        <p className="eyebrow">FIND ART FOR YOUR SPACE</p>
-        <p className="section-copy">
-          Upload a room photo and discover artworks curated for your environment.
-        </p>
-        <Link to="/room-match" className="text-link-button action-button">
-          Match My Room
-        </Link>
       </Reveal>
       <SmartSearchPanel
         query={smartQuery}

@@ -18,7 +18,6 @@ import OrderTracking from './pages/OrderTracking'
 import Canvas from './pages/Canvas'
 import Sketch from './pages/Sketch'
 import Feed from './pages/Feed'
-import RoomMatch from './pages/RoomMatch'
 import { OrderProvider } from './state/OrderContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import SiteHeader from './components/SiteHeader'
@@ -134,7 +133,6 @@ function AppLayout() {
           <Route path="/feed" element={<Feed />} />
           <Route path="/store" element={<Gallery />} />
           <Route path="/gallery" element={<Gallery />} />
-          <Route path="/room-match" element={<RoomMatch />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/policies" element={<Policies />} />
           <Route path="/privacy" element={<Privacy />} />
