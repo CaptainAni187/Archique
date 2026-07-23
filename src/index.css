@@ -50,8 +50,8 @@ img {
 }
 
 :root {
-  --bg-page: #f8f6f2;
-  --bg-elevated: #f3f1ec;
+  --bg-page: #f1ede6;
+  --bg-elevated: #e6e1d8;
   --bg-surface: rgba(255, 255, 255, 0.38);
   --bg-surface-muted: rgba(255, 255, 255, 0.34);
   --bg-surface-strong: rgba(255, 255, 255, 0.86);
@@ -83,8 +83,8 @@ img {
   --accent-muted: #8b6a5d;
   --secondary-color: #8a8f98;
 
-  --text-color: #555555;
-  --text-soft: #666666;
+  --text-color: #3a362f;
+  --text-soft: #575047;
   --text-on-dark: rgba(248, 246, 242, 0.94);
   --text-on-dark-soft: rgba(248, 246, 242, 0.9);
   --text-on-dark-strong: #f2f0eb;
