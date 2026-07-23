@@ -63,11 +63,39 @@
   padding: 24px 32px 14px;
 }
 
+/* Once scrolled off the hero, the overlay header floats over ordinary page
+   content, so it must take a solid background — otherwise its hero-tuned text
+   colour (light, for a dark hero) becomes invisible over the light page. */
 .topbar.is-overlay.scrolled {
-  background: transparent;
+  background: var(--bg-page);
   backdrop-filter: none;
-  box-shadow: none;
+  box-shadow: 0 1px 0 var(--border-gold-soft);
   padding: 24px 32px 14px;
+}
+
+/* ...and with a solid page background, the nav must use the normal readable
+   text colours regardless of what the hero contrast asked for. */
+.topbar.is-overlay.scrolled.is-dark-background .brand-mark,
+.topbar.is-overlay.scrolled.is-bright-background .brand-mark {
+  color: var(--text-color);
+}
+
+.topbar.is-overlay.scrolled.is-dark-background .topbar-nav a,
+.topbar.is-overlay.scrolled.is-dark-background .nav-dropdown-trigger,
+.topbar.is-overlay.scrolled.is-dark-background .social-links a,
+.topbar.is-overlay.scrolled.is-dark-background .theme-toggle,
+.topbar.is-overlay.scrolled.is-bright-background .topbar-nav a,
+.topbar.is-overlay.scrolled.is-bright-background .nav-dropdown-trigger,
+.topbar.is-overlay.scrolled.is-bright-background .social-links a,
+.topbar.is-overlay.scrolled.is-bright-background .theme-toggle {
+  color: var(--text-soft);
+}
+
+.topbar.is-overlay.scrolled .topbar-nav a:hover,
+.topbar.is-overlay.scrolled .topbar-nav a.active-nav,
+.topbar.is-overlay.scrolled .nav-dropdown-trigger:hover,
+.topbar.is-overlay.scrolled .nav-dropdown-trigger.active-nav {
+  color: var(--text-color);
 }
 
 .topbar:not(.is-overlay) {

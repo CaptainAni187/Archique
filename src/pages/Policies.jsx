@@ -55,7 +55,7 @@ const SECTIONS = [
     label: 'CHANGE OF MIND',
     paragraphs: [
       'Because every work is one of one and finished by hand, pieces are not returnable simply for a change of mind once delivered.',
-      'Colour and texture can also read differently between a screen and a wall. If you are unsure how a piece will sit in your space, use Room Match before you order, or write to us — an honest answer beforehand is better for both of us than a return afterwards.',
+      'Colour and texture can also read differently between a screen and a wall. If you are unsure how a piece will sit in your space, use "See It On Your Wall" to preview it at real size before you order, or write to us — an honest answer beforehand is better for both of us than a return afterwards.',
     ],
   },
   {
