@@ -61,10 +61,23 @@ function buildPlaneScene(canvas, widthM, heightM) {
   texture.needsUpdate = true
 
   const geometry = new THREE.PlaneGeometry(widthM, heightM)
+  // The artwork must read at its true colours no matter how bright or dark the
+  // room is — and the exported scene ships with no lights, while iOS Quick Look
+  // relies on real-world light estimation. A plain lit material therefore
+  // renders the piece near-black (the bug this fixes). So we drive the image
+  // purely through the *emissive* channel (self-illuminated, like a backlit
+  // print) with a black base colour: exact colours everywhere, never black in a
+  // dark room and never blown out in a bright one, in model-viewer and AR alike.
+  // `emissiveMap` survives both the glTF and USDZ exporters. DoubleSide
+  // guarantees we never see a culled black back if wall-anchoring flips the
+  // plane toward the viewer.
   const material = new THREE.MeshStandardMaterial({
-    map: texture,
-    side: THREE.FrontSide,
-    roughness: 0.9,
+    color: 0x000000,
+    emissive: 0xffffff,
+    emissiveMap: texture,
+    emissiveIntensity: 1,
+    side: THREE.DoubleSide,
+    roughness: 1,
     metalness: 0,
   })
   const mesh = new THREE.Mesh(geometry, material)

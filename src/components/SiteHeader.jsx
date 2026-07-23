@@ -34,7 +34,17 @@ function SiteHeader({ isDarkBackground = false }) {
     location.pathname === '/canvas' ||
     location.pathname === '/sketch'
   const [isScrolled, setIsScrolled] = useState(false)
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [menuPath, setMenuPath] = useState(location.pathname)
   const [currentUser, setCurrentUser] = useState(getStoredUser())
+
+  // Collapse the mobile menu on every navigation so it never lingers open over
+  // the new page. Done during render (React's "adjust state when a value
+  // changes" pattern) rather than in an effect, so it applies before paint.
+  if (location.pathname !== menuPath) {
+    setMenuPath(location.pathname)
+    setIsMenuOpen(false)
+  }
 
   useEffect(() => {
     const onScroll = () => {
@@ -57,13 +67,27 @@ function SiteHeader({ isDarkBackground = false }) {
     <header
       className={`topbar ${isOverlay ? 'is-overlay' : ''} ${
         isScrolled ? 'scrolled' : ''
-      } ${isDarkBackground ? 'is-dark-background' : 'is-bright-background'}`}
+      } ${isDarkBackground ? 'is-dark-background' : 'is-bright-background'} ${
+        isMenuOpen ? 'menu-open' : ''
+      }`}
     >
       <Link to="/" className="brand-mark" aria-label="ARCHIVERSE home">
         ARCHIVERSE
       </Link>
 
-      <div className="topbar-cluster">
+      <button
+        type="button"
+        className="nav-toggle"
+        aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
+        aria-expanded={isMenuOpen}
+        onClick={() => setIsMenuOpen((open) => !open)}
+      >
+        <span className="nav-toggle-bar" />
+        <span className="nav-toggle-bar" />
+        <span className="nav-toggle-bar" />
+      </button>
+
+      <div className={`topbar-cluster ${isMenuOpen ? 'is-open' : ''}`}>
         <nav className="topbar-nav" aria-label="Primary">
           <ThemeToggle />
           <NavLink to="/canvas" className={({ isActive }) => (isActive ? 'active-nav' : '')}>
