@@ -14,11 +14,23 @@ import {
 } from '../services/tasteService'
 import { trackAnalyticsEvent, trackRecommendationEvent } from '../services/analyticsService'
 import SmartSearchPanel from '../components/SmartSearchPanel'
+import StoreToolbar from '../components/StoreToolbar'
 import { runSmartArtworkSearch } from '../services/smartSearchService'
 import { fetchSavedArtworks, saveArtwork, unsaveArtwork } from '../services/userAuthService'
 
 const ALL_CATEGORIES = 'all'
 const DEFAULT_SORT = 'featured'
+const ANY = 'any'
+
+// Coarse price bands so buyers can narrow by budget without fiddly min/max
+// inputs. Bounds are inclusive of min, exclusive of max.
+const PRICE_BUCKETS = [
+  { value: ANY, label: 'Any price', min: 0, max: Infinity },
+  { value: 'under-1500', label: 'Under Rs. 1,500', min: 0, max: 1500 },
+  { value: '1500-3000', label: 'Rs. 1,500 – 3,000', min: 1500, max: 3000 },
+  { value: '3000-6000', label: 'Rs. 3,000 – 6,000', min: 3000, max: 6000 },
+  { value: 'over-6000', label: 'Over Rs. 6,000', min: 6000, max: Infinity },
+]
 
 function sortArtworks(artworks, sortBy) {
   const sortedArtworks = [...artworks]
@@ -38,21 +50,14 @@ function sortArtworks(artworks, sortBy) {
   }
 }
 
-function formatCategoryLabel(category) {
-  if (!category) {
-    return 'Uncategorized'
-  }
-
-  return category.charAt(0).toUpperCase() + category.slice(1)
-}
-
 function Gallery() {
   const [artworks, setArtworks] = useState([])
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
   const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORIES)
-  const [minPrice, setMinPrice] = useState('')
-  const [maxPrice, setMaxPrice] = useState('')
+  const [selectedAvailability, setSelectedAvailability] = useState(ANY)
+  const [selectedSize, setSelectedSize] = useState(ANY)
+  const [selectedPriceBucket, setSelectedPriceBucket] = useState(ANY)
   const [sortBy, setSortBy] = useState(DEFAULT_SORT)
   const [retryKey, setRetryKey] = useState(0)
   const [smartQuery, setSmartQuery] = useState('')
@@ -110,21 +115,25 @@ function Gallery() {
 
     if (
       selectedCategory === ALL_CATEGORIES &&
-      minPrice === '' &&
-      maxPrice === '' &&
+      selectedAvailability === ANY &&
+      selectedSize === ANY &&
+      selectedPriceBucket === ANY &&
       sortBy === DEFAULT_SORT
     ) {
       return
     }
 
     void trackAnalyticsEvent('search_query', {
-      query: [selectedCategory, minPrice, maxPrice, sortBy].filter(Boolean).join(' '),
+      query: [selectedCategory, selectedAvailability, selectedSize, selectedPriceBucket, sortBy]
+        .filter((value) => value && value !== ANY && value !== ALL_CATEGORIES)
+        .join(' '),
       category: selectedCategory === ALL_CATEGORIES ? '' : selectedCategory,
-      min_price: minPrice === '' ? null : Number(minPrice),
-      max_price: maxPrice === '' ? null : Number(maxPrice),
+      availability: selectedAvailability === ANY ? '' : selectedAvailability,
+      size: selectedSize === ANY ? '' : selectedSize,
+      price_bucket: selectedPriceBucket === ANY ? '' : selectedPriceBucket,
       sort_by: sortBy,
     })
-  }, [loading, maxPrice, minPrice, selectedCategory, sortBy])
+  }, [loading, selectedAvailability, selectedCategory, selectedPriceBucket, selectedSize, sortBy])
 
   const categories = useMemo(() => {
     const uniqueCategories = Array.from(
@@ -138,17 +147,36 @@ function Gallery() {
     return uniqueCategories.sort((left, right) => left.localeCompare(right))
   }, [artworks])
 
-  const invalidPriceRange =
-    minPrice !== '' && maxPrice !== '' && Number(minPrice) > Number(maxPrice)
+  const sizes = useMemo(() => {
+    const uniqueSizes = Array.from(
+      new Set(
+        artworks
+          .map((artwork) => String(artwork.size || '').trim())
+          .filter((size) => size && size.toLowerCase() !== 'not specified'),
+      ),
+    )
+
+    return uniqueSizes.sort((left, right) => left.localeCompare(right, undefined, { numeric: true }))
+  }, [artworks])
+
   const hasSmartSearch = Boolean(smartQuery.trim() || selectedMoods.length > 0)
 
-  const filteredArtworks = useMemo(() => {
-    const parsedMinPrice = minPrice === '' ? null : Number(minPrice)
-    const parsedMaxPrice = maxPrice === '' ? null : Number(maxPrice)
+  const activeFilterCount =
+    (selectedCategory !== ALL_CATEGORIES ? 1 : 0) +
+    (selectedAvailability !== ANY ? 1 : 0) +
+    (selectedSize !== ANY ? 1 : 0) +
+    (selectedPriceBucket !== ANY ? 1 : 0)
 
-    if (parsedMinPrice !== null && parsedMaxPrice !== null && parsedMinPrice > parsedMaxPrice) {
-      return []
-    }
+  const clearFilters = () => {
+    setSelectedCategory(ALL_CATEGORIES)
+    setSelectedAvailability(ANY)
+    setSelectedSize(ANY)
+    setSelectedPriceBucket(ANY)
+  }
+
+  const filteredArtworks = useMemo(() => {
+    const priceBucket =
+      PRICE_BUCKETS.find((bucket) => bucket.value === selectedPriceBucket) || PRICE_BUCKETS[0]
 
     const smartResultById = new Map(
       smartResults.map((result) => [
@@ -182,10 +210,18 @@ function Gallery() {
       .filter((artwork) => {
       const matchesCategory =
         selectedCategory === ALL_CATEGORIES || artwork.category === selectedCategory
-      const matchesMinPrice = parsedMinPrice === null || artwork.price >= parsedMinPrice
-      const matchesMaxPrice = parsedMaxPrice === null || artwork.price <= parsedMaxPrice
+      const isSold = artwork.status === 'sold'
+      const matchesAvailability =
+        selectedAvailability === ANY ||
+        (selectedAvailability === 'available' && !isSold) ||
+        (selectedAvailability === 'sold' && isSold)
+      const matchesSize =
+        selectedSize === ANY || String(artwork.size || '').trim() === selectedSize
+      const price = Number(artwork.price) || 0
+      const matchesPrice =
+        selectedPriceBucket === ANY || (price >= priceBucket.min && price < priceBucket.max)
 
-      return matchesCategory && matchesMinPrice && matchesMaxPrice
+      return matchesCategory && matchesAvailability && matchesSize && matchesPrice
     })
 
     if (hasSmartSearch) {
@@ -205,7 +241,16 @@ function Gallery() {
     }
 
     return sortArtworks(matchingArtworks, sortBy)
-  }, [artworks, hasSmartSearch, maxPrice, minPrice, selectedCategory, smartResults, sortBy])
+  }, [
+    artworks,
+    hasSmartSearch,
+    selectedAvailability,
+    selectedCategory,
+    selectedPriceBucket,
+    selectedSize,
+    smartResults,
+    sortBy,
+  ])
 
   useEffect(() => {
     const topRecommendations = (Array.isArray(filteredArtworks) ? filteredArtworks : []).slice(0, 12)
@@ -341,68 +386,29 @@ function Gallery() {
         onMoodToggle={toggleMood}
         onSubmit={(event) => event.preventDefault()}
         onClear={clearSmartSearch}
+        toolbar={
+          <StoreToolbar
+            sortBy={sortBy}
+            onSortChange={setSortBy}
+            any={ANY}
+            allCategories={ALL_CATEGORIES}
+            categories={categories}
+            sizes={sizes}
+            priceBuckets={PRICE_BUCKETS}
+            selectedCategory={selectedCategory}
+            onCategoryChange={setSelectedCategory}
+            selectedAvailability={selectedAvailability}
+            onAvailabilityChange={setSelectedAvailability}
+            selectedSize={selectedSize}
+            onSizeChange={setSelectedSize}
+            selectedPriceBucket={selectedPriceBucket}
+            onPriceBucketChange={setSelectedPriceBucket}
+            onClearFilters={clearFilters}
+            activeFilterCount={activeFilterCount}
+          />
+        }
       />
-      <div className="store-filters" aria-label="Store filters">
-        <label className="store-filter-field">
-          <span>Category</span>
-          <select
-            value={selectedCategory}
-            onChange={(event) => setSelectedCategory(event.target.value)}
-          >
-            <option value={ALL_CATEGORIES}>All categories</option>
-            {categories.map((category) => (
-              <option key={category} value={category}>
-                {formatCategoryLabel(category)}
-              </option>
-            ))}
-          </select>
-        </label>
 
-        <label className="store-filter-field">
-          <span>Min price</span>
-          <input
-            type="number"
-            min="0"
-            step="200"
-            inputMode="numeric"
-            placeholder="No minimum"
-            value={minPrice}
-            onChange={(event) => setMinPrice(event.target.value)}
-          />
-        </label>
-
-        <label className="store-filter-field">
-          <span>Max price</span>
-          <input
-            type="number"
-            min="0"
-            step="200"
-            inputMode="numeric"
-            placeholder="No maximum"
-            value={maxPrice}
-            onChange={(event) => setMaxPrice(event.target.value)}
-          />
-        </label>
-
-        <label className="store-filter-field">
-          <span>Sort by</span>
-          <select value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
-            <option value={DEFAULT_SORT}>Featured</option>
-            <option value="newest">Newest</option>
-            <option value="price-low-high">Price: Low to high</option>
-            <option value="price-high-low">Price: High to low</option>
-            <option value="title-a-z">Title: A to Z</option>
-          </select>
-        </label>
-      </div>
-
-      {invalidPriceRange ? (
-        <p className="status-message error">Minimum price cannot be greater than maximum price.</p>
-      ) : null}
-
-      <p className="store-results-count">
-        Showing {filteredArtworks.length} of {artworks.length} artworks
-      </p>
       {import.meta.env.DEV && debugStats ? (
         <p className="status-message">
           debug: artworks={debugStats.artwork_count}, ranked={debugStats.ranked_count}, invalid=
@@ -410,7 +416,7 @@ function Gallery() {
         </p>
       ) : null}
 
-      {invalidPriceRange ? null : filteredArtworks.length === 0 ? (
+      {filteredArtworks.length === 0 ? (
         <p className="status-message">No artworks match the selected filters.</p>
       ) : (
         <div className="store-grid artwork-grid">
@@ -459,6 +465,10 @@ function Gallery() {
           ))}
         </div>
       )}
+
+      <p className="store-results-count store-results-count-footer">
+        Showing {filteredArtworks.length} of {artworks.length} artworks
+      </p>
     </section>
   )
 }
