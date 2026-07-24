@@ -10,27 +10,44 @@ function SmartSearchPanel({
   onMoodToggle,
   onSubmit,
   onClear,
+  toolbar = null,
 }) {
+  const canClear = Boolean(query) || moods.length > 0
+
   return (
     <section className="smart-search-panel" aria-label="Smart art search">
-      <form className="smart-search-form" onSubmit={onSubmit}>
-        <label className="smart-search-field">
-          <span>Ask AI</span>
-          <input
-            value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
-            placeholder="gift for mom, minimal room art, something bold and spiritual"
-          />
-        </label>
-        <div className="smart-search-actions">
-          <button type="submit" className="text-link-button" disabled={isSearching}>
-            {isSearching ? 'Searching' : 'Search'}
-          </button>
-          <button type="button" className="btn-secondary" onClick={onClear}>
-            Clear
-          </button>
-        </div>
-      </form>
+      <div className="smart-search-bar-row">
+        <form className="smart-search-form" onSubmit={onSubmit} role="search">
+          <div className="smart-search-input-wrap">
+            <svg className="smart-search-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.3-4.3" />
+            </svg>
+            <input
+              value={query}
+              onChange={(event) => onQueryChange(event.target.value)}
+              placeholder="Ask AI — gift for mom, minimal room art…"
+              aria-label="Ask AI to find artworks"
+            />
+            {isSearching ? <span className="smart-search-status" aria-hidden="true" /> : null}
+            {canClear ? (
+              <button
+                type="button"
+                className="smart-search-clear"
+                onClick={onClear}
+                aria-label="Clear search"
+                title="Clear search"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            ) : null}
+          </div>
+        </form>
+
+        {toolbar ? <div className="smart-search-toolbar-slot">{toolbar}</div> : null}
+      </div>
 
       <div className="mood-chip-row" aria-label="Mood filters">
         {SMART_SEARCH_MOODS.map((mood) => (
