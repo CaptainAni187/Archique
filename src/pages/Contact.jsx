@@ -60,16 +60,35 @@ function Contact() {
             FOR CUSTOM PAINTINGS, COMMISSIONS, OR INQUIRIES
           </p>
           <div className="contact-links">
-            <a href="https://www.instagram.com/__archiverse_/" target="_blank" rel="noreferrer">
-              INSTAGRAM
+            <a
+              href="https://www.instagram.com/__archiverse_/"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Instagram"
+              title="Instagram"
+            >
+              <svg className="contact-icon" aria-hidden="true" focusable="false">
+                <use href="/icons.svg#instagram-icon" />
+              </svg>
+              <span className="sr-only">Instagram</span>
             </a>
-            <a href="mailto:archikri07@gmail.com">MAIL</a>
+            <a href="mailto:archikri07@gmail.com" aria-label="Email" title="Email">
+              <svg className="contact-icon" aria-hidden="true" focusable="false">
+                <use href="/icons.svg#mail-icon" />
+              </svg>
+              <span className="sr-only">Email</span>
+            </a>
             <a
               href="https://www.linkedin.com/in/archi-kumari-6a3489371/"
               target="_blank"
               rel="noreferrer"
+              aria-label="LinkedIn"
+              title="LinkedIn"
             >
-              LINKEDIN
+              <svg className="contact-icon" aria-hidden="true" focusable="false">
+                <use href="/icons.svg#linkedin-icon" />
+              </svg>
+              <span className="sr-only">LinkedIn</span>
             </a>
           </div>
         </div>
@@ -132,16 +151,35 @@ function Contact() {
           <p className="eyebrow">SITE & DEVELOPMENT</p>
           <p className="section-copy">DESIGNED & DEVELOPED BY ANIMESH</p>
           <div className="contact-links developer-links">
-            <a href="https://github.com/CaptainAni187" target="_blank" rel="noreferrer">
-              GITHUB
+            <a
+              href="https://github.com/CaptainAni187"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="GitHub"
+              title="GitHub"
+            >
+              <svg className="contact-icon" aria-hidden="true" focusable="false">
+                <use href="/icons.svg#github-icon" />
+              </svg>
+              <span className="sr-only">GitHub</span>
             </a>
-            <a href="mailto:kanimesh187@gmail.com">MAIL</a>
+            <a href="mailto:kanimesh187@gmail.com" aria-label="Email" title="Email">
+              <svg className="contact-icon" aria-hidden="true" focusable="false">
+                <use href="/icons.svg#mail-icon" />
+              </svg>
+              <span className="sr-only">Email</span>
+            </a>
             <a
               href="https://www.linkedin.com/in/animesh-kumar-5347b4294/"
               target="_blank"
               rel="noreferrer"
+              aria-label="LinkedIn"
+              title="LinkedIn"
             >
-              LINKEDIN
+              <svg className="contact-icon" aria-hidden="true" focusable="false">
+                <use href="/icons.svg#linkedin-icon" />
+              </svg>
+              <span className="sr-only">LinkedIn</span>
             </a>
           </div>
         </div>
