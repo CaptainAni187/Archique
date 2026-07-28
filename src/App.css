@@ -1620,6 +1620,33 @@
 
 .contact-links {
   justify-content: center;
+  gap: 22px;
+}
+
+/* Icon-only contact links: a quiet outline that warms to the accent on hover. */
+.contact-links a:has(.contact-icon) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--border-gold-soft);
+  border-radius: 50%;
+  color: var(--text-soft);
+  transition: color 220ms ease, border-color 220ms ease, transform 220ms ease;
+}
+
+.contact-links a:has(.contact-icon):hover {
+  color: var(--accent-color);
+  border-color: var(--accent-color);
+  transform: translateY(-2px);
+}
+
+.contact-icon {
+  width: 19px;
+  height: 19px;
+  display: block;
+  color: currentColor;
 }
 
 .about-editorial {
