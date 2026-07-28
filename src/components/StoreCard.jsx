@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { trackAnalyticsEvent } from '../services/analyticsService'
 import { getArtworkTasteMetadata } from '../services/tasteService'
+import ArtworkActions from './ArtworkActions'
 
 function formatPrice(price) {
   return `Rs. ${Number(price).toLocaleString()}`
@@ -51,20 +52,7 @@ function StoreCard({ artwork, isSaved = false, onToggleSave = null }) {
         {artwork.status === 'sold' ? (
           <span className="badge sold card-badge">SOLD OUT</span>
         ) : null}
-        {typeof onToggleSave === 'function' ? (
-          <button
-            type="button"
-            className={`save-artwork-button ${isSaved ? 'is-saved' : ''}`}
-            aria-label={isSaved ? `Unsave ${artwork.title}` : `Save ${artwork.title}`}
-            onClick={(event) => {
-              event.preventDefault()
-              event.stopPropagation()
-              onToggleSave()
-            }}
-          >
-            {isSaved ? 'Saved' : 'Save'}
-          </button>
-        ) : null}
+        <ArtworkActions artwork={artwork} isSaved={isSaved} onToggleSave={onToggleSave} />
       </div>
       <div className="store-card-body">
         <h3>{artwork.title}</h3>

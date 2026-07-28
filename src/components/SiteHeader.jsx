@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import NavDropdown from './NavDropdown'
 import ThemeToggle from './ThemeToggle'
+import useCart from '../hooks/useCart'
 import { getStoredUser } from '../services/userAuthService'
 function SocialIcons() {
   return (
@@ -37,6 +38,7 @@ function SiteHeader({ isDarkBackground = false }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [menuPath, setMenuPath] = useState(location.pathname)
   const [currentUser, setCurrentUser] = useState(getStoredUser())
+  const cartItems = useCart()
 
   // Collapse the mobile menu on every navigation so it never lingers open over
   // the new page. Done during render (React's "adjust state when a value
@@ -103,6 +105,27 @@ function SiteHeader({ isDarkBackground = false }) {
           >
             STORE
           </NavLink>
+          <NavLink
+            to="/cart"
+            className={({ isActive }) =>
+              isActive ? 'cart-nav-link active-nav' : 'cart-nav-link'
+            }
+            aria-label={
+              cartItems.length > 0 ? `Cart, ${cartItems.length} items` : 'Cart, empty'
+            }
+            title="Cart"
+          >
+            <svg className="cart-nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M3.5 4.5h2.2l2.3 9.4a1.4 1.4 0 0 0 1.4 1.1h7.2a1.4 1.4 0 0 0 1.4-1.1L19.6 8H6.2" />
+              <circle cx="10" cy="19" r="1.5" />
+              <circle cx="16.8" cy="19" r="1.5" />
+            </svg>
+            {cartItems.length > 0 ? (
+              <span className="cart-nav-badge">{cartItems.length}</span>
+            ) : null}
+            <span className="sr-only">Cart</span>
+          </NavLink>
+
           <NavLink
             to="/account"
             className={({ isActive }) =>
