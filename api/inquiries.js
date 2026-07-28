@@ -114,7 +114,20 @@ export default async function handler(req, res) {
       <p>${escapeHtml(message).replaceAll('\n', '<br/>')}</p>
     `
 
-    await Promise.allSettled(
+    // The inquiry is already safely stored above, so email is best-effort and
+    // never blocks the response. It is easy to misconfigure silently though
+    // (a missing RESEND_API_KEY or FROM_EMAIL makes sendResendEmail a no-op),
+    // so log the outcome per recipient — otherwise a form that "works" would
+    // quietly stop notifying anyone.
+    if (recipients.length === 0 || !config.resendApiKey || !config.fromEmail) {
+      console.warn('[inquiries] notification email NOT sent — configuration missing', {
+        hasResendApiKey: Boolean(config.resendApiKey),
+        hasFromEmail: Boolean(config.fromEmail),
+        recipientCount: recipients.length,
+      })
+    }
+
+    const deliveries = await Promise.allSettled(
       recipients.map((to) =>
         sendResendEmail({
           resendApiKey: config.resendApiKey,
@@ -125,6 +138,31 @@ export default async function handler(req, res) {
         }),
       ),
     )
+
+    deliveries.forEach((result, index) => {
+      const to = recipients[index]
+      if (result.status === 'rejected') {
+        console.error('[inquiries] notification email threw', {
+          to,
+          message: result.reason?.message || 'Unknown error',
+        })
+        return
+      }
+
+      // sendResendEmail reports provider rejections in its return value rather
+      // than throwing, so check `delivered` — otherwise a rejected send (an
+      // unverified sender domain, say) would look like a success in the logs.
+      if (result.value?.skipped) {
+        console.warn('[inquiries] notification email skipped — missing config', { to })
+      } else if (!result.value?.delivered) {
+        console.error('[inquiries] notification email REJECTED by provider', {
+          to,
+          error: result.value?.error || 'Unknown provider error',
+        })
+      } else {
+        console.log('[inquiries] notification email delivered', { to, id: result.value?.id })
+      }
+    })
 
     return sendJson(res, 201, {
       success: true,
