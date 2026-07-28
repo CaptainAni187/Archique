@@ -5,6 +5,7 @@ import { getUserToken } from './services/userAuthService'
 import Home from './pages/Home'
 import Gallery from './pages/Gallery'
 import Product from './pages/Product'
+import Cart from './pages/Cart'
 import Checkout from './pages/Checkout'
 import Admin from './pages/Admin'
 import AdminLogin from './pages/AdminLogin'
@@ -139,6 +140,7 @@ function AppLayout() {
           <Route path="/policies" element={<Policies />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/product/:id" element={<Product />} />
+          <Route path="/cart" element={<Cart />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/checkout/confirmation" element={<OrderConfirmation />} />
           <Route path="/order/:orderCode" element={<OrderTracking />} />
