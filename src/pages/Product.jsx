@@ -373,8 +373,10 @@ function Product() {
               {artwork.size}
             </p>
           </div>
-          <p>ONLY 1 PIECE AVAILABLE</p>
-          <p>SHIPS IN 7–10 DAYS</p>
+          <div className="product-stock">
+            <p>ONLY 1 PIECE AVAILABLE</p>
+            <p>SHIPS IN 7–10 DAYS</p>
+          </div>
           <p className="product-description">{artwork.description}</p>
           <div className="product-meta">
             <p>
