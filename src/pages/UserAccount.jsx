@@ -25,8 +25,8 @@ function formatPrice(value) {
 
 function UserAccount() {
   usePageMeta({
-    title: 'My Account | Archiverse',
-    description: 'View your Archiverse account and order history.',
+    title: 'My Account | Archique',
+    description: 'View your Archique account and order history.',
   })
 
   const navigate = useNavigate()
@@ -316,7 +316,7 @@ function UserAccount() {
               const url = URL.createObjectURL(blob)
               const anchor = document.createElement('a')
               anchor.href = url
-              anchor.download = `archiverse-user-export-${Date.now()}.json`
+              anchor.download = `archique-user-export-${Date.now()}.json`
               anchor.click()
               URL.revokeObjectURL(url)
             }}
@@ -333,7 +333,7 @@ function UserAccount() {
             type="button"
             className="text-link-button btn-danger"
             onClick={async () => {
-              const confirmed = window.confirm('Delete your Archiverse account permanently?')
+              const confirmed = window.confirm('Delete your Archique account permanently?')
               if (!confirmed) {
                 return
               }

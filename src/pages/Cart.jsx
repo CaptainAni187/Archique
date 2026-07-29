@@ -14,7 +14,7 @@ function formatPrice(value) {
 
 function Cart() {
   usePageMeta({
-    title: 'Cart | Archiverse',
+    title: 'Cart | Archique',
     description: 'Artworks you have added to your cart.',
   })
 

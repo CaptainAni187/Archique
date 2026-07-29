@@ -53,7 +53,7 @@ export function openRazorpayCheckout({
     amount: amountInPaise,
     currency: 'INR',
     order_id: orderId,
-    name: 'Archiverse',
+    name: 'Archique',
     description: `Full payment for ${productTitle}`,
     handler: (response) => {
       onSuccess({

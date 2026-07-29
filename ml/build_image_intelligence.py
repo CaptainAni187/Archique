@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Build a local image-intelligence artifact for Archiverse.
+Build a local image-intelligence artifact for Archique.
 
 This optional script reads artwork image URLs or local paths from an artworks
 JSON export, derives lightweight PyTorch-based visual features, and writes

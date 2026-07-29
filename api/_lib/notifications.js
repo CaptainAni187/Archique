@@ -73,7 +73,7 @@ function getAdminNotificationEmail(config) {
 
 export async function notifyAdmin(order, config) {
   const structuredLog = {
-    type: 'archiverse.order.created',
+    type: 'archique.order.created',
     orderCode: order.order_code,
     productTitle: order.product_title,
     totalAmount: order.total_amount,
@@ -114,7 +114,7 @@ export async function notifyAdmin(order, config) {
     resendApiKey: config.resendApiKey,
     fromEmail: config.fromEmail,
     to: getAdminNotificationEmail(config),
-    subject: `New Archiverse order ${order.order_code}`,
+    subject: `New Archique order ${order.order_code}`,
     html: `
       <h2>New order received</h2>
       <p><strong>Order:</strong> ${escapeHtml(order.order_code)}</p>
@@ -137,10 +137,10 @@ export async function notifyCustomer(order, config) {
     resendApiKey: config.resendApiKey,
     fromEmail: config.fromEmail,
     to: order.customer_email,
-    subject: `Your Archiverse order ${order.order_code}`,
+    subject: `Your Archique order ${order.order_code}`,
     html: `
       <h2>Payment confirmed</h2>
-      <p>Thank you for your Archiverse order. Your payment has been received in full and the work is reserved for you.</p>
+      <p>Thank you for your Archique order. Your payment has been received in full and the work is reserved for you.</p>
       <p><strong>Order:</strong> ${escapeHtml(order.order_code)}</p>
       <p><strong>Artwork:</strong> ${escapeHtml(order.product_title)}</p>
       <p><strong>Amount Paid:</strong> ${formatCurrency(order.advance_amount)}</p>
@@ -154,7 +154,7 @@ export async function notifyCommissionRequest(commission, config) {
     resendApiKey: config.resendApiKey,
     fromEmail: config.fromEmail,
     to: getAdminNotificationEmail(config),
-    subject: `New Archiverse commission request #${commission.id}`,
+    subject: `New Archique commission request #${commission.id}`,
     html: `
       <h2>New commission request</h2>
       <p><strong>Request:</strong> #${escapeHtml(commission.id)}</p>
@@ -173,10 +173,10 @@ export async function notifyCommissionRequest(commission, config) {
     resendApiKey: config.resendApiKey,
     fromEmail: config.fromEmail,
     to: commission.email,
-    subject: 'Your Archiverse commission request was received',
+    subject: 'Your Archique commission request was received',
     html: `
       <h2>Commission request received</h2>
-      <p>Thank you for sharing your idea with Archiverse.</p>
+      <p>Thank you for sharing your idea with Archique.</p>
       <p><strong>Request:</strong> #${escapeHtml(commission.id)}</p>
       <p><strong>Artwork Type:</strong> ${escapeHtml(commission.artwork_type)}</p>
       <p><strong>Size:</strong> ${escapeHtml(commission.size)}</p>
@@ -201,11 +201,11 @@ export async function sendUserPasswordResetEmail({ email, name, token, config })
     resendApiKey: config.resendApiKey,
     fromEmail: config.fromEmail,
     to: email,
-    subject: 'Reset your Archiverse password',
+    subject: 'Reset your Archique password',
     html: `
-      <h2>Reset your Archiverse password</h2>
+      <h2>Reset your Archique password</h2>
       <p>Hello ${escapeHtml(name || 'there')},</p>
-      <p>We received a request to reset the password for your Archiverse account.</p>
+      <p>We received a request to reset the password for your Archique account.</p>
       <p><strong>Your reset token:</strong> ${escapeHtml(token)}</p>
       <p>Enter this token on the password reset form along with your new password. It expires in 30 minutes.</p>
       <p>If you did not request this, you can safely ignore this email.</p>
@@ -218,12 +218,12 @@ export async function sendUserWelcomeEmail({ email, name, config }) {
     resendApiKey: config.resendApiKey,
     fromEmail: config.fromEmail,
     to: email,
-    subject: 'Welcome to Archiverse',
+    subject: 'Welcome to Archique',
     html: `
-      <h2>Welcome to Archiverse</h2>
+      <h2>Welcome to Archique</h2>
       <p>Hello ${escapeHtml(name || 'there')},</p>
       <p>Your account is ready. You can now track orders and get personalized recommendations.</p>
-      <p>Thank you for joining Archiverse.</p>
+      <p>Thank you for joining Archique.</p>
     `,
   }).catch(() => ({ delivered: false, skipped: false }))
 }

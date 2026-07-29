@@ -48,7 +48,7 @@ function AppLayout() {
   // Global OAuth completion. Rather than sniffing the URL (Supabase may return
   // either ?code= or #access_token=, and the SDK strips it before we could
   // read it), we simply ask the SDK whether a Supabase session exists and, if
-  // so, exchange it for an Archiverse session. Safe no-op otherwise.
+  // so, exchange it for an Archique session. Safe no-op otherwise.
   useEffect(() => {
     if (getUserToken()) {
       return undefined
@@ -104,7 +104,7 @@ function AppLayout() {
   if (isCompletingLogin) {
     return (
       <div className="auth-transition" role="status" aria-live="polite">
-        <span className="auth-transition-mark">ARCHIVERSE</span>
+        <span className="auth-transition-mark">ARCHIQUE</span>
         <span className="auth-transition-text">Signing you in...</span>
       </div>
     )

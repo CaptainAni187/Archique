@@ -77,8 +77,8 @@ function OrderTracking() {
   const [invoiceErrorMessage, setInvoiceErrorMessage] = useState('')
 
   usePageMeta({
-    title: 'Order Tracking | Archiverse',
-    description: 'Track your Archiverse order status and delivery timeline.',
+    title: 'Order Tracking | Archique',
+    description: 'Track your Archique order status and delivery timeline.',
   })
 
   useEffect(() => {

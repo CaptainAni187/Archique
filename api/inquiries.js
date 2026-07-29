@@ -106,7 +106,7 @@ export default async function handler(req, res) {
       .map((value) => value.trim())
       .filter(Boolean)
     const emailHtml = `
-      <h2>New ARCHIVERSE inquiry</h2>
+      <h2>New ARCHIQUE inquiry</h2>
       <p><strong>Name:</strong> ${escapeHtml(name)}</p>
       <p><strong>Email:</strong> ${escapeHtml(email)}</p>
       <p><strong>Subject:</strong> ${escapeHtml(subject)}</p>
@@ -133,7 +133,7 @@ export default async function handler(req, res) {
           resendApiKey: config.resendApiKey,
           fromEmail: config.fromEmail,
           to,
-          subject: `Archiverse inquiry: ${subject}`,
+          subject: `Archique inquiry: ${subject}`,
           html: emailHtml,
         }),
       ),

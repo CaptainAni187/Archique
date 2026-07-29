@@ -74,9 +74,9 @@ function Product() {
   const hoverDwellMsRef = useRef(0)
 
   usePageMeta({
-    title: artwork ? `${artwork.title} | Archiverse` : 'Artwork | Archiverse',
+    title: artwork ? `${artwork.title} | Archique` : 'Artwork | Archique',
     description:
-      artwork?.description || 'Explore artwork details and secure your purchase at Archiverse.',
+      artwork?.description || 'Explore artwork details and secure your purchase at Archique.',
   })
 
   useEffect(() => {

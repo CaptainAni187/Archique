@@ -1,5 +1,5 @@
 -- =========================================================
--- ARCHIVERSE FULL DATABASE SCHEMA
+-- ARCHIQUE FULL DATABASE SCHEMA
 -- Run this in the Supabase SQL editor.
 -- Idempotent: safe to run more than once.
 -- =========================================================

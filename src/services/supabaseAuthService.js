@@ -2,9 +2,9 @@ import { createClient } from '@supabase/supabase-js'
 import { getAnonymousSessionId } from './analyticsService'
 import { backendRequest } from './backendApiService'
 
-const USER_TOKEN_KEY = 'archiverse_user_token'
-const USER_PROFILE_KEY = 'archiverse_user_profile'
-export const OAUTH_ERROR_KEY = 'archiverse_oauth_error'
+const USER_TOKEN_KEY = 'archique_user_token'
+const USER_PROFILE_KEY = 'archique_user_profile'
+export const OAUTH_ERROR_KEY = 'archique_oauth_error'
 
 const SUPABASE_URL =
   import.meta.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co'

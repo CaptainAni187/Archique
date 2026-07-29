@@ -1,4 +1,4 @@
-const ADMIN_TOKEN_KEY = 'archiverse_admin_token'
+const ADMIN_TOKEN_KEY = 'archique_admin_token'
 const ADMIN_API = '/api/admin'
 
 function adminAction(action) {

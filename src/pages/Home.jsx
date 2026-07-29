@@ -50,9 +50,9 @@ function Home({ onHeroContrastChange }) {
   const [personalizationSummary, setPersonalizationSummary] = useState(null)
 
   usePageMeta({
-    title: 'Archiverse | Curated Fine Art',
+    title: 'Archique | Curated Fine Art',
     description:
-      'Discover original fine art and collect timeless works from Archiverse.',
+      'Discover original fine art and collect timeless works from Archique.',
   })
 
   useEffect(() => {
@@ -158,7 +158,7 @@ function Home({ onHeroContrastChange }) {
             overlayContent={() => (
               <div className="hero-overlay-copy">
                 <p>CURATED WORKS</p>
-                <h1>ARCHIVERSE</h1>
+                <h1>ARCHIQUE</h1>
                 <p>
                   Original works and commissioned pieces created for personal spaces.
                 </p>

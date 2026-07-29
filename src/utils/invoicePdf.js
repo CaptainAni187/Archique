@@ -69,7 +69,7 @@ function buildInvoiceLines(invoice) {
   const amountPaid = Number(invoice.advanceAmount || 0)
 
   const lines = [
-    { text: 'ARCHIVERSE', x: 48, y: 792, size: 20 },
+    { text: 'ARCHIQUE', x: 48, y: 792, size: 20 },
     { text: 'Invoice', x: 48, y: 766, size: 16 },
     { text: `Invoice No: ${invoice.orderId || invoice.orderCode || 'Pending'}`, x: 48, y: 734 },
     { text: `Order Code: ${invoice.orderCode || 'Pending'}`, x: 48, y: 716 },
@@ -110,7 +110,7 @@ function buildInvoiceLines(invoice) {
   }
 
   lines.push({
-    text: 'Thank you for collecting original work from Archiverse.',
+    text: 'Thank you for collecting original work from Archique.',
     x: 48,
     y: 92,
   })
@@ -160,7 +160,7 @@ export function downloadInvoicePdf(invoice) {
   const blob = createPdf(contentStream)
   const objectUrl = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
-  const filenameBase = sanitize(invoice.orderCode || invoice.orderId || 'archiverse-invoice')
+  const filenameBase = sanitize(invoice.orderCode || invoice.orderId || 'archique-invoice')
 
   anchor.href = objectUrl
   anchor.download = `${filenameBase}.pdf`

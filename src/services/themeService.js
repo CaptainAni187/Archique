@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'archiverse-theme'
+const STORAGE_KEY = 'archique-theme'
 
 export const THEMES = {
   light: 'light',
@@ -35,7 +35,7 @@ export function setTheme(theme) {
     /* ignore quota / private mode */
   }
   window.dispatchEvent(
-    new CustomEvent('archiverse-theme-change', { detail: resolved }),
+    new CustomEvent('archique-theme-change', { detail: resolved }),
   )
   return resolved
 }

@@ -69,11 +69,11 @@ async function main() {
 
     await sendEmail({
       to: user.email,
-      subject: 'Your Archiverse curated digest',
+      subject: 'Your Archique curated digest',
       html: `
         <h2>Curated for you</h2>
         <p>Hello ${String(user.name || 'Collector').replaceAll('<', '&lt;')}</p>
-        <p>New works aligned to your Archiverse profile:</p>
+        <p>New works aligned to your Archique profile:</p>
         <ul>${picks}</ul>
         <p>Manage preferences in your account settings.</p>
       `,

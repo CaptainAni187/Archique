@@ -2,7 +2,7 @@ import { backendRequest } from './backendApiService'
 import { updateTasteProfileFromEvent } from './tasteService'
 import { getStoredUser } from './userAuthService'
 
-const SESSION_STORAGE_KEY = 'archiverse_visitor_session_id'
+const SESSION_STORAGE_KEY = 'archique_visitor_session_id'
 
 function createSessionId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {

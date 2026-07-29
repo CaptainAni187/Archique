@@ -73,8 +73,8 @@ function SiteHeader({ isDarkBackground = false }) {
         isMenuOpen ? 'menu-open' : ''
       }`}
     >
-      <Link to="/" className="brand-mark" aria-label="ARCHIVERSE home">
-        ARCHIVERSE
+      <Link to="/" className="brand-mark" aria-label="ARCHIQUE home">
+        ARCHIQUE
       </Link>
 
       <button

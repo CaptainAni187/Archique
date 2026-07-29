@@ -6,7 +6,7 @@ const SECTIONS = [
     id: 'reserving',
     label: 'RESERVING A WORK',
     paragraphs: [
-      'Every piece in Archiverse is an original. There is only ever one.',
+      'Every piece in Archique is an original. There is only ever one.',
       'A work is reserved for you the moment payment is received in full. From that point it leaves the collection, is marked unavailable to everyone else, and begins its preparation for you. We ask for full payment upfront rather than a partial advance so that a reservation is a genuine commitment on both sides — the piece is truly yours from that moment, not held on a promise.',
     ],
   },
@@ -15,7 +15,7 @@ const SECTIONS = [
     label: 'PAYMENT',
     paragraphs: [
       'Payments are handled by Razorpay over an encrypted connection.',
-      'Archiverse never sees or stores your card, UPI, or banking details. Every payment is verified against the payment provider before an order is confirmed, and you receive an order code you can use to follow the piece at any time. Valid coupon codes are applied at checkout before payment, and shipping is calculated and shown before you pay — there are no hidden charges added afterward.',
+      'Archique never sees or stores your card, UPI, or banking details. Every payment is verified against the payment provider before an order is confirmed, and you receive an order code you can use to follow the piece at any time. Valid coupon codes are applied at checkout before payment, and shipping is calculated and shown before you pay — there are no hidden charges added afterward.',
     ],
   },
   {
@@ -84,9 +84,9 @@ const SECTIONS = [
 
 function Policies() {
   usePageMeta({
-    title: 'Policies | Archiverse',
+    title: 'Policies | Archique',
     description:
-      'How Archiverse handles reservations, payment, dispatch, delivery, cancellations, and damage.',
+      'How Archique handles reservations, payment, dispatch, delivery, cancellations, and damage.',
   })
 
   return (

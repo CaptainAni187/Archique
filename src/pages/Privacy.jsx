@@ -22,14 +22,14 @@ const SECTIONS = [
     label: 'CURATED FOR YOU',
     paragraphs: [
       'Every recommendation is shaped by your own journey, not by generic trends.',
-      'The artworks you explore, the collections you save, and the spaces you share help Archiverse surface pieces that better reflect your aesthetic. Your personal information is never sold, rented, or shared with advertisers, and it is never used to train public AI models.',
+      'The artworks you explore, the collections you save, and the spaces you share help Archique surface pieces that better reflect your aesthetic. Your personal information is never sold, rented, or shared with advertisers, and it is never used to train public AI models.',
     ],
   },
   {
     id: 'ai',
     label: 'AI AS A QUIET CURATOR',
     paragraphs: [
-      'Artificial intelligence within Archiverse is designed to assist discovery—not replace human taste.',
+      'Artificial intelligence within Archique is designed to assist discovery—not replace human taste.',
       'It helps organize artworks, refine search, understand visual styles, and personalize recommendations. Every suggestion is meant to inspire exploration, while every decision remains entirely yours.',
     ],
   },
@@ -38,7 +38,7 @@ const SECTIONS = [
     label: 'SEE IT ON YOUR WALL',
     paragraphs: [
       'You can preview a piece at its true size on your own wall using your phone camera, straight from the artwork page.',
-      'This augmented-reality view runs entirely on your device through your phone’s built-in AR viewer. Your camera feed is never uploaded, recorded, or seen by Archiverse—we only send the artwork model to your device, and nothing about your room comes back to us.',
+      'This augmented-reality view runs entirely on your device through your phone’s built-in AR viewer. Your camera feed is never uploaded, recorded, or seen by Archique—we only send the artwork model to your device, and nothing about your room comes back to us.',
     ],
   },
   {
@@ -46,7 +46,7 @@ const SECTIONS = [
     label: 'SECURE PURCHASES',
     paragraphs: [
       'Purchases are processed through trusted and encrypted payment providers.',
-      'Archiverse never stores your card details or sensitive payment information. Your account and personal data are protected using modern security practices designed to keep your experience both seamless and secure.',
+      'Archique never stores your card details or sensitive payment information. Your account and personal data are protected using modern security practices designed to keep your experience both seamless and secure.',
     ],
   },
   {
@@ -82,9 +82,9 @@ const SECTIONS = [
 
 function Privacy() {
   usePageMeta({
-    title: 'Your Privacy | Archiverse',
+    title: 'Your Privacy | Archique',
     description:
-      'How Archiverse handles your data with care—personalization, room profiles, and your choices.',
+      'How Archique handles your data with care—personalization, room profiles, and your choices.',
   })
 
   return (
@@ -94,11 +94,11 @@ function Privacy() {
           <h1 className="section-title">YOUR PRIVACY</h1>
           <p className="privacy-subtitle">Art is deeply personal. Your privacy should be, too.</p>
           <p className="privacy-body">
-            Every collection begins with curiosity. Archiverse quietly remembers the pieces you
+            Every collection begins with curiosity. Archique quietly remembers the pieces you
             admire, the collections you create, and the spaces you choose to share—not to follow you
             across the digital world, but to make every visit feel more familiar. The information you
             share exists solely to create a more thoughtful and personal experience within
-            Archiverse.
+            Archique.
           </p>
         </header>
 

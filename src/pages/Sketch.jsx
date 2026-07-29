@@ -23,8 +23,8 @@ function Sketch({ onHeroContrastChange }) {
   const [retryKey, setRetryKey] = useState(0)
 
   usePageMeta({
-    title: 'SKETCH | ARCHIVERSE',
-    description: 'Explore sketch studies and drawing works from ARCHIVERSE.',
+    title: 'SKETCH | ARCHIQUE',
+    description: 'Explore sketch studies and drawing works from ARCHIQUE.',
   })
 
   useEffect(() => {

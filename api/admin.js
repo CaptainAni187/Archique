@@ -390,8 +390,8 @@ async function handleForgotPassword(req, res) {
   const config = getBackendConfig()
   const recipients = Array.from(new Set([admin.email, getAdminBackupEmail()].filter(Boolean)))
   const emailHtml = `
-    <h2>Archiverse admin password reset</h2>
-    <p>A password reset was requested for the Archiverse admin dashboard.</p>
+    <h2>Archique admin password reset</h2>
+    <p>A password reset was requested for the Archique admin dashboard.</p>
     <p><strong>Reset token:</strong> ${resetToken}</p>
     <p>This token expires in 30 minutes. If you did not request this, ignore this email.</p>
   `
@@ -402,7 +402,7 @@ async function handleForgotPassword(req, res) {
         resendApiKey: config.resendApiKey,
         fromEmail: config.fromEmail,
         to,
-        subject: 'Archiverse admin password reset token',
+        subject: 'Archique admin password reset token',
         html: emailHtml,
       }),
     ),

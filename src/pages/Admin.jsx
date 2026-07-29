@@ -104,7 +104,7 @@ const initialPasswordForm = {
   newPassword: '',
 }
 
-const inquiryReadStorageKey = 'archiverse_admin_inquiry_read_state'
+const inquiryReadStorageKey = 'archique_admin_inquiry_read_state'
 const adminTabs = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'artworks', label: 'Artworks' },
@@ -133,8 +133,8 @@ function writeInquiryState(nextState) {
 
 function Admin() {
   usePageMeta({
-    title: 'Admin Dashboard | Archiverse',
-    description: 'Manage artworks and orders in the Archiverse admin dashboard.',
+    title: 'Admin Dashboard | Archique',
+    description: 'Manage artworks and orders in the Archique admin dashboard.',
   })
 
   const navigate = useNavigate()
