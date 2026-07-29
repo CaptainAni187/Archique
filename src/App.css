@@ -1847,6 +1847,39 @@
   font-size: clamp(1.8rem, 3vw, 2.6rem);
 }
 
+/* Label/value rows. The accent label and its value are siblings with no
+   separator in the markup, so without an explicit gap they run together as
+   "MEDIUMAcrylic". Baseline alignment keeps the small-caps label sitting on the
+   same line as its value, and wrapping lets long values (the recommendation
+   reason) flow onto their own lines cleanly. */
+.product-meta {
+  display: grid;
+  gap: 8px;
+}
+
+.product-meta p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 12px;
+  row-gap: 4px;
+}
+
+/* A shared minimum keeps short labels (Medium, Size) the same width so their
+   values line up in a column. Longer labels simply exceed it and their value
+   wraps to the next line, which is the intended behaviour. */
+.product-meta span {
+  flex: 0 0 auto;
+  min-width: 72px;
+}
+
+/* Availability and shipping belong together, so they sit tighter than the
+   page-level rhythm rather than reading as two unrelated statements. */
+.product-stock {
+  display: grid;
+  gap: 8px;
+}
+
 .product-description {
   line-height: 1.55;
   max-width: 52ch;
