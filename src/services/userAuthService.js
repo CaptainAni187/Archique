@@ -1,8 +1,8 @@
 import { backendRequest } from './backendApiService'
 import { setTasteProfile } from './tasteService'
 
-const USER_TOKEN_KEY = 'archiverse_user_token'
-const USER_PROFILE_KEY = 'archiverse_user_profile'
+const USER_TOKEN_KEY = 'archique_user_token'
+const USER_PROFILE_KEY = 'archique_user_profile'
 
 function storeSession(payload) {
   localStorage.setItem(USER_TOKEN_KEY, payload.token)

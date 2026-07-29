@@ -70,8 +70,8 @@ function Gallery() {
   const [debugStats, setDebugStats] = useState(null)
 
   usePageMeta({
-    title: 'Gallery | Archiverse',
-    description: 'Browse curated artworks available at Archiverse.',
+    title: 'Gallery | Archique',
+    description: 'Browse curated artworks available at Archique.',
   })
 
   useEffect(() => {

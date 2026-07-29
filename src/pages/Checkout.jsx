@@ -30,8 +30,8 @@ const initialForm = {
   email: '',
 }
 
-const CONFIRMATION_STORAGE_KEY = 'archiverse_order_confirmation'
-const PENDING_CHECKOUT_STORAGE_KEY = 'archiverse_pending_checkout'
+const CONFIRMATION_STORAGE_KEY = 'archique_order_confirmation'
+const PENDING_CHECKOUT_STORAGE_KEY = 'archique_pending_checkout'
 
 function buildConfirmation(order) {
   return {
@@ -92,8 +92,8 @@ function Checkout() {
   }, [])
 
   usePageMeta({
-    title: 'Checkout | Archiverse',
-    description: 'Securely complete payment for your selected artwork from Archiverse.',
+    title: 'Checkout | Archique',
+    description: 'Securely complete payment for your selected artwork from Archique.',
   })
 
   useEffect(() => {

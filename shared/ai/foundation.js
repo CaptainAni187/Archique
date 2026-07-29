@@ -67,7 +67,7 @@ export function parseCommissionIntent(input = '') {
 
 export function buildCommissionPrompt({ request = '', tasteProfile = {}, recentArtworks = [] } = {}) {
   return [
-    'You are a local Archiverse assistant running through Ollama.',
+    'You are a local Archique assistant running through Ollama.',
     'Summarize the commission request, infer likely category/style/size, and keep the tone practical.',
     `Request: ${request || 'No request provided.'}`,
     `Taste profile: ${JSON.stringify(tasteProfile)}`,
@@ -82,7 +82,7 @@ export function buildAdminSuggestionPrompt({
   recentEvents = [],
 } = {}) {
   return [
-    'You are a local Archiverse admin assistant running through Ollama.',
+    'You are a local Archique admin assistant running through Ollama.',
     'Suggest relevant artworks, tags, or featured ordering changes using only the supplied context.',
     `Admin query: ${query || 'No query provided.'}`,
     `Taste profile: ${JSON.stringify(tasteProfile)}`,

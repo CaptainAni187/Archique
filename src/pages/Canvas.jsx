@@ -13,8 +13,8 @@ function Canvas({ onHeroContrastChange }) {
   const [retryKey, setRetryKey] = useState(0)
 
   usePageMeta({
-    title: 'CANVAS | ARCHIVERSE',
-    description: 'Explore acrylic and painted works from ARCHIVERSE.',
+    title: 'CANVAS | ARCHIQUE',
+    description: 'Explore acrylic and painted works from ARCHIQUE.',
   })
 
   useEffect(() => {

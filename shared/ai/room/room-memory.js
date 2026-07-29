@@ -1,5 +1,5 @@
-const CACHE_PREFIX = 'archiverse_room_analysis_cache_v1'
-const SESSION_PREFIX = 'archiverse_room_session_v1'
+const CACHE_PREFIX = 'archique_room_analysis_cache_v1'
+const SESSION_PREFIX = 'archique_room_session_v1'
 const MAX_CACHE_ENTRIES = 12
 
 function safeParse(value) {

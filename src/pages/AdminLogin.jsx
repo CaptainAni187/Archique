@@ -11,8 +11,8 @@ import PasswordInput from '../components/PasswordInput'
 
 function AdminLogin() {
   usePageMeta({
-    title: 'Admin Login | Archiverse',
-    description: 'Secure admin login for managing Archiverse artworks and orders.',
+    title: 'Admin Login | Archique',
+    description: 'Secure admin login for managing Archique artworks and orders.',
   })
 
   const navigate = useNavigate()
@@ -105,7 +105,7 @@ function AdminLogin() {
   return (
     <section className="auth-card">
       <h2 className="section-title">Admin Login</h2>
-      <p>Sign in to access the ARCHIVERSE dashboard.</p>
+      <p>Sign in to access the ARCHIQUE dashboard.</p>
 
       <form className="admin-form" onSubmit={onSubmit}>
         <label>

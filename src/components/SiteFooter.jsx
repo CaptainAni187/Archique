@@ -31,7 +31,7 @@ function SiteFooter() {
       <div className="site-footer-inner">
         <div className="site-footer-brand">
           <Link to="/" className="site-footer-mark">
-            ARCHIVERSE
+            ARCHIQUE
           </Link>
           <p className="site-footer-tagline">
             Original works and commissioned pieces created for personal spaces.
@@ -75,7 +75,7 @@ function SiteFooter() {
       </div>
 
       <div className="site-footer-base">
-        <span>© {new Date().getFullYear()} ARCHIVERSE</span>
+        <span>© {new Date().getFullYear()} ARCHIQUE</span>
         <Link to="/account" className="site-footer-link">
           Account
         </Link>

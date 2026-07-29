@@ -13,20 +13,20 @@ function formatPrice(value) {
 function OrderConfirmation() {
   const { orderConfirmation } = useOrderContext()
   const [errorMessage, setErrorMessage] = useState('')
-  const savedConfirmation = sessionStorage.getItem('archiverse_order_confirmation')
+  const savedConfirmation = sessionStorage.getItem('archique_order_confirmation')
   let parsedConfirmation = null
   if (savedConfirmation) {
     try {
       parsedConfirmation = JSON.parse(savedConfirmation)
     } catch {
-      sessionStorage.removeItem('archiverse_order_confirmation')
+      sessionStorage.removeItem('archique_order_confirmation')
     }
   }
   const confirmation = orderConfirmation || parsedConfirmation
 
   usePageMeta({
-    title: 'Order Confirmation | Archiverse',
-    description: 'Review your Archiverse payment confirmation details.',
+    title: 'Order Confirmation | Archique',
+    description: 'Review your Archique payment confirmation details.',
   })
 
   if (!confirmation) {

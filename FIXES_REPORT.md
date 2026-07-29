@@ -1,4 +1,4 @@
-# Archiverse — Security Hardening (Status)
+# Archique — Security Hardening (Status)
 
 Last updated: 2026-07-16. Scope: auth/session/env/rate-limiting hardening only.
 Tests: 19/19 pass · lint: 0 errors · build: OK.
@@ -26,7 +26,7 @@ Tests: 19/19 pass · lint: 0 errors · build: OK.
 
 1. **ROTATE every secret** — the Supabase service-role key, Razorpay secret, admin password, and session secrets were all exposed in plaintext. Generate new ones in the Supabase / Razorpay dashboards. New strong session secrets are already in `.env`.
 2. **Apply the migration** so the new tables/RPC exist:
-   `supabase/migrations/20260716_archiverse_rate_limit_and_reset_tokens.sql`
+   `supabase/migrations/20260716_archique_rate_limit_and_reset_tokens.sql`
    (Until applied, rate limiting silently falls back to per-instance memory.)
 3. **Set env vars in the Vercel dashboard** (production doesn't read `.env`): all keys from `.env`, especially the two distinct session secrets and `INQUIRY_NOTIFICATION_RECIPIENTS`.
 4. **Turn on edge protection** — app-level rate limiting stops credential stuffing/bot logins, but *volumetric DDoS must be handled at the edge*. Enable **Vercel Firewall / Attack Challenge Mode**, or put **Cloudflare (free tier)** in front with Bot Fight Mode + rate rules. This is the real "DDoS / bot" defense.

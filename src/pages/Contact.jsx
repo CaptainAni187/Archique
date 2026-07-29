@@ -4,8 +4,8 @@ import usePageMeta from '../hooks/usePageMeta'
 
 function Contact() {
   usePageMeta({
-    title: 'Contact | Archiverse',
-    description: 'Connect with Archiverse for artwork inquiries and support.',
+    title: 'Contact | Archique',
+    description: 'Connect with Archique for artwork inquiries and support.',
   })
 
   const [form, setForm] = useState({

@@ -8,7 +8,7 @@
  * are re-verified server-side at checkout, so a stale snapshot can never drive
  * what someone is charged.
  */
-const STORAGE_KEY = 'archiverse-cart'
+const STORAGE_KEY = 'archique-cart'
 
 const listeners = new Set()
 let items = readFromStorage()
