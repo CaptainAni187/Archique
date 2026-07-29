@@ -1,8 +1,8 @@
-# Archiverse
+# Archique
 
-**Live:** [https://archiverse-art.vercel.app/](https://archiverse-art.vercel.app/)
+**Live:** [https://archique-art.vercel.app/](https://archique-art.vercel.app/)
 
-Archiverse is a React + Vite storefront with Supabase-backed catalog and order management, Razorpay checkout, admin controls, and a Vercel-friendly backend verification layer.
+Archique is a React + Vite storefront with Supabase-backed catalog and order management, Razorpay checkout, admin controls, and a Vercel-friendly backend verification layer.
 
 It extends beyond a basic storefront by adding **behavior-based personalization, intelligent search, and optimized purchase flows (combos + upsell)** without relying on paid AI APIs.
 
@@ -51,7 +51,7 @@ Optional notifications:
 
 Apply the production hardening migration before deploying the checkout flow:
 
-* `supabase/migrations/20260420_archiverse_order_hardening.sql`
+* `supabase/migrations/20260420_archique_order_hardening.sql`
 
 Also ensure later migrations include:
 

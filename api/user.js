@@ -894,7 +894,7 @@ async function handleDeleteAccount(req, res) {
 
   await updateUserAccountById(session.id, {
     deleted_at: new Date().toISOString(),
-    email: `deleted-${session.id}-${Date.now()}@archiverse.local`,
+    email: `deleted-${session.id}-${Date.now()}@archique.local`,
     name: 'Deleted User',
     google_id: null,
     avatar_url: null,

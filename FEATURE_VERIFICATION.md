@@ -1,4 +1,4 @@
-# Archiverse — Feature Verification & Fixes
+# Archique — Feature Verification & Fixes
 
 Verified 2026-07-16 by running the app (Vite + dev API) against the live Supabase and driving each flow. Lint: 0 errors · Tests: 19/19 · Build: OK.
 

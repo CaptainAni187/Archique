@@ -12,8 +12,8 @@ import PasswordInput from '../components/PasswordInput'
 
 function UserLogin() {
   usePageMeta({
-    title: 'Account Login | Archiverse',
-    description: 'Sign in or create an Archiverse account.',
+    title: 'Account Login | Archique',
+    description: 'Sign in or create an Archique account.',
   })
 
   const navigate = useNavigate()
@@ -108,7 +108,7 @@ function UserLogin() {
       <h2 className="section-title">
         {mode === 'signup' ? 'Create Account' : 'Account Login'}
       </h2>
-      <p>Sign in to view your ARCHIVERSE orders.</p>
+      <p>Sign in to view your ARCHIQUE orders.</p>
 
       <form className="admin-form" onSubmit={onSubmit}>
         {mode === 'signup' ? (

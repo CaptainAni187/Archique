@@ -9,8 +9,8 @@ import {
   suggestArtworkTags as suggestTagsForArtwork,
 } from '../../shared/ai/core/index.js'
 
-const TASTE_PROFILE_STORAGE_KEY = 'archiverse_taste_profile'
-const TASTE_RESET_EVENT = 'archiverse:taste-reset'
+const TASTE_PROFILE_STORAGE_KEY = 'archique_taste_profile'
+const TASTE_RESET_EVENT = 'archique:taste-reset'
 
 function readProfileFromStorage() {
   if (typeof window === 'undefined') {

@@ -41,9 +41,9 @@ function ThemeToggle() {
 
   useEffect(() => {
     const onThemeChange = () => syncTheme()
-    window.addEventListener('archiverse-theme-change', onThemeChange)
+    window.addEventListener('archique-theme-change', onThemeChange)
     return () =>
-      window.removeEventListener('archiverse-theme-change', onThemeChange)
+      window.removeEventListener('archique-theme-change', onThemeChange)
   }, [syncTheme])
 
   const isDark = theme === THEMES.dark

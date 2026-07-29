@@ -32,8 +32,8 @@ function Feed() {
   const [retryKey, setRetryKey] = useState(0)
 
   usePageMeta({
-    title: 'FEED | ARCHIVERSE',
-    description: 'Selected recent works and highlights from ARCHIVERSE.',
+    title: 'FEED | ARCHIQUE',
+    description: 'Selected recent works and highlights from ARCHIQUE.',
   })
 
   useEffect(() => {
