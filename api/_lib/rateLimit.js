@@ -10,13 +10,16 @@ function getKey(ipAddress) {
 }
 
 export function getClientIp(req) {
-  const forwardedFor = req.headers['x-forwarded-for']
+  // Defensive throughout: this runs before anything else on public endpoints,
+  // so a request shape without `headers` (or a socket) must never throw and
+  // take down the handler.
+  const forwardedFor = req?.headers?.['x-forwarded-for']
 
   if (typeof forwardedFor === 'string' && forwardedFor.trim()) {
     return forwardedFor.split(',')[0].trim()
   }
 
-  return req.socket?.remoteAddress || req.connection?.remoteAddress || 'unknown'
+  return req?.socket?.remoteAddress || req?.connection?.remoteAddress || 'unknown'
 }
 
 function consumeInMemory(key, { limit, windowMs }) {
@@ -53,4 +56,36 @@ export async function consumeRateLimit(key, options) {
   } catch {
     return consumeInMemory(key, options)
   }
+}
+
+/**
+ * Guard a public endpoint. Returns true when the request has been rate limited
+ * and a 429 has already been sent, so callers can simply `return`.
+ *
+ * Every unauthenticated write path should use this: without it a single client
+ * can drive unbounded database writes, provider spend (email, payment orders)
+ * or CPU on the semantic search.
+ */
+export async function enforcePublicRateLimit(
+  req,
+  res,
+  { scope, limit, windowMs, message = 'Too many requests. Please slow down and try again shortly.' },
+) {
+  const result = await consumeRateLimit(`${scope}:${getClientIp(req)}`, { limit, windowMs })
+
+  if (result.allowed) {
+    return false
+  }
+
+  res.setHeader('Retry-After', String(result.retryAfterSeconds))
+  res.statusCode = 429
+  res.setHeader('Content-Type', 'application/json; charset=utf-8')
+  res.end(
+    JSON.stringify({
+      success: false,
+      error: 'RATE_LIMITED',
+      message,
+    }),
+  )
+  return true
 }

@@ -12,6 +12,7 @@ import {
 } from '../shared/ai/core/search/embedding-search.js'
 import { fetchArtworks } from './_lib/supabaseAdmin.js'
 import { methodNotAllowed, readJson, sendJson } from './_lib/http.js'
+import { enforcePublicRateLimit } from './_lib/rateLimit.js'
 import { sendValidationError, validateWithSchema } from './_lib/validation.js'
 
 const assistantSchema = z.object({
@@ -322,6 +323,18 @@ function searchWithEmbeddings(artworks, query, moods, limit) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return methodNotAllowed(res, ['POST'])
+  }
+
+  // Loads the whole catalogue and runs vector maths per call, so it is the
+  // most expensive public endpoint to abuse.
+  const limited = await enforcePublicRateLimit(req, res, {
+    scope: 'assistant-search',
+    limit: 40,
+    windowMs: 5 * 60 * 1000,
+    message: 'Too many searches. Please wait a moment and try again.',
+  })
+  if (limited) {
+    return null
   }
 
   try {

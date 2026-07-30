@@ -2,6 +2,7 @@ import { requireAdminAuth } from './_lib/adminSession.js'
 import { logAdminActivity } from './_lib/adminActivity.js'
 import { methodNotAllowed, readJson, sendJson } from './_lib/http.js'
 import { getBackendConfig } from './_lib/env.js'
+import { enforcePublicRateLimit } from './_lib/rateLimit.js'
 import { sendResendEmail } from './_lib/notifications.js'
 import { supabaseAdminRequest } from './_lib/supabaseAdmin.js'
 
@@ -71,6 +72,18 @@ export default async function handler(req, res) {
 
     if (req.method !== 'POST') {
       return methodNotAllowed(res, ['GET', 'POST', 'PATCH'])
+    }
+
+    // Unauthenticated, and every submission costs a database write plus one
+    // email per recipient — the most abusable endpoint on the site.
+    const limited = await enforcePublicRateLimit(req, res, {
+      scope: 'inquiry-create',
+      limit: 5,
+      windowMs: 10 * 60 * 1000,
+      message: 'Too many messages sent. Please wait a few minutes before sending another.',
+    })
+    if (limited) {
+      return null
     }
 
     const body = await readJson(req)

@@ -11,6 +11,7 @@ export function getBackendConfig() {
     supabaseServiceRoleKey: readEnv('SUPABASE_SERVICE_ROLE_KEY'),
     razorpayKeyId: readEnv('RAZORPAY_KEY_ID', readEnv('VITE_RAZORPAY_KEY_ID')),
     razorpayKeySecret: readEnv('RAZORPAY_KEY_SECRET'),
+    razorpayWebhookSecret: readEnv('RAZORPAY_WEBHOOK_SECRET'),
     adminNotificationWebhookUrl: readEnv('ADMIN_NOTIFICATION_WEBHOOK_URL'),
     adminNotificationEmail: readEnv('ADMIN_NOTIFICATION_EMAIL'),
     resendApiKey: readEnv('RESEND_API_KEY'),

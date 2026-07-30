@@ -1,6 +1,13 @@
 import { backendAdminRequest, backendRequest } from './backendApiService'
 
+// Catalogue cache. A TTL keeps availability honest on a one-of-a-kind store —
+// without it a piece that sold in another tab would keep showing as available
+// for the rest of the session — and `artworksInFlight` collapses concurrent
+// callers (several pages mount at once) into a single network request.
+const ARTWORKS_CACHE_TTL_MS = 60 * 1000
 let artworksCache = null
+let artworksCachedAt = 0
+let artworksInFlight = null
 const artworkByIdCache = new Map()
 
 function withoutCategory(payload) {
@@ -99,23 +106,45 @@ function createArtworkPayload(artworkInput) {
 }
 
 export async function fetchArtworks() {
-  if (artworksCache) {
+  const isFresh = artworksCache && Date.now() - artworksCachedAt < ARTWORKS_CACHE_TTL_MS
+  if (isFresh) {
     return artworksCache
   }
 
-  const payload = await backendRequest('/api/artworks')
-  const sourceRows = Array.isArray(payload?.data) ? payload.data : []
-  const normalized = sourceRows
-    .filter((row) => row && typeof row === 'object')
-    .map(normalizeArtwork)
-    .filter((row) => Number.isFinite(Number(row.id)) && typeof row.title === 'string')
-  artworksCache = normalized
+  // Already fetching: join that request rather than starting a second one.
+  if (artworksInFlight) {
+    return artworksInFlight
+  }
 
-  normalized.forEach((artwork) => {
-    artworkByIdCache.set(Number(artwork.id), artwork)
-  })
+  artworksInFlight = (async () => {
+    const payload = await backendRequest('/api/artworks')
+    const sourceRows = Array.isArray(payload?.data) ? payload.data : []
+    const normalized = sourceRows
+      .filter((row) => row && typeof row === 'object')
+      .map(normalizeArtwork)
+      .filter((row) => Number.isFinite(Number(row.id)) && typeof row.title === 'string')
 
-  return normalized
+    artworksCache = normalized
+    artworksCachedAt = Date.now()
+
+    normalized.forEach((artwork) => {
+      artworkByIdCache.set(Number(artwork.id), artwork)
+    })
+
+    return normalized
+  })()
+
+  try {
+    return await artworksInFlight
+  } catch (error) {
+    // A failed refresh should not poison the cache for later callers.
+    if (artworksCache) {
+      return artworksCache
+    }
+    throw error
+  } finally {
+    artworksInFlight = null
+  }
 }
 
 export async function fetchSingleArtwork(id) {
@@ -145,6 +174,7 @@ export async function addArtwork(artworkInput) {
 
   const normalized = normalizeArtwork(response.data)
   artworksCache = null
+  artworksCachedAt = 0
   artworkByIdCache.set(Number(normalized.id), normalized)
   return normalized
 }
@@ -159,6 +189,7 @@ export async function updateArtwork(id, artworkInput) {
 
   const normalized = normalizeArtwork(response.data)
   artworksCache = null
+  artworksCachedAt = 0
   artworkByIdCache.set(Number(normalized.id), normalized)
   return normalized
 }
@@ -171,6 +202,7 @@ export async function updateArtworkStatus(id, status) {
 
   const normalized = normalizeArtwork(response.data)
   artworksCache = null
+  artworksCachedAt = 0
   artworkByIdCache.set(Number(normalized.id), normalized)
   return normalized
 }
@@ -181,6 +213,7 @@ export async function deleteArtwork(id) {
   })
 
   artworksCache = null
+  artworksCachedAt = 0
   artworkByIdCache.delete(Number(id))
 
   return { id }

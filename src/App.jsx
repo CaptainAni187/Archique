@@ -1,24 +1,12 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { finalizeGoogleLogin, OAUTH_ERROR_KEY } from './services/supabaseAuthService'
 import { getUserToken } from './services/userAuthService'
 import Home from './pages/Home'
 import Gallery from './pages/Gallery'
 import Product from './pages/Product'
-import Cart from './pages/Cart'
-import Checkout from './pages/Checkout'
-import Admin from './pages/Admin'
-import AdminLogin from './pages/AdminLogin'
-import UserLogin from './pages/UserLogin'
-import UserAccount from './pages/UserAccount'
-import Contact from './pages/Contact'
-import Policies from './pages/Policies'
-import Privacy from './pages/Privacy'
-import OrderConfirmation from './pages/OrderConfirmation'
-import OrderTracking from './pages/OrderTracking'
 import Canvas from './pages/Canvas'
 import Sketch from './pages/Sketch'
-import Feed from './pages/Feed'
 import { OrderProvider } from './state/OrderContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import SiteHeader from './components/SiteHeader'
@@ -26,6 +14,21 @@ import SiteFooter from './components/SiteFooter'
 import ScrollToTop from './components/ScrollToTop'
 import CustomCursor from './components/CustomCursor'
 import './App.css'
+
+// Split off routes that are not needed for the first paint, so the initial
+// bundle carries only the landing and browsing experience.
+const Admin = lazy(() => import('./pages/Admin'))
+const AdminLogin = lazy(() => import('./pages/AdminLogin'))
+const Checkout = lazy(() => import('./pages/Checkout'))
+const OrderConfirmation = lazy(() => import('./pages/OrderConfirmation'))
+const OrderTracking = lazy(() => import('./pages/OrderTracking'))
+const UserAccount = lazy(() => import('./pages/UserAccount'))
+const UserLogin = lazy(() => import('./pages/UserLogin'))
+const Cart = lazy(() => import('./pages/Cart'))
+const Policies = lazy(() => import('./pages/Policies'))
+const Privacy = lazy(() => import('./pages/Privacy'))
+const Contact = lazy(() => import('./pages/Contact'))
+const Feed = lazy(() => import('./pages/Feed'))
 
 // Detected synchronously on first render, before the SDK strips the params —
 // so we can show the sign-in overlay instead of flashing the login form.
@@ -122,6 +125,7 @@ function AppLayout() {
           isCarouselRoute ? 'is-carousel-route' : ''
         }`.trim()}
       >
+        <Suspense fallback={<div className="route-fallback" role="status" aria-live="polite" />}>
         <Routes>
           <Route
             path="/"
@@ -160,6 +164,7 @@ function AppLayout() {
             }
           />
         </Routes>
+        </Suspense>
       </main>
 
       {showFooter ? <SiteFooter /> : null}
