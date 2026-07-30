@@ -7,6 +7,7 @@ import ErrorState from '../components/ErrorState'
 import { SkeletonMasonry } from '../components/SkeletonLoader'
 import { getUserFriendlyError } from '../utils/userErrors'
 import { trackAnalyticsEvent } from '../services/analyticsService'
+import { getImageSrcSet, getOptimizedImageUrl } from '../utils/imageUrl'
 import {
   getArtworkTasteMetadata,
   getTasteProfile,
@@ -97,10 +98,13 @@ function Feed() {
               }}
             >
               <img
-                src={featuredArtwork.src}
+                src={getOptimizedImageUrl(featuredArtwork.src, 1200)}
+                srcSet={getImageSrcSet(featuredArtwork.src)}
+                sizes="100vw"
                 alt={featuredArtwork.title}
                 className="feed-feature-image"
-                loading="lazy"
+                loading="eager"
+                fetchPriority="high"
                 decoding="async"
                 width="1600"
                 height="1200"
@@ -139,7 +143,9 @@ function Feed() {
               <div className="feed-brick-media">
                 {artwork.src ? (
                   <img
-                    src={artwork.src}
+                    src={getOptimizedImageUrl(artwork.src, 640)}
+                    srcSet={getImageSrcSet(artwork.src)}
+                    sizes="(max-width: 720px) 50vw, 33vw"
                     alt={artwork.title}
                     className="feed-image"
                     loading="lazy"

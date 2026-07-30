@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { requireAdminAuth } from './_lib/adminSession.js'
 import { logAdminActivity } from './_lib/adminActivity.js'
-import { methodNotAllowed, readJson, sendJson } from './_lib/http.js'
+import { methodNotAllowed, readJson, sendJson, sendPublicJson } from './_lib/http.js'
 import {
   buildRecommendationReasons,
   buildTasteVector,
@@ -277,7 +277,9 @@ async function readComboContext() {
 
 async function handleFetchArtworks(_req, res) {
   const artworks = await fetchArtworks()
-  return sendJson(res, 200, {
+  // Public catalogue: identical for every visitor, so let the CDN absorb the
+  // repeat traffic instead of hitting the database on every page view.
+  return sendPublicJson(res, 200, {
     success: true,
     data: artworks.map(normalizeArtwork),
   })

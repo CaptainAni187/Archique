@@ -1,6 +1,7 @@
 import { getBackendConfig, requireConfigValues } from './_lib/env.js'
 import { validateCoupon } from './_lib/coupons.js'
 import { methodNotAllowed, readJson, sendJson } from './_lib/http.js'
+import { enforcePublicRateLimit } from './_lib/rateLimit.js'
 import { createPaymentLog } from './_lib/paymentLogs.js'
 import {
   createRazorpayOrder,
@@ -323,6 +324,18 @@ async function handleVerifyPayment(req, res) {
 export default async function handler(req, res) {
   try {
     const action = getAction(req)
+
+    // Each create-order call opens a real order with the payment provider,
+    // so it must not be freely scriptable.
+    const limited = await enforcePublicRateLimit(req, res, {
+      scope: `payments-${action || 'unknown'}`,
+      limit: 20,
+      windowMs: 10 * 60 * 1000,
+      message: 'Too many payment attempts. Please wait a few minutes and try again.',
+    })
+    if (limited) {
+      return null
+    }
 
     if (action === 'create-order') {
       return await handleCreatePaymentOrder(req, res)

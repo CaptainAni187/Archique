@@ -193,11 +193,16 @@ async function loadOrderSelection(validatedBody, { shippingRates, coupon } = {})
     curatedCombo = hydratedCombo
   }
 
+  // Discounts and combo titles come only from the curated combo row in the
+  // database — never from the request body. `payments.js` computes the amount
+  // actually charged the same way, so the two must agree exactly; trusting a
+  // client-supplied discount here would make the recorded total disagree with
+  // the captured payment (and, if the amount check downstream were ever
+  // relaxed, would let a buyer set their own price).
   return buildPurchaseSelection(availableArtworks, {
     comboId: curatedCombo?.id || null,
-    comboTitle: curatedCombo?.title || String(validatedBody.combo_title || '').trim(),
-    curatedDiscountPercent:
-      curatedCombo?.discount_percent || Number(validatedBody.discount_percent || 0),
+    comboTitle: curatedCombo?.title || '',
+    curatedDiscountPercent: curatedCombo?.discount_percent || 0,
     shippingRates,
     coupon,
     type: availableArtworks.length > 1 ? 'smart-pair' : 'single',
