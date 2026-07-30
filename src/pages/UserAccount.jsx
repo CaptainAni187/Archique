@@ -1,46 +1,94 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
-  addArtworkToCollection,
-  createCollection,
   deleteMyAccount,
   exportMyData,
-  fetchCollections,
   fetchCurrentUser,
   fetchUserOrders,
   fetchSavedArtworks,
   getStoredUser,
   logoutUser,
+  unsaveArtwork,
   updateAccountSettings,
 } from '../services/userAuthService'
 import usePageMeta from '../hooks/usePageMeta'
 import ErrorState from '../components/ErrorState'
+import StoreCard from '../components/StoreCard'
 import { SkeletonAccount } from '../components/SkeletonLoader'
 import { getUserFriendlyError } from '../utils/userErrors'
 import { fetchArtworks } from '../services/artworkService'
+import { trackRecommendationEvent } from '../services/analyticsService'
 
 function formatPrice(value) {
   return `Rs. ${Number(value || 0).toLocaleString()}`
 }
 
+function formatDate(value) {
+  if (!value) {
+    return ''
+  }
+  return new Date(value).toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+/**
+ * The furthest stage an order has reached, so a buyer sees "Shipped" rather
+ * than having to interpret a raw payment_status against three timestamps.
+ */
+function getOrderStage(order) {
+  if (order.delivered_at) {
+    return { label: 'Delivered', tone: 'done' }
+  }
+  if (order.shipped_at) {
+    return { label: 'Shipped', tone: 'active' }
+  }
+  if (order.processing_at) {
+    return { label: 'In production', tone: 'active' }
+  }
+  if (order.payment_status === 'paid') {
+    return { label: 'Payment received', tone: 'active' }
+  }
+  if (order.payment_status === 'failed') {
+    return { label: 'Payment failed', tone: 'alert' }
+  }
+  return { label: 'Awaiting payment', tone: 'idle' }
+}
+
+function topAffinities(affinity, limit = 6) {
+  return Object.entries(affinity || {})
+    .sort((left, right) => Number(right[1]) - Number(left[1]))
+    .slice(0, limit)
+    .map(([label]) => label)
+}
+
 function UserAccount() {
   usePageMeta({
     title: 'My Account | Archique',
-    description: 'View your Archique account and order history.',
+    description: 'Your Archique orders, wishlist and preferences.',
   })
 
   const navigate = useNavigate()
   const [user, setUser] = useState(getStoredUser())
   const [orders, setOrders] = useState([])
+  const [artworks, setArtworks] = useState([])
+  const [savedIds, setSavedIds] = useState([])
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
   const [retryKey, setRetryKey] = useState(0)
-  const [savedArtworks, setSavedArtworks] = useState([])
   const [digestOptIn, setDigestOptIn] = useState(false)
   const [digestFrequency, setDigestFrequency] = useState('weekly')
   const [settingsMessage, setSettingsMessage] = useState('')
-  const [collections, setCollections] = useState([])
-  const [newCollectionName, setNewCollectionName] = useState('')
+  const removalTimers = useRef(new Set())
+
+  useEffect(
+    () => () => {
+      removalTimers.current.forEach(window.clearTimeout)
+    },
+    [],
+  )
 
   useEffect(() => {
     let isCancelled = false
@@ -56,20 +104,19 @@ function UserAccount() {
           return
         }
 
-        const [response, saved, artworks, collectionsResponse] = await Promise.all([
+        const [orderResponse, saved, artworkResponse] = await Promise.all([
           fetchUserOrders(),
           fetchSavedArtworks(),
           fetchArtworks(),
-          fetchCollections().catch(() => []),
         ])
+
         if (!isCancelled) {
           setUser(currentUser)
-          setOrders(response)
+          setOrders(Array.isArray(orderResponse) ? orderResponse : [])
+          setArtworks(Array.isArray(artworkResponse) ? artworkResponse : [])
+          setSavedIds(saved.map((item) => Number(item.artwork_id)).filter(Boolean))
           setDigestOptIn(currentUser.digest_opt_in === true)
           setDigestFrequency(currentUser.digest_frequency || 'weekly')
-          const savedIdSet = new Set(saved.map((item) => Number(item.artwork_id)))
-          setSavedArtworks(artworks.filter((artwork) => savedIdSet.has(Number(artwork.id))).slice(0, 8))
-          setCollections(Array.isArray(collectionsResponse) ? collectionsResponse : [])
         }
       } catch (error) {
         if (!isCancelled) {
@@ -91,18 +138,73 @@ function UserAccount() {
     }
   }, [navigate, retryKey])
 
+  const artworkById = useMemo(
+    () => new Map(artworks.map((artwork) => [Number(artwork.id), artwork])),
+    [artworks],
+  )
+
+  // Wishlist entries resolved to live artworks, so each one can be shown as a
+  // real preview rather than a bare title.
+  const wishlist = useMemo(
+    () => savedIds.map((id) => artworkById.get(Number(id))).filter(Boolean),
+    [artworkById, savedIds],
+  )
+
+  const tasteStyles = topAffinities(user?.taste_profile?.style_affinity)
+  const tasteMoods = topAffinities(user?.taste_profile?.mood_affinity)
+  const tasteSpaces = topAffinities(user?.taste_profile?.space_affinity)
+  const hasTaste = tasteStyles.length > 0 || tasteMoods.length > 0 || tasteSpaces.length > 0
+
+  // Unsave right away so the data is never out of step, but hold the card in
+  // place long enough for the heart's burst animation to finish — otherwise the
+  // tile vanishes mid-animation.
+  const removeFromWishlist = async (artwork) => {
+    await unsaveArtwork(artwork.id).catch(() => null)
+    void trackRecommendationEvent('favorite_removed', {
+      artwork_id: artwork.id,
+      source: 'account',
+      artwork,
+    })
+
+    const timer = window.setTimeout(() => {
+      removalTimers.current.delete(timer)
+      setSavedIds((current) => current.filter((value) => value !== Number(artwork.id)))
+    }, 820)
+    removalTimers.current.add(timer)
+  }
+
   if (loading) {
     return <SkeletonAccount />
   }
 
+  if (errorMessage) {
+    return (
+      <section className="page-flow page-with-header-gap">
+        <ErrorState message={errorMessage} onRetry={() => setRetryKey((value) => value + 1)} />
+      </section>
+    )
+  }
+
   return (
-    <section className="order-detail-card">
-      <div className="order-detail-header">
-        <div>
-          <p className="order-detail-kicker">My Account</p>
-          <h2 className="section-title">{user?.name || 'Account'}</h2>
-          <p>{user?.email}</p>
-          {user?.avatar_url ? <img src={user.avatar_url} alt={user.name} className="account-avatar" /> : null}
+    <section className="page-flow page-with-header-gap account-page">
+      {/* ── Profile ── */}
+      <header className="account-header">
+        <div className="account-identity">
+          {user?.avatar_url ? (
+            <img src={user.avatar_url} alt={user.name || 'Account avatar'} className="account-avatar" />
+          ) : (
+            <span className="account-avatar account-avatar-fallback" aria-hidden="true">
+              {(user?.name || user?.email || 'A').charAt(0).toUpperCase()}
+            </span>
+          )}
+          <div>
+            <p className="eyebrow">MY ACCOUNT</p>
+            <h2 className="section-title">{user?.name || 'Account'}</h2>
+            <p className="account-email">{user?.email}</p>
+            <p className="account-provider">
+              Signed in with {user?.provider === 'google' ? 'Google' : 'email'}
+            </p>
+          </div>
         </div>
         <button
           type="button"
@@ -114,226 +216,243 @@ function UserAccount() {
         >
           Logout
         </button>
+      </header>
+
+      {/* ── Orders ── */}
+      <div className="account-section">
+        <div className="account-section-head">
+          <h3>Orders</h3>
+          <span className="account-count">{orders.length}</span>
+        </div>
+
+        {orders.length === 0 ? (
+          <div className="account-empty">
+            <p>You have not placed an order yet.</p>
+            <Link to="/store" className="text-link-button action-button">
+              Browse the store
+            </Link>
+          </div>
+        ) : (
+          <div className="account-order-list">
+            {orders.map((order) => {
+              const artwork = artworkById.get(Number(order.product_id))
+              const image = artwork
+                ? (Array.isArray(artwork.images) ? artwork.images[0] : artwork.image) || ''
+                : ''
+              const stage = getOrderStage(order)
+
+              return (
+                <article key={order.id} className="account-order">
+                  <div className="account-order-media">
+                    {image ? (
+                      <img src={image} alt={order.product_title} loading="lazy" decoding="async" />
+                    ) : (
+                      <span className="account-order-media-empty" aria-hidden="true" />
+                    )}
+                  </div>
+
+                  <div className="account-order-body">
+                    <h4>{order.product_title}</h4>
+                    <p className="account-order-code">{order.order_code || `Order #${order.id}`}</p>
+                    {order.created_at ? (
+                      <p className="account-order-date">{formatDate(order.created_at)}</p>
+                    ) : null}
+                    <p className="account-order-total">{formatPrice(order.total_amount)}</p>
+                  </div>
+
+                  <div className="account-order-side">
+                    <span className={`account-stage is-${stage.tone}`}>{stage.label}</span>
+                    {order.order_code ? (
+                      <Link
+                        to={`/order/${encodeURIComponent(order.order_code)}`}
+                        className="text-link-button"
+                      >
+                        Track order
+                      </Link>
+                    ) : null}
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        )}
       </div>
 
-      {errorMessage ? (
-        <ErrorState
-          message={errorMessage}
-          onRetry={() => setRetryKey((value) => value + 1)}
-        />
+      {/* ── Wishlist ── */}
+      <div className="account-section">
+        <div className="account-section-head">
+          <h3>Wishlist</h3>
+          <span className="account-count">{wishlist.length}</span>
+        </div>
+
+        {wishlist.length === 0 ? (
+          <div className="account-empty">
+            <p>Nothing saved yet. Tap the heart on any piece to keep it here.</p>
+            <Link to="/store" className="text-link-button action-button">
+              Find something you like
+            </Link>
+          </div>
+        ) : (
+          <div className="store-grid artwork-grid account-wishlist-grid">
+            {wishlist.map((artwork) => (
+              <StoreCard
+                key={artwork.id}
+                artwork={artwork}
+                isSaved
+                onToggleSave={() => removeFromWishlist(artwork)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Taste profile ── */}
+      {hasTaste ? (
+        <div className="account-section">
+          <div className="account-section-head">
+            <h3>Your taste</h3>
+          </div>
+          <p className="account-note">
+            Built from what you browse and save, and used to order the store for you.
+          </p>
+
+          <div className="account-taste">
+            {tasteStyles.length > 0 ? (
+              <div>
+                <p className="account-taste-label">Styles</p>
+                <div className="account-chips">
+                  {tasteStyles.map((label) => (
+                    <span key={label} className="account-chip">
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {tasteMoods.length > 0 ? (
+              <div>
+                <p className="account-taste-label">Moods</p>
+                <div className="account-chips">
+                  {tasteMoods.map((label) => (
+                    <span key={label} className="account-chip">
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {tasteSpaces.length > 0 ? (
+              <div>
+                <p className="account-taste-label">Spaces</p>
+                <div className="account-chips">
+                  {tasteSpaces.map((label) => (
+                    <span key={label} className="account-chip">
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
       ) : null}
 
-      <h3 className="orders-heading">My Orders</h3>
-      <div className="admin-list">
-        {orders.length === 0 ? (
-          <p>No orders found for this account email yet.</p>
-        ) : (
-          orders.map((order) => (
-            <article key={order.id} className="admin-item order-item">
-              <div>
-                <h3>{order.order_code || `Order #${order.id}`}</h3>
-                <p>Artwork: {order.product_title}</p>
-                <p>Status: {order.payment_status}</p>
-                <p>Total: {formatPrice(order.total_amount)}</p>
-              </div>
-              {order.order_code ? (
-                <Link to={`/order/${encodeURIComponent(order.order_code)}`} className="text-link-button">
-                  Track
-                </Link>
-              ) : null}
-            </article>
-          ))
-        )}
-      </div>
+      {/* ── Settings ── */}
+      <div className="account-section">
+        <div className="account-section-head">
+          <h3>Email preferences</h3>
+        </div>
 
-      <h3 className="orders-heading">Saved Collection</h3>
-      <div className="admin-list">
-        {savedArtworks.length === 0 ? (
-          <p>No saved artworks yet.</p>
-        ) : (
-          savedArtworks.map((artwork) => (
-            <article key={artwork.id} className="admin-item order-item">
-              <div>
-                <h3>{artwork.title}</h3>
-                <p>{artwork.medium || artwork.category}</p>
-              </div>
-              <Link to={`/product/${artwork.id}`} className="text-link-button">
-                View
-              </Link>
-            </article>
-          ))
-        )}
-      </div>
-
-      <h3 className="orders-heading">Your Aesthetic</h3>
-      <div className="admin-list">
-        {user?.taste_profile ? (
-          <article className="admin-item order-item">
-            <div>
-              <h3>Favorite Styles</h3>
-              <p>
-                {Object.entries(user.taste_profile.style_affinity || {})
-                  .sort((a, b) => Number(b[1]) - Number(a[1]))
-                  .slice(0, 5)
-                  .map(([label]) => label)
-                  .join(', ') || 'No style signals yet'}
-              </p>
-              <h3>Favorite Moods</h3>
-              <p>
-                {Object.entries(user.taste_profile.mood_affinity || {})
-                  .sort((a, b) => Number(b[1]) - Number(a[1]))
-                  .slice(0, 5)
-                  .map(([label]) => label)
-                  .join(', ') || 'No mood signals yet'}
-              </p>
-              <h3>Favorite Spaces</h3>
-              <p>
-                {Object.entries(user.taste_profile.space_affinity || {})
-                  .sort((a, b) => Number(b[1]) - Number(a[1]))
-                  .slice(0, 5)
-                  .map(([label]) => label)
-                  .join(', ') || 'No space signals yet'}
-              </p>
-            </div>
-          </article>
-        ) : (
-          <p>No personalization profile yet.</p>
-        )}
-      </div>
-
-      <h3 className="orders-heading">Named Collections</h3>
-      <div className="admin-list">
-        <article className="admin-item order-item">
-          <div>
-            <h3>Create Collection</h3>
+        <div className="account-setting">
+          <label className="account-checkbox">
             <input
-              value={newCollectionName}
-              onChange={(event) => setNewCollectionName(event.target.value)}
-              placeholder="Dark Aesthetic"
+              type="checkbox"
+              checked={digestOptIn}
+              onChange={(event) => setDigestOptIn(event.target.checked)}
             />
-          </div>
+            <span>Send me occasional picks based on my taste</span>
+          </label>
+
+          <label className="account-select">
+            <span>How often</span>
+            <select
+              value={digestFrequency}
+              onChange={(event) => setDigestFrequency(event.target.value)}
+              disabled={!digestOptIn}
+            >
+              <option value="weekly">Weekly</option>
+              <option value="biweekly">Every two weeks</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </label>
+
           <button
             type="button"
-            className="text-link-button"
+            className="text-link-button action-button"
             onClick={async () => {
-              const created = await createCollection(newCollectionName)
-              if (created) {
-                setCollections((current) => [created, ...current])
-                setNewCollectionName('')
+              setSettingsMessage('')
+              try {
+                const nextUser = await updateAccountSettings({
+                  digest_opt_in: digestOptIn,
+                  digest_frequency: digestFrequency,
+                })
+                setUser((current) => ({ ...current, ...nextUser }))
+                setSettingsMessage('Preferences saved.')
+              } catch (error) {
+                setSettingsMessage(getUserFriendlyError(error, 'Could not save preferences.'))
               }
             }}
           >
-            Create
+            Save preferences
           </button>
-        </article>
-        {collections.map((collection) => (
-          <article key={collection.id} className="admin-item order-item">
-            <div>
-              <h3>{collection.name}</h3>
-              <p>{Array.isArray(collection.items) ? collection.items.length : 0} saved entries</p>
-            </div>
-            {savedArtworks[0] ? (
-              <button
-                type="button"
-                className="text-link-button"
-                onClick={async () => {
-                  await addArtworkToCollection(collection.id, savedArtworks[0].id)
-                  const refreshed = await fetchCollections()
-                  setCollections(refreshed)
-                }}
-              >
-                Add latest saved
-              </button>
-            ) : null}
-          </article>
-        ))}
+          {settingsMessage ? <p className="status-message success">{settingsMessage}</p> : null}
+        </div>
       </div>
 
-      <h3 className="orders-heading">Account Settings</h3>
-      <div className="admin-list">
-        <article className="admin-item order-item">
+      <div className="account-section">
+        <div className="account-section-head">
+          <h3>Your data</h3>
+        </div>
+
+        <div className="account-setting account-data-row">
           <div>
-            <h3>Connected Providers</h3>
-            <p>{user?.provider || 'email'}</p>
-          </div>
-        </article>
-        <article className="admin-item order-item">
-          <div>
-            <h3>Digest Emails</h3>
-            <p>Opt-in only curation emails based on your taste profile.</p>
-            <label>
-              <input
-                type="checkbox"
-                checked={digestOptIn}
-                onChange={(event) => setDigestOptIn(event.target.checked)}
-              />{' '}
-              Receive digest emails
-            </label>
-            <label>
-              Frequency
-              <select
-                value={digestFrequency}
-                onChange={(event) => setDigestFrequency(event.target.value)}
-              >
-                <option value="weekly">Weekly</option>
-                <option value="biweekly">Biweekly</option>
-                <option value="monthly">Monthly</option>
-              </select>
-            </label>
-          </div>
-          <button
-            type="button"
-            className="text-link-button"
-            onClick={async () => {
-              const nextUser = await updateAccountSettings({
-                digest_opt_in: digestOptIn,
-                digest_frequency: digestFrequency,
-              })
-              setUser((current) => ({ ...current, ...nextUser }))
-              setSettingsMessage('Settings saved.')
-            }}
-          >
-            Save Settings
-          </button>
-        </article>
-        <article className="admin-item order-item">
-          <div>
-            <h3>Password Reset</h3>
-            <p>For Google accounts, manage password through Google. Email accounts use login password.</p>
-          </div>
-        </article>
-        <article className="admin-item order-item">
-          <div>
-            <h3>Export My Data</h3>
-            <p>Download your profile, analytics, saved artworks, and recommendation activity.</p>
+            <h4>Download a copy</h4>
+            <p>Your profile, orders, saved pieces and activity as a JSON file.</p>
           </div>
           <button
             type="button"
             className="text-link-button"
             onClick={async () => {
               const payload = await exportMyData()
-              const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+              const blob = new Blob([JSON.stringify(payload, null, 2)], {
+                type: 'application/json',
+              })
               const url = URL.createObjectURL(blob)
               const anchor = document.createElement('a')
               anchor.href = url
-              anchor.download = `archique-user-export-${Date.now()}.json`
+              anchor.download = `archique-account-export-${Date.now()}.json`
               anchor.click()
               URL.revokeObjectURL(url)
             }}
           >
             Export
           </button>
-        </article>
-        <article className="admin-item order-item">
+        </div>
+
+        <div className="account-setting account-data-row account-danger">
           <div>
-            <h3>Delete Account</h3>
-            <p>This permanently removes account access and personalization history.</p>
+            <h4>Delete account</h4>
+            <p>Permanently removes your account, saved pieces and personalisation history.</p>
           </div>
           <button
             type="button"
             className="text-link-button btn-danger"
             onClick={async () => {
-              const confirmed = window.confirm('Delete your Archique account permanently?')
+              const confirmed = window.confirm(
+                'Delete your Archique account permanently? This cannot be undone.',
+              )
               if (!confirmed) {
                 return
               }
@@ -341,11 +460,10 @@ function UserAccount() {
               navigate('/login')
             }}
           >
-            Delete Account
+            Delete
           </button>
-        </article>
+        </div>
       </div>
-      {settingsMessage ? <p className="status-message success">{settingsMessage}</p> : null}
     </section>
   )
 }

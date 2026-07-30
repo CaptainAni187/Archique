@@ -17,6 +17,7 @@ import {
   fetchOrderAnalyticsRows,
   fetchUserAccounts,
   fetchUserLoginEvents,
+  supabaseAdminRequest,
 } from './_lib/supabaseAdmin.js'
 import { getBackendConfig } from './_lib/env.js'
 import { sendResendEmail } from './_lib/notifications.js'
@@ -500,6 +501,52 @@ async function handleDashboard(req, res) {
   })
 }
 
+/**
+ * Payment reconciliation feed.
+ *
+ * Surfaces `payment_logs` — in particular `orphan_payment` rows written by the
+ * Razorpay webhook when money was captured but no order exists. Previously all
+ * of this was written and never read, so a lost order was invisible.
+ */
+async function handlePaymentLogs(req, res) {
+  const session = await requireAdminAuth(req, res)
+  if (!session) {
+    return null
+  }
+
+  if (req.method !== 'GET') {
+    return sendJson(res, 405, {
+      success: false,
+      error: 'METHOD_NOT_ALLOWED',
+      message: 'Method not allowed.',
+    })
+  }
+
+  const onlyUnresolved = String(req.query?.unresolved || '') === 'true'
+  const filter = onlyUnresolved
+    ? '&status=in.(orphan_payment,payment_mismatch,artwork_sold_race,invalid_signature)'
+    : ''
+
+  const logs = await supabaseAdminRequest(
+    `payment_logs?select=*&order=created_at.desc&limit=200${filter}`,
+  ).catch(() => [])
+
+  const rows = Array.isArray(logs) ? logs : []
+  const needsAttention = rows.filter((row) =>
+    ['orphan_payment', 'payment_mismatch', 'artwork_sold_race', 'invalid_signature'].includes(
+      row.status,
+    ),
+  )
+
+  return sendJson(res, 200, {
+    success: true,
+    data: {
+      logs: rows,
+      needs_attention_count: needsAttention.length,
+    },
+  })
+}
+
 export default async function handler(req, res) {
   try {
     const pathname = getPathname(req)
@@ -562,6 +609,10 @@ export default async function handler(req, res) {
 
     if (action === 'activity') {
       return await handleActivity(req, res)
+    }
+
+    if (action === 'payment-logs') {
+      return await handlePaymentLogs(req, res)
     }
 
     return sendJson(res, 405, {

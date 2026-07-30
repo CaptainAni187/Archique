@@ -3,6 +3,7 @@ import { logAdminActivity } from './_lib/adminActivity.js'
 import { getBackendConfig } from './_lib/env.js'
 import { getMultipartFiles, parseMultipartForm } from './_lib/multipart.js'
 import { methodNotAllowed, readJson, sendJson } from './_lib/http.js'
+import { enforcePublicRateLimit } from './_lib/rateLimit.js'
 import { notifyCommissionRequest } from './_lib/notifications.js'
 import { uploadPublicFile } from './_lib/supabaseStorage.js'
 import { parseCommissionBrief } from '../shared/ai/foundation.js'
@@ -217,6 +218,15 @@ export default async function handler(req, res) {
     const action = getAction(req)
 
     if (req.method === 'POST') {
+      const limited = await enforcePublicRateLimit(req, res, {
+        scope: 'commission-create',
+        limit: 5,
+        windowMs: 10 * 60 * 1000,
+        message: 'Too many commission requests. Please wait a few minutes.',
+      })
+      if (limited) {
+        return null
+      }
       return await handleCreateCommission(req, res)
     }
 

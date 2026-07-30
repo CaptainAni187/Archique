@@ -3,6 +3,7 @@ import { SUPPORTED_BEHAVIOR_EVENTS } from '../shared/ai/core/index.js'
 import { logAnalyticsEvent } from './_lib/analytics.js'
 import { requireAdminAuth } from './_lib/adminSession.js'
 import { methodNotAllowed, readJson, sendJson } from './_lib/http.js'
+import { enforcePublicRateLimit } from './_lib/rateLimit.js'
 import { fetchVisitorEvents } from './_lib/supabaseAdmin.js'
 import { sendValidationError, validateWithSchema } from './_lib/validation.js'
 
@@ -86,6 +87,17 @@ export default async function handler(req, res) {
 
     if (req.method !== 'POST') {
       return methodNotAllowed(res, ['GET', 'POST'])
+    }
+
+    // Legitimate browsing is chatty, so the cap is generous — it exists to
+    // stop a script flooding the events table, not to throttle real users.
+    const limited = await enforcePublicRateLimit(req, res, {
+      scope: 'analytics-write',
+      limit: 240,
+      windowMs: 5 * 60 * 1000,
+    })
+    if (limited) {
+      return null
     }
 
     const body = await readJson(req)

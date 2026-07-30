@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { requireAdminAuth } from './_lib/adminSession.js'
 import { logAdminActivity } from './_lib/adminActivity.js'
 import { methodNotAllowed, readJson, sendJson } from './_lib/http.js'
+import { enforcePublicRateLimit } from './_lib/rateLimit.js'
 import { supabaseAdminRequest } from './_lib/supabaseAdmin.js'
 
 const testimonialCreateSchema = z.object({
@@ -234,6 +235,14 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
+      const limited = await enforcePublicRateLimit(req, res, {
+        scope: 'testimonial-create',
+        limit: 5,
+        windowMs: 10 * 60 * 1000,
+      })
+      if (limited) {
+        return null
+      }
       return await handlePost(req, res)
     }
 

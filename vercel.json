@@ -1,27 +1,95 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
-    { "source": "/api/artworks/:id/status", "destination": "/api/artworks?id=:id&action=status" },
-    { "source": "/api/artworks/:id", "destination": "/api/artworks?id=:id" },
-    { "source": "/api/orders/code/:orderCode", "destination": "/api/orders?action=code&orderCode=:orderCode" },
-    { "source": "/api/orders/:id/status", "destination": "/api/orders?id=:id&action=status" },
-    { "source": "/api/commissions/:id/status", "destination": "/api/commissions?id=:id&action=status" },
-    { "source": "/api/create-order", "destination": "/api/payments?action=create-order" },
-    { "source": "/api/payment-order", "destination": "/api/payments?action=create-order" },
-    { "source": "/api/verify-payment", "destination": "/api/payments?action=verify" },
-    { "source": "/api/upload-images", "destination": "/api/upload" },
-    { "source": "/api/user/:action", "destination": "/api/user?action=:action" },
-    { "source": "/api/admin/:action", "destination": "/api/admin?action=:action" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/api/artworks/:id/status",
+      "destination": "/api/artworks?id=:id&action=status"
+    },
+    {
+      "source": "/api/artworks/:id",
+      "destination": "/api/artworks?id=:id"
+    },
+    {
+      "source": "/api/orders/code/:orderCode",
+      "destination": "/api/orders?action=code&orderCode=:orderCode"
+    },
+    {
+      "source": "/api/orders/:id/status",
+      "destination": "/api/orders?id=:id&action=status"
+    },
+    {
+      "source": "/api/commissions/:id/status",
+      "destination": "/api/commissions?id=:id&action=status"
+    },
+    {
+      "source": "/api/create-order",
+      "destination": "/api/payments?action=create-order"
+    },
+    {
+      "source": "/api/payment-order",
+      "destination": "/api/payments?action=create-order"
+    },
+    {
+      "source": "/api/verify-payment",
+      "destination": "/api/payments?action=verify"
+    },
+    {
+      "source": "/api/upload-images",
+      "destination": "/api/upload"
+    },
+    {
+      "source": "/api/user/:action",
+      "destination": "/api/user?action=:action"
+    },
+    {
+      "source": "/api/admin/:action",
+      "destination": "/api/admin?action=:action"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
   ],
   "headers": [
     {
       "source": "/ar/(.*).usdz",
-      "headers": [{ "key": "Content-Type", "value": "model/vnd.usdz+zip" }]
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "model/vnd.usdz+zip"
+        }
+      ]
     },
     {
       "source": "/ar/(.*).glb",
-      "headers": [{ "key": "Content-Type", "value": "model/gltf-binary" }]
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "model/gltf-binary"
+        }
+      ]
     }
-  ]
+  ],
+  "images": {
+    "sizes": [
+      320,
+      480,
+      640,
+      828,
+      1080,
+      1200
+    ],
+    "formats": [
+      "image/avif",
+      "image/webp"
+    ],
+    "minimumCacheTTL": 2678400,
+    "remotePatterns": [
+      {
+        "protocol": "https",
+        "hostname": "rxcvvyflpbxdnudctasm.supabase.co",
+        "pathname": "/storage/v1/object/public/**"
+      }
+    ]
+  }
 }

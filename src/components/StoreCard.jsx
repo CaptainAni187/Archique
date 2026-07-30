@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { trackAnalyticsEvent } from '../services/analyticsService'
 import { getArtworkTasteMetadata } from '../services/tasteService'
 import ArtworkActions from './ArtworkActions'
+import { getImageSrcSet, getOptimizedImageUrl } from '../utils/imageUrl'
 
 function formatPrice(price) {
   return `Rs. ${Number(price).toLocaleString()}`
@@ -40,7 +41,9 @@ function StoreCard({ artwork, isSaved = false, onToggleSave = null }) {
       <div className="store-card-media">
         {primaryImage ? (
           <img
-            src={primaryImage}
+            src={getOptimizedImageUrl(primaryImage, 640)}
+            srcSet={getImageSrcSet(primaryImage)}
+            sizes="(max-width: 720px) 50vw, (max-width: 1100px) 33vw, 25vw"
             alt={artwork.title}
             className="store-card-image"
             loading="lazy"
