@@ -46,6 +46,10 @@
       "destination": "/api/admin?action=:action"
     },
     {
+      "source": "/api/razorpay-webhook",
+      "destination": "/api/payments?action=webhook"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
