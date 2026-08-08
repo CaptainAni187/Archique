@@ -17,6 +17,32 @@ const nonEmptyString = z.preprocess(
   z.string().min(1, 'This field is required.'),
 )
 
+// Customer details land in an order that a courier will act on, so they are
+// validated and bounded here rather than trusted from the browser. Previously
+// these were only `min(1)`, which accepted an unbounded string and any phone
+// format at all.
+const INDIAN_PHONE = /^(\+91[\s-]?)?[6-9]\d{9}$/
+
+const customerNameSchema = z.preprocess(
+  trimString,
+  z.string().min(2, 'Please enter your full name.').max(80, 'Name is too long.'),
+)
+
+const customerPhoneSchema = z.preprocess(
+  (value) => (typeof value === 'string' ? value.replace(/[\s-]/g, '') : value),
+  z
+    .string()
+    .regex(INDIAN_PHONE, 'Enter a valid 10-digit Indian mobile number.'),
+)
+
+const customerAddressSchema = z.preprocess(
+  trimString,
+  z
+    .string()
+    .min(10, 'Please provide a complete delivery address.')
+    .max(500, 'Address is too long.'),
+)
+
 const optionalTrimmedString = z.preprocess(trimString, z.string().optional()).transform(
   (value) => value || '',
 )
@@ -75,9 +101,9 @@ export const orderCreationSchema = z.object({
   combo_title: optionalTrimmedString,
   discount_percent: z.coerce.number().int().min(0).max(50).optional(),
   coupon_code: optionalTrimmedString,
-  customer_name: nonEmptyString,
-  customer_phone: nonEmptyString,
-  customer_address: nonEmptyString,
+  customer_name: customerNameSchema,
+  customer_phone: customerPhoneSchema,
+  customer_address: customerAddressSchema,
   customer_email: z.preprocess(trimString, z.string().email('Customer email is invalid.')),
   razorpay_payment_id: nonEmptyString,
   razorpay_order_id: nonEmptyString,
@@ -155,8 +181,8 @@ export const commissionPayloadSchema = z.object({
 })
 
 export const testimonialPayloadSchema = z.object({
-  customer_name: nonEmptyString,
-  review_text: nonEmptyString,
+  customer_name: customerNameSchema,
+  review_text: z.preprocess(trimString, z.string().min(4).max(2000, 'Review is too long.')),
   rating: z.coerce.number().int().min(1).max(5).default(5),
   location: optionalTrimmedString,
   is_visible: z.boolean().default(true),

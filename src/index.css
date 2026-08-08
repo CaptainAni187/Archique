@@ -50,8 +50,8 @@ img {
 }
 
 :root {
-  --bg-page: #f1ede6;
-  --bg-elevated: #e6e1d8;
+  --bg-page: #f4efe4;
+  --bg-elevated: #eae3d5;
   --bg-surface: rgba(255, 255, 255, 0.38);
   --bg-surface-muted: rgba(255, 255, 255, 0.34);
   --bg-surface-strong: rgba(255, 255, 255, 0.86);
@@ -79,6 +79,11 @@ img {
   );
 
   --accent-color: #c6a962;
+  /* Gold used as TEXT. #c6a962 tops out at 2.3:1 on any light background —
+     unreadable — and a mid-tone background makes it worse, not better. This
+     darker gold reaches ~5:1 on the light page while staying the same hue.
+     Borders and fills keep the brighter --accent-color. */
+  --accent-text: #7d6320;
   --accent-warm: #c6a86b;
   --accent-muted: #8b6a5d;
   --secondary-color: #8a8f98;
@@ -158,6 +163,8 @@ html[data-theme='dark'] {
   );
 
   --accent-color: #b8a06a;
+  /* On a dark page the bright gold is already high-contrast, so text uses it. */
+  --accent-text: #b8a06a;
   --accent-warm: #b8a06a;
   --accent-muted: #9a8b72;
   --secondary-color: #8f8a82;

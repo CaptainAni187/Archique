@@ -94,12 +94,12 @@ function AppLayout() {
   const isCarouselRoute = location.pathname === '/canvas' || location.pathname === '/sketch'
   const isAdminRoute = location.pathname.startsWith('/captain')
   const showFooter = !isCarouselRoute && !isAdminRoute
-  // Pointless (or in the way) once the buyer is already in the cart or paying.
-  const isCheckoutFlowRoute =
-    location.pathname === '/cart' ||
-    location.pathname.startsWith('/checkout') ||
-    location.pathname.startsWith('/order')
-  const showBrowsingCheckoutBar = !isAdminRoute && !isCheckoutFlowRoute
+  // Only where someone is actually shopping — the store grid and the cart.
+  // Everywhere else it is noise.
+  const showBrowsingCheckoutBar =
+    location.pathname === '/store' ||
+    location.pathname === '/gallery' ||
+    location.pathname === '/cart'
   const hasOverlayHeader =
     location.pathname === '/' ||
     location.pathname === '/canvas' ||
