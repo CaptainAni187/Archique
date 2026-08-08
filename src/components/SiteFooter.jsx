@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { PUBLIC_EMAIL, PUBLIC_EMAIL_HREF } from '../constants/contact'
 
 const FOOTER_SECTIONS = [
   {
@@ -56,6 +57,23 @@ function SiteFooter() {
               <svg className="social-icon" aria-hidden="true">
                 <use href="/icons.svg#linkedin-icon" />
               </svg>
+            </a>
+            {/* The address is revealed on hover rather than printed, so the
+                footer stays clean but a visitor can still see where the mail
+                is going before they click. */}
+            <a
+              className="site-footer-mail"
+              href={PUBLIC_EMAIL_HREF}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Email ${PUBLIC_EMAIL}`}
+            >
+              <svg className="social-icon" aria-hidden="true">
+                <use href="/icons.svg#mail-icon" />
+              </svg>
+              <span className="site-footer-mail-tip" aria-hidden="true">
+                {PUBLIC_EMAIL}
+              </span>
             </a>
           </div>
         </div>
