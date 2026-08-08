@@ -9,13 +9,14 @@ const SECTIONS = [
       'To make your gallery feel uniquely yours, we may securely store:',
     ],
     list: [
-      'Your account information',
-      'Saved artworks and personal collections',
-      'Order history',
+      'Your name and email address, so your account and orders belong to you',
+      'Your phone number and delivery address — street, city, state, and pincode — used to ship your work and to prefill checkout so you never retype them',
+      'Saved artworks, wishlists, and personal collections',
+      'Order history, including what you bought and where it was sent',
       'Activity such as searches, views, clicks, and purchases',
     ],
     closing:
-      'Nothing is collected without purpose, and nothing is gathered beyond what helps improve your experience.',
+      'Delivery details are stored only because a courier needs them and because retyping an address at every purchase is a poor experience. You can view, correct, export, or permanently delete all of it from your account at any time. Nothing is collected without purpose, and nothing is gathered beyond what helps improve your experience.',
   },
   {
     id: 'curated',
@@ -46,7 +47,7 @@ const SECTIONS = [
     label: 'SECURE PURCHASES',
     paragraphs: [
       'Purchases are processed through trusted and encrypted payment providers.',
-      'Archique never stores your card details or sensitive payment information. Your account and personal data are protected using modern security practices designed to keep your experience both seamless and secure.',
+      'Payments are handled by Razorpay. Your card, UPI, and banking details are entered on their systems and are never seen, transmitted, or stored by Archique — we receive only a payment reference used to confirm your order. To deliver your work, your name, phone number, and delivery address are shared with our courier partner, and with nobody else. Passwords are stored only as irreversible hashes, and administrative access to order data is restricted and logged.',
     ],
   },
   {
@@ -54,11 +55,12 @@ const SECTIONS = [
     label: 'YOUR CHOICES',
     paragraphs: ['You remain in complete control of your experience.', 'At any time, you can:'],
     list: [
-      'Update or remove your account',
-      'Manage your saved collections',
-      'Adjust personalization preferences',
-      'Request deletion of your personal data',
-      'Contact us with any privacy-related questions',
+      'Update or correct your delivery details from your account page',
+      'Update or permanently delete your account',
+      'Manage your wishlist and saved collections',
+      'Adjust personalization and email preferences, including opting out of emails entirely',
+      'Download a copy of everything we hold about you as a file',
+      'Contact us with any privacy-related question',
     ],
     closing: 'Your information belongs to you. It always will.',
   },

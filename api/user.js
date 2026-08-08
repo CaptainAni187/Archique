@@ -65,6 +65,16 @@ function serializeUser(user) {
     taste_profile: user.taste_profile || null,
     digest_opt_in: user.digest_opt_in === true,
     digest_frequency: user.digest_frequency || 'weekly',
+    // Delivery profile — lets checkout prefill instead of asking a returning
+    // buyer to retype their address every time.
+    phone: user.phone || '',
+    address_line1: user.address_line1 || '',
+    address_line2: user.address_line2 || '',
+    landmark: user.landmark || '',
+    city: user.city || '',
+    state: user.state || '',
+    pincode: user.pincode || '',
+    delivery_profile_complete: Boolean(user.delivery_profile_completed_at),
   }
 }
 
@@ -847,6 +857,77 @@ async function handleSettings(req, res) {
   })
 }
 
+const INDIAN_PHONE = /^(\+91)?[6-9]\d{9}$/
+const INDIAN_PINCODE = /^[1-9]\d{5}$/
+
+/**
+ * Save the buyer's delivery details on their account.
+ *
+ * Held as structured fields rather than one free-text blob so checkout can
+ * prefill them, and so a pincode or phone can actually be validated instead of
+ * discovered to be wrong after payment.
+ */
+async function handleDeliveryProfile(req, res) {
+  const session = requireUserAuth(req, res)
+  if (!session) {
+    return null
+  }
+
+  if (req.method !== 'POST') {
+    return methodNotAllowed(res, ['POST'])
+  }
+
+  if (!ensurePostWithCsrf(req, res)) {
+    return null
+  }
+
+  const body = await readJson(req)
+  const clean = (value, max = 120) => String(value || '').trim().slice(0, max)
+
+  const name = clean(body.name, 80)
+  const phone = clean(body.phone, 16).replace(/[\s-]/g, '')
+  const addressLine1 = clean(body.address_line1)
+  const addressLine2 = clean(body.address_line2)
+  const landmark = clean(body.landmark)
+  const city = clean(body.city, 60)
+  const state = clean(body.state, 60)
+  const pincode = clean(body.pincode, 6)
+
+  const issues = []
+  if (!name) issues.push('Name is required.')
+  if (!INDIAN_PHONE.test(phone)) issues.push('Enter a valid 10-digit Indian mobile number.')
+  if (!addressLine1) issues.push('House / flat number is required.')
+  if (!city) issues.push('City is required.')
+  if (!state) issues.push('State is required.')
+  if (!INDIAN_PINCODE.test(pincode)) issues.push('Enter a valid 6-digit pincode.')
+
+  if (issues.length > 0) {
+    return sendJson(res, 400, {
+      success: false,
+      error: 'INVALID_DELIVERY_PROFILE',
+      message: issues[0],
+      issues,
+    })
+  }
+
+  const updated = await updateUserAccountById(session.id, {
+    name,
+    phone,
+    address_line1: addressLine1,
+    address_line2: addressLine2,
+    landmark,
+    city,
+    state,
+    pincode,
+    delivery_profile_completed_at: new Date().toISOString(),
+  })
+
+  return sendJson(res, 200, {
+    success: true,
+    user: serializeUser(updated),
+  })
+}
+
 async function handleExport(req, res) {
   if (req.method !== 'GET') {
     return methodNotAllowed(res, ['GET'])
@@ -977,6 +1058,10 @@ export default async function handler(req, res) {
 
     if (action === 'room-profiles') {
       return await handleRoomProfiles(req, res)
+    }
+
+    if (action === 'delivery-profile') {
+      return await handleDeliveryProfile(req, res)
     }
 
     if (action === 'settings') {

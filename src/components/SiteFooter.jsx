@@ -19,8 +19,8 @@ const FOOTER_SECTIONS = [
   {
     title: 'Legal',
     links: [
-      { to: '/policies', label: 'Policies' },
-      { to: '/privacy', label: 'Privacy' },
+      { to: '/policies', label: 'Terms & Conditions' },
+      { to: '/privacy', label: 'Privacy Policy' },
     ],
   },
 ]

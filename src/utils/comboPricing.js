@@ -121,18 +121,51 @@ export function getDynamicDiscountPercent(artworks = []) {
  * @param {{type: 'percent'|'flat', value: number, code: string}} [options.coupon]
  *   a pre-validated coupon to apply on top of any curated/dynamic discount.
  */
-export function calculateComboPricing(artworks = [], options = {}) {
-  const uniqueArtworks = mergeUniqueArtworks(artworks)
-  const subtotal = uniqueArtworks.reduce((sum, artwork) => sum + Number(artwork?.price || 0), 0)
-  const shippingCost = uniqueArtworks.reduce(
-    (sum, artwork) => sum + Number(getDeliveryDetails(artwork, options.shippingRates).shippingCost || 0),
+// Share of an additional item's own rate added to a combined shipment. One
+// parcel, but a bigger and heavier one.
+const ADDITIONAL_ITEM_SHIPPING_SHARE = 0.25
+
+/**
+ * Shipping for a single combined delivery.
+ *
+ * Highest individual rate in full (that item sets the parcel size), then a
+ * fraction of each remaining item's rate. A single artwork is unaffected, so
+ * one-piece orders price exactly as before.
+ */
+export function calculateCombinedShipping(artworks = [], shippingRates) {
+  const rates = mergeUniqueArtworks(artworks)
+    .map((artwork) => Number(getDeliveryDetails(artwork, shippingRates).shippingCost || 0))
+    .sort((left, right) => right - left)
+
+  if (rates.length === 0) {
+    return 0
+  }
+
+  const [highest, ...additional] = rates
+  const surcharge = additional.reduce(
+    (sum, rate) => sum + rate * ADDITIONAL_ITEM_SHIPPING_SHARE,
     0,
   )
 
+  return Math.round(highest + surcharge)
+}
+
+export function calculateComboPricing(artworks = [], options = {}) {
+  const uniqueArtworks = mergeUniqueArtworks(artworks)
+  const subtotal = uniqueArtworks.reduce((sum, artwork) => sum + Number(artwork?.price || 0), 0)
+  // Several works bought together ship as ONE parcel, so summing each item's
+  // individual rate overcharges — a second canvas in the same box does not cost
+  // a second full delivery. Charge the largest applicable rate once, plus a
+  // partial surcharge per additional piece for the extra bulk.
+  const shippingCost = calculateCombinedShipping(uniqueArtworks, options.shippingRates)
+
+  // A curated combo used to override the automatic pairing discount outright,
+  // which meant a hand-picked 5% offer silently gave the buyer *less* than the
+  // 10% they would have got by adding the same two works themselves. Take
+  // whichever is larger — an offer should never make the price worse.
   const curatedDiscountPercent = Number(options.curatedDiscountPercent || 0)
-  const dynamicDiscountPercent =
-    curatedDiscountPercent > 0 ? 0 : getDynamicDiscountPercent(uniqueArtworks)
-  const discountPercent = curatedDiscountPercent > 0 ? curatedDiscountPercent : dynamicDiscountPercent
+  const dynamicDiscountPercent = getDynamicDiscountPercent(uniqueArtworks)
+  const discountPercent = Math.max(curatedDiscountPercent, dynamicDiscountPercent)
   const discountAmount = Number(((subtotal * discountPercent) / 100).toFixed(2))
 
   const remainingAfterDiscount = Math.max(0, subtotal - discountAmount)

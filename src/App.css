@@ -4567,3 +4567,362 @@ body {
 .carousel-control {
   z-index: 2;
 }
+
+/* ── Cart bundle pricing ───────────────────────────────────────
+   When several works are in the cart the pricing engine applies a pairing
+   discount, so the summary shows the original total struck through, what is
+   saved, and the real payable figure. */
+.cart-summary-figures {
+  display: grid;
+  gap: 2px;
+  justify-items: end;
+}
+
+.cart-summary-strike {
+  color: var(--text-soft) !important;
+  text-decoration: line-through;
+  font-size: 0.85rem;
+}
+
+.cart-summary-saving {
+  color: var(--accent-color) !important;
+  font-size: 0.78rem;
+  letter-spacing: var(--tracking-body);
+}
+
+.cart-checkout-all {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-gold-soft);
+}
+
+/* ── Floating checkout bar ─────────────────────────────────────
+   Browsing-only affordance so a filled cart is always one tap from checkout,
+   instead of hiding behind a small header icon. */
+.cart-checkout-bar {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 20px 12px 16px;
+  border: 1px solid var(--accent-color);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--text-color);
+  text-decoration: none;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.32);
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+
+.cart-checkout-bar:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
+}
+
+.cart-checkout-bar-icon {
+  position: relative;
+  display: inline-flex;
+}
+
+.cart-checkout-bar-icon svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: var(--accent-color);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.cart-checkout-bar-count {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  min-width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--accent-color);
+  color: #1a1712;
+  font-size: 0.66rem;
+  line-height: 1;
+}
+
+.cart-checkout-bar-text {
+  display: grid;
+  gap: 1px;
+  line-height: 1.2;
+}
+
+.cart-checkout-bar-text strong {
+  font-weight: 300;
+  letter-spacing: var(--tracking-body);
+  font-size: 0.86rem;
+}
+
+.cart-checkout-bar-text em {
+  font-style: normal;
+  color: var(--accent-color);
+  font-size: 0.78rem;
+}
+
+@media (max-width: 640px) {
+  .cart-checkout-bar {
+    right: 16px;
+    bottom: 16px;
+    padding: 10px 16px 10px 14px;
+  }
+}
+
+/* ── Checkout: stepped flow ────────────────────────────────────
+   Delivery details, review, then payment as separate steps — one long form
+   asking for everything at once is where checkouts get abandoned. */
+.checkout-page {
+  max-width: 820px;
+  margin: 0 auto;
+}
+
+.checkout-steps {
+  display: flex;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  flex-wrap: wrap;
+}
+
+.checkout-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--border-gold-soft);
+  border-radius: 999px;
+  color: var(--text-soft);
+  font-size: 0.76rem;
+  letter-spacing: var(--tracking-body);
+}
+
+.checkout-step.is-current {
+  border-color: var(--accent-color);
+  color: var(--text-color);
+}
+
+.checkout-step.is-done {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.checkout-step-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--bg-chip);
+  font-size: 0.7rem;
+}
+
+.checkout-step.is-current .checkout-step-index,
+.checkout-step.is-done .checkout-step-index {
+  background: var(--accent-color);
+  color: #1a1712;
+}
+
+.checkout-panel {
+  display: grid;
+  gap: 22px;
+}
+
+.checkout-panel-narrow {
+  max-width: 520px;
+}
+
+.checkout-step-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 22px;
+  padding-top: 6px;
+}
+
+/* Address fields */
+.delivery-fields {
+  display: grid;
+  gap: 16px;
+}
+
+.delivery-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.delivery-row-three {
+  grid-template-columns: 1.2fr 1.2fr 0.8fr;
+}
+
+.field-optional {
+  color: var(--text-soft);
+  font-size: 0.72rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Consent — the policy links stay gold so they read as links, not body text. */
+.checkout-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  color: var(--text-soft);
+  letter-spacing: var(--tracking-body);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.checkout-consent input[type='checkbox'] {
+  width: 17px;
+  height: 17px;
+  margin: 2px 0 0;
+  flex-shrink: 0;
+  accent-color: var(--accent-color);
+}
+
+.inline-policy-link {
+  color: var(--accent-color);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 200ms ease;
+}
+
+.inline-policy-link:hover {
+  border-bottom-color: var(--accent-color);
+}
+
+/* Review step */
+.checkout-review-items {
+  display: grid;
+  gap: 14px;
+}
+
+.checkout-review-item {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border-gold-soft);
+}
+
+.checkout-review-media img {
+  width: 84px;
+  height: 84px;
+  object-fit: cover;
+  display: block;
+}
+
+.checkout-review-body {
+  display: grid;
+  gap: 3px;
+}
+
+.checkout-review-body h3 {
+  margin: 0;
+  font-weight: 300;
+  letter-spacing: var(--tracking-body);
+}
+
+.checkout-review-body p {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.8rem;
+}
+
+.checkout-review-price {
+  margin: 0;
+  color: var(--accent-color);
+  letter-spacing: var(--tracking-body);
+}
+
+.checkout-review-block {
+  display: grid;
+  gap: 6px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border-gold-soft);
+}
+
+.checkout-review-block-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.checkout-review-block h3 {
+  margin: 0;
+  font-weight: 300;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  color: var(--text-color);
+}
+
+.checkout-address-name {
+  margin: 0;
+  color: var(--text-color);
+}
+
+.checkout-address-line {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.checkout-pay-summary {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid var(--border-gold);
+  background: var(--bg-surface-muted);
+}
+
+.checkout-pay-items {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 640px) {
+  .delivery-row,
+  .delivery-row-three {
+    grid-template-columns: 1fr;
+  }
+
+  .checkout-review-item {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  .checkout-review-media img {
+    width: 64px;
+    height: 64px;
+  }
+
+  .checkout-review-price {
+    grid-column: 1 / -1;
+  }
+}
+
+/* The post-signup details step needs room for the address grid, unlike the
+   narrow login card. */
+.auth-card.auth-card-wide {
+  max-width: 640px;
+}

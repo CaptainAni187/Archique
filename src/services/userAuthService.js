@@ -272,3 +272,39 @@ export async function deleteRoomProfile(profileId) {
     body: JSON.stringify({ profile_id: profileId }),
   })
 }
+
+/**
+ * Save the buyer's delivery details (name, phone, structured address) so
+ * checkout can prefill them next time.
+ */
+export async function saveDeliveryProfile(profile) {
+  const token = getUserToken()
+  const payload = await backendRequest('/api/user/delivery-profile', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token || ''}`,
+    },
+    body: JSON.stringify(profile),
+  })
+
+  if (payload.user) {
+    localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(payload.user))
+  }
+
+  return payload.user || null
+}
+
+/** Formats the structured address into the single line orders store. */
+export function formatDeliveryAddress(profile) {
+  return [
+    profile?.address_line1,
+    profile?.address_line2,
+    profile?.landmark ? `Near ${profile.landmark}` : '',
+    profile?.city,
+    profile?.state,
+    profile?.pincode,
+  ]
+    .map((part) => String(part || '').trim())
+    .filter(Boolean)
+    .join(', ')
+}

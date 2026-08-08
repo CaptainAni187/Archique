@@ -15,6 +15,14 @@ import { findOrderByPaymentId } from '../services/orderService'
 import { fetchShippingRates, validateCoupon } from '../services/couponService'
 import Reveal from '../components/Reveal'
 import ErrorState from '../components/ErrorState'
+import DeliveryAddressFields from '../components/DeliveryAddressFields'
+import {
+  fetchCurrentUser,
+  formatDeliveryAddress,
+  getStoredUser,
+  saveDeliveryProfile,
+} from '../services/userAuthService'
+import { getOptimizedImageUrl } from '../utils/imageUrl'
 import usePageMeta from '../hooks/usePageMeta'
 import { buildPurchaseSelection } from '../utils/comboPricing'
 import { getUserFriendlyError } from '../utils/userErrors'
@@ -26,9 +34,21 @@ function formatPrice(price) {
 const initialForm = {
   name: '',
   phone: '',
-  address: '',
   email: '',
+  address_line1: '',
+  address_line2: '',
+  landmark: '',
+  city: '',
+  state: '',
+  pincode: '',
+  acceptedPolicies: false,
 }
+
+const STEPS = [
+  { id: 1, label: 'Delivery details' },
+  { id: 2, label: 'Review order' },
+  { id: 3, label: 'Payment' },
+]
 
 const CONFIRMATION_STORAGE_KEY = 'archique_order_confirmation'
 const PENDING_CHECKOUT_STORAGE_KEY = 'archique_pending_checkout'
@@ -63,6 +83,43 @@ function Checkout() {
     setOrderConfirmation,
   } = useOrderContext()
   const [form, setForm] = useState(initialForm)
+  const [step, setStep] = useState(1)
+  const [stepError, setStepError] = useState('')
+
+  // Prefill delivery details from the account. Uses the cached profile first so
+  // fields are populated on the very first paint, then refreshes from the
+  // server in case the address was changed elsewhere.
+  useEffect(() => {
+    let cancelled = false
+
+    const apply = (user) => {
+      if (!user || cancelled) {
+        return
+      }
+      setForm((previous) => ({
+        ...previous,
+        // Never clobber something the buyer has already typed.
+        name: previous.name || user.name || '',
+        email: previous.email || user.email || '',
+        phone: previous.phone || user.phone || '',
+        address_line1: previous.address_line1 || user.address_line1 || '',
+        address_line2: previous.address_line2 || user.address_line2 || '',
+        landmark: previous.landmark || user.landmark || '',
+        city: previous.city || user.city || '',
+        state: previous.state || user.state || '',
+        pincode: previous.pincode || user.pincode || '',
+      }))
+    }
+
+    apply(getStoredUser())
+    fetchCurrentUser()
+      .then(apply)
+      .catch(() => null)
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
@@ -256,9 +313,6 @@ function Checkout() {
     // same tab's own checkout attempts.
   }, [])
 
-  const checkoutImage = Array.isArray(checkoutSelection?.primaryItem?.images)
-    ? checkoutSelection.primaryItem.images[0] || ''
-    : checkoutSelection?.primaryItem?.image || ''
 
   if (!checkoutSelection?.primaryItem) {
     return (
@@ -278,10 +332,6 @@ function Checkout() {
   const discountPercent = checkoutSelection.pricing.discountPercent
   const couponDiscountAmount = checkoutSelection.pricing.couponDiscountAmount
 
-  const onChange = (event) => {
-    const { name, value } = event.target
-    setForm((previous) => ({ ...previous, [name]: value }))
-  }
 
   const finalizeSuccessfulOrder = (createdOrder, successCopy) => {
     const confirmation = buildConfirmation(createdOrder)
@@ -397,7 +447,9 @@ function Checkout() {
   const onSubmit = async (event) => {
     event.preventDefault()
     const trimmedName = form.name.trim()
-    const trimmedAddress = form.address.trim()
+    // The address is collected as structured fields now; orders still store a
+    // single line, so compose it the same way the account profile does.
+    const trimmedAddress = formatDeliveryAddress(form)
     const trimmedEmail = form.email.trim()
     const normalizedPhone = form.phone.replace(/[\s-]/g, '')
     if (isSubmitting || successMessage) {
@@ -523,17 +575,67 @@ function Checkout() {
     }
   }
 
+  const setField = (field, value) => {
+    setForm((previous) => ({ ...previous, [field]: value }))
+    setStepError('')
+  }
+
+  const detailsIssue = () => {
+    if (!form.name.trim()) return 'Please enter your full name.'
+    if (!/^(\+91)?[6-9]\d{9}$/.test(form.phone.replace(/[\s-]/g, '')))
+      return 'Enter a valid 10-digit Indian mobile number.'
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()))
+      return 'Please enter a valid email address.'
+    if (!form.address_line1.trim()) return 'House / flat number is required.'
+    if (!form.city.trim()) return 'City is required.'
+    if (!form.state.trim()) return 'Please select your state.'
+    if (!/^[1-9]\d{5}$/.test(form.pincode.trim())) return 'Enter a valid 6-digit pincode.'
+    if (!form.acceptedPolicies) return 'Please accept the Terms & Conditions and Privacy Policy to continue.'
+    return ''
+  }
+
+  const goToReview = async () => {
+    const issue = detailsIssue()
+    if (issue) {
+      setStepError(issue)
+      return
+    }
+
+    // Remember the details for next time, but never block checkout on it.
+    if (getStoredUser()) {
+      saveDeliveryProfile({
+        name: form.name,
+        phone: form.phone,
+        address_line1: form.address_line1,
+        address_line2: form.address_line2,
+        landmark: form.landmark,
+        city: form.city,
+        state: form.state,
+        pincode: form.pincode,
+      }).catch(() => null)
+    }
+
+    setStepError('')
+    setStep(2)
+    window.scrollTo({ top: 0, behavior: 'instant' })
+  }
+
+  const goToStep = (target) => {
+    setStepError('')
+    setStep(target)
+    window.scrollTo({ top: 0, behavior: 'instant' })
+  }
+
+  const deliveryAddress = formatDeliveryAddress(form)
+
   return (
-    <section className="page-flow page-with-header-gap">
+    <section className="page-flow page-with-header-gap checkout-page">
       {previousOrderCode ? (
         <div className="status-message checkout-previous-order-banner">
           <span>
             Your earlier order <strong>{previousOrderCode}</strong> was already confirmed.
           </span>
-          <Link
-            to={`/order/${encodeURIComponent(previousOrderCode)}`}
-            className="text-link-button"
-          >
+          <Link to={`/order/${encodeURIComponent(previousOrderCode)}`} className="text-link-button">
             View it
           </Link>
           <button
@@ -545,57 +647,115 @@ function Checkout() {
           </button>
         </div>
       ) : null}
-      <Reveal className="checkout-layout">
-        <div className="checkout-product">
-          <p className="eyebrow">CHECKOUT</p>
-          <h1 className="section-title">COMPLETE YOUR PAYMENT</h1>
-          <p className="checkout-note">
-            PAYMENT IN FULL SECURES THE ORIGINAL WORK FOR YOU
+
+      <p className="eyebrow">CHECKOUT</p>
+
+      <ol className="checkout-steps" aria-label="Checkout progress">
+        {STEPS.map((entry) => (
+          <li
+            key={entry.id}
+            className={`checkout-step ${step === entry.id ? 'is-current' : ''} ${
+              step > entry.id ? 'is-done' : ''
+            }`.trim()}
+          >
+            <span className="checkout-step-index">{step > entry.id ? '✓' : entry.id}</span>
+            <span className="checkout-step-label">{entry.label}</span>
+          </li>
+        ))}
+      </ol>
+
+      {/* ── Step 1: delivery details ── */}
+      {step === 1 ? (
+        <Reveal className="checkout-panel">
+          <h1 className="section-title">Where should it go?</h1>
+          <p className="section-copy">
+            {getStoredUser()
+              ? 'Prefilled from your account — edit anything that has changed.'
+              : 'We use these details for delivery and your order confirmation.'}
           </p>
-          {checkoutImage ? (
-            <img
-              src={checkoutImage}
-              alt={checkoutSelection.title}
-              className="checkout-artwork-image"
-              loading="eager"
-              decoding="async"
-              width="1200"
-              height="1500"
+
+          <DeliveryAddressFields values={form} onChange={setField} />
+
+          <label className="checkout-consent">
+            <input
+              type="checkbox"
+              checked={form.acceptedPolicies}
+              onChange={(event) => setField('acceptedPolicies', event.target.checked)}
             />
-          ) : null}
-          <div className="checkout-summary">
-            <h3>{checkoutSelection.title}</h3>
-            {checkoutSelection.items.length > 1 ? (
-              <p>Includes: {checkoutSelection.items.map((artwork) => artwork.title).join(', ')}</p>
-            ) : null}
+            <span>
+              I agree to the{' '}
+              <Link to="/policies" target="_blank" className="inline-policy-link">
+                Terms &amp; Conditions
+              </Link>{' '}
+              and the{' '}
+              <Link to="/privacy" target="_blank" className="inline-policy-link">
+                Privacy Policy
+              </Link>
+              .
+            </span>
+          </label>
 
-            <div className="checkout-price-breakdown">
-              <div className="checkout-price-row">
-                <span>Artwork subtotal</span>
-                <span>{formatPrice(subtotal)}</span>
-              </div>
-              {discountPercent > 0 ? (
-                <div className="checkout-price-row checkout-price-row-discount">
-                  <span>Discount ({discountPercent}%)</span>
-                  <span>-{formatPrice(discountAmount)}</span>
-                </div>
-              ) : null}
-              {appliedCoupon ? (
-                <div className="checkout-price-row checkout-price-row-discount">
-                  <span>Coupon ({appliedCoupon.code})</span>
-                  <span>-{formatPrice(couponDiscountAmount)}</span>
-                </div>
-              ) : null}
-              <div className="checkout-price-row">
-                <span>Shipping</span>
-                <span>{formatPrice(shippingCost)}</span>
-              </div>
-              <div className="checkout-price-row checkout-price-row-total">
-                <span>Total payable now</span>
-                <span>{formatPrice(totalAmount)}</span>
-              </div>
+          {stepError ? <p className="status-message error">{stepError}</p> : null}
+
+          <div className="checkout-step-actions">
+            <button type="button" className="text-link-button action-button" onClick={goToReview}>
+              Continue to review
+            </button>
+            <Link to="/cart" className="text-link-button">
+              Back to cart
+            </Link>
+          </div>
+        </Reveal>
+      ) : null}
+
+      {/* ── Step 2: review ── */}
+      {step === 2 ? (
+        <Reveal className="checkout-panel">
+          <h1 className="section-title">Review your order</h1>
+
+          <div className="checkout-review-items">
+            {checkoutSelection.items.map((artwork) => {
+              const image =
+                (Array.isArray(artwork.images) ? artwork.images[0] : artwork.image) || ''
+              return (
+                <article key={artwork.id} className="checkout-review-item">
+                  <div className="checkout-review-media">
+                    {image ? (
+                      <img
+                        src={getOptimizedImageUrl(image, 320)}
+                        alt={artwork.title}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : null}
+                  </div>
+                  <div className="checkout-review-body">
+                    <h3>{artwork.title}</h3>
+                    <p>{artwork.medium || artwork.category}</p>
+                    {artwork.size ? <p>{artwork.size} in</p> : null}
+                  </div>
+                  <p className="checkout-review-price">{formatPrice(artwork.price)}</p>
+                </article>
+              )
+            })}
+          </div>
+
+          <div className="checkout-review-block">
+            <div className="checkout-review-block-head">
+              <h3>Delivering to</h3>
+              <button type="button" className="text-link-button" onClick={() => goToStep(1)}>
+                Edit
+              </button>
             </div>
+            <p className="checkout-address-name">{form.name}</p>
+            <p className="checkout-address-line">{deliveryAddress}</p>
+            <p className="checkout-address-line">
+              {form.phone} · {form.email}
+            </p>
+          </div>
 
+          <div className="checkout-review-block">
+            <h3>Coupon</h3>
             <div className="checkout-coupon">
               {appliedCoupon ? (
                 <div className="checkout-coupon-applied">
@@ -631,15 +791,63 @@ function Checkout() {
               ) : null}
             </div>
           </div>
-        </div>
 
-        <form className="checkout-form" onSubmit={onSubmit}>
-          <div className="form-intro">
-            <p className="eyebrow">Collector Details</p>
-            <p className="section-copy">
-              We’ll use these details for your payment confirmation and delivery coordination.
-            </p>
+          <div className="checkout-price-breakdown">
+            <div className="checkout-price-row">
+              <span>Artwork subtotal</span>
+              <span>{formatPrice(subtotal)}</span>
+            </div>
+            {discountPercent > 0 ? (
+              <div className="checkout-price-row checkout-price-row-discount">
+                <span>
+                  Bundle discount ({discountPercent}%)
+                </span>
+                <span>-{formatPrice(discountAmount)}</span>
+              </div>
+            ) : null}
+            {appliedCoupon ? (
+              <div className="checkout-price-row checkout-price-row-discount">
+                <span>Coupon ({appliedCoupon.code})</span>
+                <span>-{formatPrice(couponDiscountAmount)}</span>
+              </div>
+            ) : null}
+            <div className="checkout-price-row">
+              <span>
+                Delivery
+                {checkoutSelection.items.length > 1 ? ' (combined into one parcel)' : ''}
+              </span>
+              <span>{formatPrice(shippingCost)}</span>
+            </div>
+            <div className="checkout-price-row checkout-price-row-total">
+              <span>Total payable</span>
+              <span>{formatPrice(totalAmount)}</span>
+            </div>
           </div>
+
+          <div className="checkout-step-actions">
+            <button
+              type="button"
+              className="text-link-button action-button"
+              onClick={() => goToStep(3)}
+            >
+              Continue to payment
+            </button>
+            <button type="button" className="text-link-button" onClick={() => goToStep(1)}>
+              Back
+            </button>
+          </div>
+        </Reveal>
+      ) : null}
+
+      {/* ── Step 3: payment ── */}
+      {step === 3 ? (
+        <Reveal className="checkout-panel checkout-panel-narrow">
+          <h1 className="section-title">Payment</h1>
+          <p className="section-copy">
+            Paying in full secures the original work for you. You will be redirected to Razorpay to
+            complete the payment securely — we never see your card or UPI details.
+          </p>
+
           {paymentSetupMessage ? (
             <ErrorState
               message={paymentSetupMessage}
@@ -647,47 +855,32 @@ function Checkout() {
               onRetry={() => setPaymentSetupRetryKey((value) => value + 1)}
             />
           ) : null}
-          <label>
-            Name
-            <input name="name" value={form.name} onChange={onChange} required />
-          </label>
-          <label>
-            Phone
-            <input
-              name="phone"
-              value={form.phone}
-              onChange={onChange}
-              placeholder="+91XXXXXXXXXX"
-              required
-            />
-          </label>
-          <label>
-            Address
-            <textarea
-              name="address"
-              value={form.address}
-              onChange={onChange}
-              required
-            />
-          </label>
-          <label>
-            Email
-            <input
-              name="email"
-              type="email"
-              value={form.email}
-              onChange={onChange}
-              required
-            />
-          </label>
 
-          <button
-            type="submit"
-            className="text-link-button action-button"
-            disabled={isSubmitting || Boolean(successMessage)}
-          >
-            {isSubmitting ? 'Processing Payment...' : `Pay ${formatPrice(totalAmount)}`}
-          </button>
+          <div className="checkout-pay-summary">
+            <div className="checkout-price-row checkout-price-row-total">
+              <span>Total payable</span>
+              <span>{formatPrice(totalAmount)}</span>
+            </div>
+            <p className="checkout-pay-items">
+              {checkoutSelection.items.length}{' '}
+              {checkoutSelection.items.length === 1 ? 'work' : 'works'} · delivering to{' '}
+              {form.city}, {form.pincode}
+            </p>
+          </div>
+
+          <form className="checkout-form" onSubmit={onSubmit}>
+            <button
+              type="submit"
+              className="text-link-button action-button"
+              disabled={isSubmitting || Boolean(successMessage) || !isRazorpayReady}
+            >
+              {isSubmitting ? 'Processing Payment...' : `Pay ${formatPrice(totalAmount)}`}
+            </button>
+          </form>
+
+          {!isRazorpayReady ? (
+            <p className="status-message">Preparing secure payment…</p>
+          ) : null}
           {recoveryMessage ? <p className="status-message">{recoveryMessage}</p> : null}
           {errorMessage ? <p className="status-message error">{errorMessage}</p> : null}
           {successMessage ? <p className="status-message success">{successMessage}</p> : null}
@@ -698,7 +891,7 @@ function Checkout() {
               onClick={recoverPendingCheckout}
               disabled={isSubmitting}
             >
-              Resume Confirmation
+              Retry Confirmation
             </button>
           ) : null}
           {successMessage ? (
@@ -706,8 +899,14 @@ function Checkout() {
               View Confirmation
             </Link>
           ) : null}
-        </form>
-      </Reveal>
+
+          <div className="checkout-step-actions">
+            <button type="button" className="text-link-button" onClick={() => goToStep(2)}>
+              Back to review
+            </button>
+          </div>
+        </Reveal>
+      ) : null}
     </section>
   )
 }

@@ -207,7 +207,7 @@ function Home({ onHeroContrastChange }) {
               ) : null}
               {personalizedRecommendations.length > 0 ? (
                 <>
-                  <p className="store-tagline">Personalized recommendations</p>
+                  <p className="store-tagline">Selected for you</p>
                   <div className="store-grid artwork-grid">
                     {personalizedRecommendations.map((artwork) => (
                       <StoreCard

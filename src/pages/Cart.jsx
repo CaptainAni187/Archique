@@ -7,6 +7,7 @@ import useCart from '../hooks/useCart'
 import usePageMeta from '../hooks/usePageMeta'
 import ErrorState from '../components/ErrorState'
 import { getUserFriendlyError } from '../utils/userErrors'
+import { buildPurchaseSelection, getDynamicDiscountPercent } from '../utils/comboPricing'
 
 function formatPrice(value) {
   return `Rs. ${Number(value || 0).toLocaleString()}`
@@ -19,7 +20,7 @@ function Cart() {
   })
 
   const navigate = useNavigate()
-  const { setSelectedProduct } = useOrderContext()
+  const { setSelectedProduct, setSelectedPurchase } = useOrderContext()
   const cartItems = useCart()
   const [artworks, setArtworks] = useState([])
   const [loading, setLoading] = useState(true)
@@ -70,11 +71,39 @@ function Cart() {
   }, [artworks, cartItems])
 
   const availableLines = lines.filter((line) => !line.isUnavailable)
-  const total = availableLines.reduce((sum, line) => sum + Number(line.live.price || 0), 0)
+  const availableArtworks = availableLines.map((line) => line.live)
+  const subtotal = availableArtworks.reduce((sum, artwork) => sum + Number(artwork.price || 0), 0)
+
+  // The pricing engine already supports buying several works in one order and
+  // discounts related pieces (10% for a pair, 15% for three or more). Build the
+  // same selection the product page would, so the cart can offer it too.
+  const bundleSelection = useMemo(
+    () => (availableArtworks.length > 1 ? buildPurchaseSelection(availableArtworks) : null),
+    [availableArtworks],
+  )
+  const bundleDiscountPercent =
+    availableArtworks.length > 1 ? getDynamicDiscountPercent(availableArtworks) : 0
+  const bundleTotal = bundleSelection ? Number(bundleSelection.pricing.totalAmount) : subtotal
+  const bundleSaving = bundleSelection
+    ? Number(bundleSelection.pricing.discountAmount || 0)
+    : 0
 
   const buyNow = (artwork) => {
+    const selection = buildPurchaseSelection([artwork])
     setSelectedProduct(artwork)
-    navigate('/checkout', { state: { product: artwork } })
+    setSelectedPurchase(selection)
+    navigate('/checkout', { state: { product: artwork, selection } })
+  }
+
+  const buyAllTogether = () => {
+    if (!bundleSelection) {
+      return
+    }
+    setSelectedProduct(availableArtworks[0])
+    setSelectedPurchase(bundleSelection)
+    navigate('/checkout', {
+      state: { product: availableArtworks[0], selection: bundleSelection },
+    })
   }
 
   if (errorMessage) {
@@ -148,13 +177,37 @@ function Cart() {
             <p>
               {availableLines.length} {availableLines.length === 1 ? 'work' : 'works'} available
             </p>
-            <p className="cart-summary-total">{loading ? 'Checking prices…' : formatPrice(total)}</p>
+            <div className="cart-summary-figures">
+              {bundleSaving > 0 ? (
+                <>
+                  <p className="cart-summary-strike">{formatPrice(subtotal)}</p>
+                  <p className="cart-summary-saving">
+                    −{bundleDiscountPercent}% bundle · save {formatPrice(bundleSaving)}
+                  </p>
+                </>
+              ) : null}
+              <p className="cart-summary-total">
+                {loading ? 'Checking prices…' : formatPrice(bundleTotal)}
+              </p>
+            </div>
           </div>
 
-          <p className="section-copy cart-note">
-            Each work is one of one, so pieces are purchased individually — choose a work above to
-            check out.
-          </p>
+          {availableLines.length > 1 ? (
+            <div className="cart-checkout-all">
+              <button
+                type="button"
+                className="text-link-button action-button"
+                onClick={buyAllTogether}
+              >
+                Buy all {availableLines.length} together
+              </button>
+              <p className="section-copy cart-note">
+                {bundleSaving > 0
+                  ? `These works pair well, so buying them together takes ${bundleDiscountPercent}% off. Shipping is combined into one delivery.`
+                  : 'Buying together ships everything in one delivery.'}
+              </p>
+            </div>
+          ) : null}
         </>
       )}
     </section>

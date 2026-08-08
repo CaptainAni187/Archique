@@ -13,6 +13,7 @@ import SiteHeader from './components/SiteHeader'
 import SiteFooter from './components/SiteFooter'
 import ScrollToTop from './components/ScrollToTop'
 import CustomCursor from './components/CustomCursor'
+import CartCheckoutBar from './components/CartCheckoutBar'
 import './App.css'
 
 // Split off routes that are not needed for the first paint, so the initial
@@ -93,6 +94,12 @@ function AppLayout() {
   const isCarouselRoute = location.pathname === '/canvas' || location.pathname === '/sketch'
   const isAdminRoute = location.pathname.startsWith('/captain')
   const showFooter = !isCarouselRoute && !isAdminRoute
+  // Pointless (or in the way) once the buyer is already in the cart or paying.
+  const isCheckoutFlowRoute =
+    location.pathname === '/cart' ||
+    location.pathname.startsWith('/checkout') ||
+    location.pathname.startsWith('/order')
+  const showBrowsingCheckoutBar = !isAdminRoute && !isCheckoutFlowRoute
   const hasOverlayHeader =
     location.pathname === '/' ||
     location.pathname === '/canvas' ||
@@ -166,6 +173,8 @@ function AppLayout() {
         </Routes>
         </Suspense>
       </main>
+
+      {showBrowsingCheckoutBar ? <CartCheckoutBar /> : null}
 
       {showFooter ? <SiteFooter /> : null}
     </div>
