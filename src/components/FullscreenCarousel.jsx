@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { isDarkImageBrightness, measureImageBrightness } from '../utils/imageBrightness'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { isDarkImageBrightness, measureImageRegions } from '../utils/imageBrightness'
 
 function FullscreenCarousel({
   artworks,
@@ -25,20 +25,54 @@ function FullscreenCarousel({
     [artworks],
   )
   const [activeIndex, setActiveIndex] = useState(0)
+  // Null until measured, so we never flash the wrong colour on first paint.
+  const [isDarkBackdrop, setIsDarkBackdrop] = useState(null)
+  const [isDarkHeaderArea, setIsDarkHeaderArea] = useState(null)
+  const stageRef = useRef(null)
   const safeActiveIndex = slides.length > 0 ? activeIndex % slides.length : 0
   const activeSlideImage = slides[safeActiveIndex]?.image || ''
 
   useEffect(() => {
-    if (!onBackgroundContrastChange || !activeSlideImage) {
+    if (!activeSlideImage) {
       return undefined
     }
 
     let isCurrent = true
+    const stage = stageRef.current
+    const containerSize = stage
+      ? { width: stage.clientWidth, height: stage.clientHeight }
+      : null
 
-    measureImageBrightness(activeSlideImage).then((luminance) => {
-      if (isCurrent) {
-        onBackgroundContrastChange(isDarkImageBrightness(luminance))
+    // The header and the hero copy sit in different parts of the frame, so each
+    // is measured against the strip it actually covers. A photo can easily be
+    // pale at the top and dark at the bottom, where a single average would give
+    // one of them the wrong colour.
+    measureImageRegions(
+      activeSlideImage,
+      {
+        header: { x: 0, y: 0, w: 1, h: 0.16 },
+        copy: { x: 0, y: 0.6, w: 0.7, h: 0.4 },
+      },
+      containerSize,
+    ).then((regions) => {
+      if (!isCurrent) {
+        return
       }
+      // A null reading (CORS-tainted canvas, load failure) is treated as light:
+      // dark text on an unknown backdrop still reads thanks to the scrim,
+      // white text would not.
+      const headerDark =
+        regions.header === null || regions.header === undefined
+          ? false
+          : isDarkImageBrightness(regions.header)
+      const copyDark =
+        regions.copy === null || regions.copy === undefined
+          ? false
+          : isDarkImageBrightness(regions.copy)
+
+      setIsDarkBackdrop(copyDark)
+      setIsDarkHeaderArea(headerDark)
+      onBackgroundContrastChange?.(headerDark)
     })
 
     return () => {
@@ -78,7 +112,14 @@ function FullscreenCarousel({
 
   return (
     <section className="fullscreen-carousel">
-      <div className="carousel-stage full-bleed">
+      <div
+        ref={stageRef}
+        className={`carousel-stage full-bleed ${
+          isDarkBackdrop === false ? 'is-light-backdrop' : ''
+        } ${isDarkHeaderArea === false ? 'is-light-header' : ''}`
+          .replace(/\s+/g, ' ')
+          .trim()}
+      >
         {slides.map((slide, index) => (
           <img
             key={`${slide.id}-${index}`}

@@ -38,7 +38,7 @@ function SiteFooter() {
           </p>
           <div className="site-footer-social">
             <a
-              href="https://www.instagram.com/__archiverse_/"
+              href="https://www.instagram.com/archique.in/"
               target="_blank"
               rel="noreferrer"
               aria-label="Instagram"

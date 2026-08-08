@@ -34,7 +34,6 @@ function AdminArtworksTab({
   onNewTagNameChange,
   onNewTagTypeChange,
   onStudioSuggest,
-  onBulkPrefill,
 }) {
   return (
     <section className="admin-tab-panel">
@@ -162,23 +161,37 @@ function AdminArtworksTab({
             ) : null}
           </div>
         ) : null}
-        <label>
-          Medium
-          <input name="medium" value={form.medium} onChange={onChange} required />
-        </label>
-        <label>
-          Size
-          <input name="size" value={form.size} onChange={onChange} required />
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            name="is_featured"
-            checked={form.is_featured}
-            onChange={onToggleFeaturedField}
-          />
-          Featured on homepage
-        </label>
+        <div className="admin-field-pair">
+          <label>
+            Width (inches)
+            <input
+              name="size_width"
+              type="number"
+              min="1"
+              step="0.5"
+              value={form.size_width}
+              onChange={onChange}
+              placeholder="8"
+              required
+            />
+          </label>
+          <label>
+            Height (inches)
+            <input
+              name="size_height"
+              type="number"
+              min="1"
+              step="0.5"
+              value={form.size_height}
+              onChange={onChange}
+              placeholder="12"
+              required
+            />
+          </label>
+        </div>
+        <p className="admin-field-hint">
+          Used for the real-size AR preview, so keep these accurate.
+        </p>
         <label>
           Featured Rank
           <input
@@ -217,6 +230,15 @@ function AdminArtworksTab({
             <option value="sketch">sketch</option>
           </select>
         </label>
+        <label className="admin-checkbox">
+          <input
+            type="checkbox"
+            name="is_featured"
+            checked={form.is_featured}
+            onChange={onToggleFeaturedField}
+          />
+          <span>Featured on homepage</span>
+        </label>
         <div className="btn-row">
           <button type="submit">{editingId ? 'Update Artwork' : 'Add Artwork'}</button>
           {editingId ? (
@@ -226,15 +248,6 @@ function AdminArtworksTab({
           ) : null}
         </div>
       </form>
-      <section className="order-detail-card">
-        <h3>Bulk Upload Studio</h3>
-        <p>Paste one image URL per line to prefill upload metadata suggestions.</p>
-        <textarea
-          placeholder="https://...\nhttps://...\nhttps://..."
-          onBlur={(event) => onBulkPrefill(event.target.value)}
-        />
-      </section>
-
       <div className="filter-row">
         <span>Artwork filter:</span>
         <button
@@ -279,8 +292,7 @@ function AdminArtworksTab({
               <div>
                 <h3>{artwork.title}</h3>
                 <p>{formatPrice(artwork.price)}</p>
-                <p>Medium: {artwork.medium}</p>
-                <p>Size: {artwork.size}</p>
+                <p>Size: {artwork.size} in</p>
                 <p>Stock: {artwork.quantity}</p>
                 <p>Category: {artwork.category || 'canvas'}</p>
                 <p>Tags: {Array.isArray(artwork.tags) && artwork.tags.length > 0 ? artwork.tags.join(', ') : 'none'}</p>

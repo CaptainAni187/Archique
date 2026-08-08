@@ -92,6 +92,48 @@ function AdminDashboardTab({ dashboardStats }) {
       </section>
 
       <section className="order-detail-card dashboard-daily-orders">
+        <h3>Artwork Performance</h3>
+        <p className="dashboard-table-note">
+          Which pieces earn attention. Impressions count how often a work was surfaced;
+          CTR is clicks per impression; dwell is the average time spent on its page.
+        </p>
+        {Array.isArray(dashboardStats.artwork_engagement) &&
+        dashboardStats.artwork_engagement.length > 0 ? (
+          <div className="dashboard-table-scroll">
+            <table className="dashboard-table">
+              <thead>
+                <tr>
+                  <th>Artwork</th>
+                  <th>Views</th>
+                  <th>Clicks</th>
+                  <th>CTR</th>
+                  <th>Avg dwell</th>
+                  <th>Saves</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dashboardStats.artwork_engagement.map((row) => (
+                  <tr key={`engagement-${row.artwork_id}`}>
+                    <td>{row.title}</td>
+                    <td>{row.views}</td>
+                    <td>{row.clicks}</td>
+                    <td>{row.impressions > 0 ? `${row.click_through_rate}%` : '--'}</td>
+                    <td>{row.avg_dwell_seconds > 0 ? `${row.avg_dwell_seconds}s` : '--'}</td>
+                    <td>{row.saves}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p>
+            <span>No artwork engagement recorded yet.</span>
+            <strong>0</strong>
+          </p>
+        )}
+      </section>
+
+      <section className="order-detail-card dashboard-daily-orders">
         <h3>User Login Insights</h3>
         <div className="dashboard-daily-list">
           <p>
