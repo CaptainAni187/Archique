@@ -279,10 +279,17 @@ async function handleFetchArtworks(_req, res) {
   const artworks = await fetchArtworks()
   // Public catalogue: identical for every visitor, so let the CDN absorb the
   // repeat traffic instead of hitting the database on every page view.
-  return sendPublicJson(res, 200, {
-    success: true,
-    data: artworks.map(normalizeArtwork),
-  })
+  // Short window on purpose: on a one-of-a-kind store a stale "available"
+  // badge is worse than an extra origin hit.
+  return sendPublicJson(
+    res,
+    200,
+    {
+      success: true,
+      data: artworks.map(normalizeArtwork),
+    },
+    { sMaxAge: 30, staleWhileRevalidate: 60 },
+  )
 }
 
 async function handleFetchArtwork(req, res) {

@@ -447,14 +447,34 @@
   color: var(--text-on-dark-strong);
 }
 
+/* Over a *bright artwork* the header must be dark regardless of the site
+   theme. Using --text-color here was the bug: in dark mode that resolves to a
+   pale colour, so the wordmark and tabs vanished against a light photo. These
+   are fixed tones tied to the backdrop, not the theme. */
 .topbar.is-overlay.is-bright-background .brand-mark {
-  color: var(--text-color);
+  color: #1f1c17;
+  text-shadow: 0 1px 12px rgba(255, 255, 255, 0.5);
 }
 
 .topbar.is-overlay.is-bright-background .topbar-nav a,
 .topbar.is-overlay.is-bright-background .nav-dropdown-trigger,
-.topbar.is-overlay.is-bright-background .social-links a {
-  color: var(--text-soft);
+.topbar.is-overlay.is-bright-background .social-links a,
+.topbar.is-overlay.is-bright-background .theme-toggle,
+.topbar.is-overlay.is-bright-background .cart-nav-link,
+.topbar.is-overlay.is-bright-background .profile-nav-link,
+.topbar.is-overlay.is-bright-background .nav-toggle-bar {
+  color: #332e26;
+  text-shadow: 0 1px 12px rgba(255, 255, 255, 0.5);
+}
+
+/* The hamburger bars are backgrounds, not text. */
+.topbar.is-overlay.is-bright-background .nav-toggle-bar {
+  background: #332e26;
+}
+
+.topbar.is-overlay.is-bright-background .topbar-nav a:hover,
+.topbar.is-overlay.is-bright-background .topbar-nav a.active-nav {
+  color: #000000;
 }
 
 .sr-only {
@@ -2107,6 +2127,14 @@ button:disabled {
 .admin-workspace {
   display: grid;
   gap: 24px;
+  /* The site header is sticky; without this the page title slid underneath it. */
+  padding-top: 44px;
+}
+
+/* The sticky sidebar has to clear the header too, or the first tab hides
+   behind it when the page is scrolled. */
+.admin-sidebar {
+  top: 96px;
 }
 
 .admin-layout {
@@ -4283,4 +4311,259 @@ html.has-custom-cursor [contenteditable='true'] {
    footer do not jump. */
 .route-fallback {
   min-height: 60vh;
+}
+
+/* ── Admin form layout ─────────────────────────────────────────
+   `.admin-form label` is a grid so the caption sits above its input. A checkbox
+   needs the opposite — box and caption side by side — otherwise the box floats
+   above centred text, which is what the "Featured on homepage" row was doing. */
+.admin-form label.admin-checkbox {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+}
+
+.admin-form label.admin-checkbox input[type='checkbox'] {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: var(--accent-color);
+}
+
+.admin-form label.admin-checkbox span {
+  letter-spacing: var(--tracking-body);
+}
+
+/* Width x height sit on one row — they are one measurement, not two fields. */
+.admin-field-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.admin-field-hint {
+  margin: -4px 0 0;
+  color: var(--text-soft);
+  font-size: 0.76rem;
+  letter-spacing: var(--tracking-body);
+}
+
+/* Inputs stretch to their column instead of overflowing it. */
+.admin-form input,
+.admin-form select,
+.admin-form textarea {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+  .admin-field-pair {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Mobile: keep the page inside the viewport ──────────────────
+   Full-bleed sections use `width: 100vw`, which on iOS Safari/Brave can exceed
+   the visual viewport and let the whole page slide sideways. Clip at the root
+   so nothing can scroll horizontally. `clip` is preferred over `hidden` because
+   it does not create a scroll container (which would break position: sticky);
+   `hidden` stays as the fallback for older iOS. */
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-x: clip;
+}
+
+@media (max-width: 720px) {
+  /* The hero wordmark was rendering wider than the screen: 3.2rem minimum at
+     0.24em tracking is ~500px for "ARCHIQUE" on a 393px phone. Let the artwork
+     lead instead of the type. */
+  .hero-overlay-copy h1 {
+    font-size: clamp(1.8rem, 9vw, 3.2rem);
+    letter-spacing: 0.14em;
+  }
+
+  .hero-overlay-copy {
+    gap: 8px;
+    max-width: 100%;
+  }
+
+  .hero-overlay-copy p {
+    font-size: 0.8rem;
+    line-height: 1.45;
+  }
+
+  .hero-enter-link {
+    font-size: 0.74rem;
+    letter-spacing: var(--tracking-wide);
+  }
+}
+
+/* ── Header icon grouping ──────────────────────────────────────
+   The wrapper is transparent on desktop (`display: contents`), so theme
+   toggle, cart, account and Instagram stay inline in the nav exactly as
+   before. On mobile it becomes a real row, so those four sit side by side
+   instead of each taking a full line in the drawer. */
+.topbar-icon-row {
+  display: contents;
+}
+
+@media (max-width: 980px) {
+  /* Wrap-row drawer: each text link claims a full line, while both icon groups
+     are auto-width and share `order`, so theme toggle, cart, account and
+     Instagram settle onto one line together instead of four stacked rows. */
+  .topbar-cluster.is-open .topbar-nav {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .topbar-cluster.is-open .topbar-nav > a,
+  .topbar-cluster.is-open .topbar-nav > .nav-dropdown {
+    flex: 0 0 100%;
+    order: 2;
+  }
+
+  .topbar-icon-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 22px;
+    order: 3;
+    width: auto;
+  }
+
+  .topbar-icon-row .social-links {
+    margin: 0;
+  }
+}
+
+/* ── Hero text over a light artwork ────────────────────────────
+   The overlay copy was always light-on-image, which disappears entirely when
+   the slide is a bright photo. The carousel measures the slide's luminance and
+   flags a light backdrop; flip the type dark to match. A soft scrim carries the
+   mid-tone cases where neither pure colour is safe. */
+.carousel-stage.is-light-backdrop .hero-overlay-copy p,
+.carousel-stage.is-light-backdrop .hero-overlay-copy h1 {
+  color: #23201b;
+  text-shadow: 0 1px 14px rgba(255, 255, 255, 0.55);
+}
+
+.carousel-stage.is-light-backdrop .hero-enter-link {
+  color: #4a3a1c;
+  border-bottom-color: #4a3a1c;
+  text-shadow: 0 1px 14px rgba(255, 255, 255, 0.55);
+}
+
+/* Dark backdrops keep light type, with a matching scrim for busy images. */
+.hero-overlay-copy p,
+.hero-overlay-copy h1 {
+  text-shadow: 0 1px 16px rgba(0, 0, 0, 0.45);
+}
+
+/* ── Admin dashboard tables ────────────────────────────────────
+   Engagement is multi-column data, so it reads far better as a table than as
+   stacked label/value pairs. Scrolls inside its own container so a narrow admin
+   screen never pushes the page sideways. */
+.dashboard-table-note {
+  margin: 0 0 14px;
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  letter-spacing: var(--tracking-body);
+  line-height: 1.5;
+}
+
+.dashboard-table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.dashboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.dashboard-table th,
+.dashboard-table td {
+  padding: 10px 14px 10px 0;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border-gold-soft);
+}
+
+.dashboard-table th {
+  color: var(--accent-color);
+  font-weight: 300;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  font-size: 0.7rem;
+}
+
+.dashboard-table td {
+  color: var(--text-soft);
+  letter-spacing: var(--tracking-body);
+}
+
+.dashboard-table td:first-child {
+  color: var(--text-color);
+  white-space: normal;
+  min-width: 180px;
+}
+
+/* ── Hero legibility scrims ────────────────────────────────────
+   Adaptive colour alone is not enough: a strip can be mixed (a pale ceiling on
+   one side, night sky on the other), so no single colour wins. These gradients
+   bias each region toward the text colour chosen for it, guaranteeing contrast
+   without visibly veiling the artwork. Direction follows the measurement, so a
+   bright region gets a white wash under dark type and vice versa. */
+.carousel-stage {
+  position: relative;
+}
+
+.carousel-stage::before,
+.carousel-stage::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Behind the header */
+.carousel-stage::before {
+  top: 0;
+  height: 24%;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.42), rgba(0, 0, 0, 0));
+}
+
+.carousel-stage.is-light-header::before {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0));
+}
+
+/* Behind the hero copy */
+.carousel-stage::after {
+  bottom: 0;
+  height: 46%;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0));
+}
+
+.carousel-stage.is-light-backdrop::after {
+  background: linear-gradient(to top, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0));
+}
+
+/* Copy and controls must sit above the scrims. */
+.carousel-overlay,
+.carousel-overlay-content,
+.carousel-control {
+  z-index: 2;
 }

@@ -105,19 +105,28 @@ function createArtworkPayload(artworkInput) {
   return payload
 }
 
-export async function fetchArtworks() {
-  const isFresh = artworksCache && Date.now() - artworksCachedAt < ARTWORKS_CACHE_TTL_MS
+/**
+ * @param {{ fresh?: boolean }} [options] `fresh` skips both the in-memory cache
+ *   and the CDN. The catalogue response is edge-cached, so after an admin
+ *   creates, edits or deletes an artwork a plain refetch can be served the old
+ *   list and the change looks like it never happened. Admin screens must always
+ *   pass `fresh`.
+ */
+export async function fetchArtworks({ fresh = false } = {}) {
+  const isFresh = !fresh && artworksCache && Date.now() - artworksCachedAt < ARTWORKS_CACHE_TTL_MS
   if (isFresh) {
     return artworksCache
   }
 
   // Already fetching: join that request rather than starting a second one.
-  if (artworksInFlight) {
+  if (artworksInFlight && !fresh) {
     return artworksInFlight
   }
 
   artworksInFlight = (async () => {
-    const payload = await backendRequest('/api/artworks')
+    // A unique query string defeats the edge cache for admin reads.
+    const path = fresh ? `/api/artworks?fresh=${Date.now()}` : '/api/artworks'
+    const payload = await backendRequest(path)
     const sourceRows = Array.isArray(payload?.data) ? payload.data : []
     const normalized = sourceRows
       .filter((row) => row && typeof row === 'object')

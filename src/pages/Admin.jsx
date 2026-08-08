@@ -73,8 +73,8 @@ const initialForm = {
   title: '',
   price: '',
   description: '',
-  medium: '',
-  size: '',
+  size_width: '',
+  size_height: '',
   is_featured: false,
   featured_rank: '',
   tags: '',
@@ -131,6 +131,22 @@ function writeInquiryState(nextState) {
   localStorage.setItem(inquiryReadStorageKey, JSON.stringify(nextState))
 }
 
+/**
+ * Artwork size is stored as a single "W x H" string (inches) because the AR
+ * asset builder and the product page both parse that format. The admin edits it
+ * as two numbers, so split on the way in and recombine on the way out.
+ */
+function parseArtworkSize(value) {
+  const match = String(value || '').match(/(\d+(?:\.\d+)?)\s*[x\u00d7]\s*(\d+(?:\.\d+)?)/i)
+  return match ? { width: match[1], height: match[2] } : { width: '', height: '' }
+}
+
+function composeArtworkSize(width, height) {
+  const w = String(width || '').trim()
+  const h = String(height || '').trim()
+  return w && h ? `${w} \u00d7 ${h}` : ''
+}
+
 function Admin() {
   usePageMeta({
     title: 'Admin Dashboard | Archique',
@@ -173,7 +189,9 @@ function Admin() {
   const [sandboxTags, setSandboxTags] = useState('')
 
   const loadArtworks = async () => {
-    const response = await fetchArtworks()
+    // Always bypass the edge cache: the admin must see the true current state
+    // immediately after a create, edit or delete.
+    const response = await fetchArtworks({ fresh: true })
     setArtworks(response)
   }
 
@@ -242,7 +260,7 @@ function Admin() {
           aiStudioResponse,
           tagGovernanceResponse,
         ] = await Promise.all([
-          fetchArtworks(),
+          fetchArtworks({ fresh: true }),
           fetchAdminCombos(),
           fetchOrders(),
           fetchCommissions(),
@@ -393,11 +411,17 @@ function Admin() {
     }
 
     try {
+      const { size_width: sizeWidth, size_height: sizeHeight, ...rest } = form
       const payload = {
-        ...form,
+        ...rest,
         title: normalizedTitle,
         price: normalizedPrice,
         images,
+        // Recombine the two dimension inputs into the stored "W x H" format.
+        size: composeArtworkSize(sizeWidth, sizeHeight),
+        // `medium` is no longer edited separately — category is the single
+        // classifier — but the column is still displayed, so keep them in step.
+        medium: form.category === 'sketch' ? 'Sketch' : 'Acrylic on canvas',
         tags: form.tags
           .split(',')
           .map((tag) => tag.trim().toLowerCase())
@@ -433,8 +457,8 @@ function Admin() {
       title: artwork.title,
       price: String(artwork.price),
       description: artwork.description,
-      medium: artwork.medium || '',
-      size: artwork.size || '',
+      size_width: parseArtworkSize(artwork.size).width,
+      size_height: parseArtworkSize(artwork.size).height,
       is_featured: artwork.is_featured === true,
       featured_rank: artwork.featured_rank == null ? '' : String(artwork.featured_rank),
       tags: Array.isArray(artwork.tags) ? artwork.tags.join(', ') : '',
@@ -610,7 +634,7 @@ function Admin() {
     const suggestions = getAutoTagSuggestions({
       title: form.title,
       description: form.description,
-      medium: form.medium,
+      medium: form.category === 'sketch' ? 'Sketch' : 'Acrylic on canvas',
       category: form.category,
     })
     const imageSuggestions = getImageTagSuggestions(imageIntelligence, editingId, form.image1)
@@ -658,7 +682,7 @@ function Admin() {
         artwork_id: editingId,
         title: form.title,
         description: form.description,
-        medium: form.medium,
+        medium: form.category === 'sketch' ? 'Sketch' : 'Acrylic on canvas',
         category: form.category,
         price: Number(form.price || 0),
         image_hints: selectedImageSuggestions,
@@ -691,23 +715,6 @@ function Admin() {
     } catch (error) {
       setErrorMessage(`AI studio suggestion failed: ${error.message}`)
     }
-  }
-
-  const onBulkPrefill = async (bulkInput) => {
-    const lines = String(bulkInput || '')
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-    if (lines.length === 0) return
-    setForm((previous) => ({
-      ...previous,
-      image1: lines[0] || '',
-      image2: lines[1] || '',
-      image3: lines[2] || '',
-      image4: lines[3] || '',
-      image5: lines[4] || '',
-    }))
-    await onStudioSuggest()
   }
 
   const onResetRecommendationData = async () => {
@@ -980,7 +987,6 @@ function Admin() {
               onNewTagNameChange={setNewTagName}
               onNewTagTypeChange={setNewTagType}
               onStudioSuggest={onStudioSuggest}
-              onBulkPrefill={onBulkPrefill}
             />
           ) : null}
           {activeTab === 'combos' ? (

@@ -61,7 +61,7 @@ function Contact() {
           </p>
           <div className="contact-links">
             <a
-              href="https://www.instagram.com/__archiverse_/"
+              href="https://www.instagram.com/archique.in/"
               target="_blank"
               rel="noreferrer"
               aria-label="Instagram"

@@ -476,6 +476,94 @@ async function handleResetPassword(req, res) {
   })
 }
 
+/**
+ * Per-artwork engagement, aggregated from the analytics event stream.
+ *
+ * Answers the questions the dashboard could not: which pieces are people
+ * actually opening, which ones hold attention, and which get shown a lot but
+ * clicked rarely. Impressions come from `recommendation_shown`, so the
+ * click-through rate is genuinely "of the times we surfaced it".
+ */
+function buildArtworkEngagement(events, artworks) {
+  const titleById = new Map(artworks.map((a) => [Number(a.id), a.title || `#${a.id}`]))
+  const stats = new Map()
+
+  const bucket = (id) => {
+    const key = Number(id)
+    if (!stats.has(key)) {
+      stats.set(key, {
+        artwork_id: key,
+        title: titleById.get(key) || `#${key}`,
+        impressions: 0,
+        views: 0,
+        clicks: 0,
+        opens: 0,
+        saves: 0,
+        dwell_total_ms: 0,
+        dwell_samples: 0,
+      })
+    }
+    return stats.get(key)
+  }
+
+  events.forEach((event) => {
+    const meta = event?.metadata || {}
+    const artworkId = meta.artwork_id
+    if (artworkId === undefined || artworkId === null || Number.isNaN(Number(artworkId))) {
+      return
+    }
+    const row = bucket(artworkId)
+
+    switch (event.event_type) {
+      case 'recommendation_shown':
+        row.impressions += 1
+        break
+      case 'artwork_view':
+        row.views += 1
+        break
+      case 'artwork_click':
+      case 'recommendation_clicked':
+        row.clicks += 1
+        break
+      case 'favorite_added':
+      case 'recommendation_saved':
+        row.saves += 1
+        break
+      case 'product_open': {
+        row.opens += 1
+        const dwell = Number(meta.dwell_time_ms)
+        if (Number.isFinite(dwell) && dwell > 0 && dwell < 30 * 60 * 1000) {
+          row.dwell_total_ms += dwell
+          row.dwell_samples += 1
+        }
+        break
+      }
+      default:
+        break
+    }
+  })
+
+  return [...stats.values()]
+    .map((row) => ({
+      artwork_id: row.artwork_id,
+      title: row.title,
+      impressions: row.impressions,
+      views: row.views,
+      clicks: row.clicks,
+      opens: row.opens,
+      saves: row.saves,
+      avg_dwell_seconds: row.dwell_samples
+        ? Math.round(row.dwell_total_ms / row.dwell_samples / 1000)
+        : 0,
+      click_through_rate: row.impressions
+        ? Number(((row.clicks / row.impressions) * 100).toFixed(1))
+        : 0,
+    }))
+    .filter((row) => row.impressions + row.views + row.clicks + row.opens > 0)
+    .sort((left, right) => right.clicks - left.clicks || right.views - left.views)
+    .slice(0, 15)
+}
+
 async function handleDashboard(req, res) {
   if (req.method !== 'GET') {
     return methodNotAllowed(res, ['GET'])
@@ -489,6 +577,13 @@ async function handleDashboard(req, res) {
   const orders = await fetchOrderAnalyticsRows()
   const users = await fetchUserAccounts().catch(() => [])
   const loginEvents = await fetchUserLoginEvents(1000).catch(() => [])
+  const [events, artworks] = await Promise.all([
+    supabaseAdminRequest(
+      'analytics_events?select=event_type,metadata&order=created_at.desc&limit=5000',
+    ).catch(() => []),
+    supabaseAdminRequest('artworks?select=id,title').catch(() => []),
+  ])
+
   return sendJson(res, 200, {
     success: true,
     data: {
@@ -496,6 +591,10 @@ async function handleDashboard(req, res) {
       ...buildUserAnalytics(
         Array.isArray(users) ? users : [],
         Array.isArray(loginEvents) ? loginEvents : [],
+      ),
+      artwork_engagement: buildArtworkEngagement(
+        Array.isArray(events) ? events : [],
+        Array.isArray(artworks) ? artworks : [],
       ),
     },
   })
