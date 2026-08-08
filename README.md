@@ -1,257 +1,375 @@
 # Archique
 
-**Live:** [https://archique-art.vercel.app/](https://archique-art.vercel.app/)
+An e-commerce storefront for original artwork, built for a working studio that sells one-of-a-kind pieces.
 
-Archique is a React + Vite storefront with Supabase-backed catalog and order management, Razorpay checkout, admin controls, and a Vercel-friendly backend verification layer.
+**Live:** [archique.in](https://www.archique.in)
 
-It extends beyond a basic storefront by adding **behavior-based personalization, intelligent search, and optimized purchase flows (combos + upsell)** without relying on paid AI APIs.
-
----
-
-## Core System Additions
-
-* Behavior-based recommendation engine (no explicit user input)
-* Smart search using local AI (Ollama) with deterministic fallback
-* Dynamic combo/upsell system with discount logic
-* Commission brief parsing (unstructured → structured)
-* Admin-controlled tagging, combos, and activity tracking
-* Optional image similarity (PyTorch, offline)
-* **"See It On Your Wall" — true-to-scale AR preview from the artwork page (no app install)**
+Selling originals is not selling inventory. Every piece has a quantity of one, so two buyers reaching checkout at the same moment is a real failure rather than a rounding error. Pieces are physical objects whose dimensions determine both what a buyer is getting and what shipping costs. A wall is not a product page, so size has to be conveyed before purchase rather than discovered on delivery. The system is built around those constraints.
 
 ---
 
-## Environment
+## Contents
 
-Frontend:
-
-* `VITE_SUPABASE_URL`
-* `VITE_SUPABASE_ANON_KEY`
-* `VITE_RAZORPAY_KEY_ID`
-
-Backend:
-
-* `SUPABASE_URL`
-* `SUPABASE_SERVICE_ROLE_KEY`
-* `RAZORPAY_KEY_ID`
-* `RAZORPAY_KEY_SECRET`
-* `ADMIN_EMAIL`
-* `ADMIN_PASSWORD`
-* `ADMIN_SESSION_SECRET`
-
-Optional notifications:
-
-* `ADMIN_NOTIFICATION_WEBHOOK_URL`
-* `ADMIN_NOTIFICATION_EMAIL`
-* `RESEND_API_KEY`
-* `FROM_EMAIL`
+- [Architecture](#architecture)
+- [Features](#features)
+- [Implementation notes](#implementation-notes)
+- [Discovery and search](#discovery-and-search)
+- [Augmented reality preview](#augmented-reality-preview)
+- [API](#api)
+- [Data model](#data-model)
+- [Getting started](#getting-started)
+- [Configuration](#configuration)
+- [Project layout](#project-layout)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Design decisions](#design-decisions)
 
 ---
 
-## Database migration
+## Architecture
 
-Apply the production hardening migration before deploying the checkout flow:
+```
+Browser ──▶ Vercel Edge (static assets, CDN cache)
+               │
+               ├──▶ /api/* — Node serverless functions
+               │        │
+               │        ├──▶ Supabase (PostgreSQL via PostgREST)
+               │        ├──▶ Razorpay (orders, signature verification, webhooks)
+               │        ├──▶ Supabase Storage (artwork images)
+               │        └──▶ Resend (transactional email)
+               │
+               └──▶ /ar/* — precomputed GLB + USDZ assets
+```
 
-* `supabase/migrations/20260420_archique_order_hardening.sql`
+A React single-page application is served as static assets from Vercel's CDN. Every privileged operation happens inside serverless functions, which hold the only credentials permitted to write to the database. The browser never receives a service-role key, and no client-supplied price, discount, or stock figure is trusted: monetary values are recomputed server-side before an order is written.
 
-Also ensure later migrations include:
-
-* artwork tags (`tags`)
-* combo system (`combos`)
-* visitor tracking (`visitor_sessions`, `visitor_events`)
-* admin activity logs
-
----
-
-## Backend routes
-
-Serverless routes live in `/api`:
-
-* `POST /api/payment-order` → creates Razorpay order
-* `POST /api/verify-payment` → verifies payment
-* `POST /api/orders` → creates order + handles multi-artwork purchase
-* `GET /api/orders?payment_id=...` → recovers orders
-
-Additional logic:
-
-* combo handling (inside existing routes)
-* inventory-safe validation
-* analytics + behavior tracking
-* admin session + activity logging
+**Stack:** React 19, Vite 8, React Router 7, Node.js serverless functions, PostgreSQL (Supabase), Razorpay, Resend, Vercel.
 
 ---
 
-## Key Features
+## Features
 
-### Personalized Discovery
+### Storefront
 
-* Tracks views, clicks, dwell time
-* Builds session-level taste profile
-* Dynamically ranks artworks (“For You”)
-* Shows reasoning (“Why this is shown”)
+The catalogue supports search, sorting, and filtering by category, availability, medium, and size. Sort and filter are two controls rather than a wall of options, matching the pattern buyers already know from larger retailers.
 
-### Smart Search
+Each artwork page carries full dimensions, medium, provenance, and shipping cost, plus an augmented-reality preview and pairing suggestions. Related pieces are proposed only when they are genuinely similar and the pairing would actually save money.
 
-* Natural language queries
-* Uses Ollama (local LLM) when available
-* Falls back to tag + keyword + category scoring
-* No paid API dependency
+Visitors can add pieces to a cart or a wishlist without an account. Cart contents survive reloads and stay consistent across browser tabs.
 
-### Combo & Upsell System
+### Purchase flow
 
-* Admin-defined curated combos
-* Smart “pair with” suggestions
-* Pricing:
+Checkout is three steps on three screens rather than one long form:
 
-  * 2 items → 10%
-  * 3+ items → 15%
-* Inventory-safe multi-item handling
+1. **Delivery details** — name, phone, and a structured address (house, street, landmark, city, state, PIN). Returning customers have this filled from their saved profile.
+2. **Review order** — line items, discounts, coupons, shipping, and the final total, itemised before any payment is initiated.
+3. **Payment** — handed to Razorpay's checkout.
 
-### See It On Your Wall (AR)
+Several pieces can be bought in one order. Buying more than one costs less than buying them separately, and the saving is calculated and displayed before payment.
 
-* One tap on the artwork page launches augmented reality — no separate app
-* Renders each piece at its **true real-world size** (`ar-scale="fixed"`), anchored to a vertical wall
-* Uses Google's `<model-viewer>` so AR is handled by each platform's built-in, device-tested viewer:
+### Multi-piece pricing
 
-  * iOS Safari → AR Quick Look (`.usdz`)
-  * Android → Scene Viewer / WebXR (`.glb`)
-  * Desktop → interactive 3D preview + QR code to continue on a phone
-* Camera runs entirely on-device; no room images are uploaded or stored
-* AR assets (`.glb` + `.usdz`) are generated offline per artwork by `scripts/build-ar-assets.mjs` (three.js exporters + node-canvas polyfill), written to `public/ar/`, and indexed in `public/ar/manifest.json`
-* `.github/workflows/build-ar-assets.yml` regenerates assets on demand / daily and commits them back (artwork data lives in Supabase, not git)
-* The heavy viewer library is code-split and loaded only when the buyer opts in
+Two related pieces bought together discount 10%; three or more discount 15%. Where a curated combo also applies, the buyer receives whichever is larger — the two are never stacked, and never silently resolved in the studio's favour.
 
-### Commission Builder
+Shipping is charged as one parcel, not one per piece: the highest single rate plus 25% of each additional piece's rate. Several canvases travel in one box; that box is bigger and heavier, but it is not several boxes. Charging full delivery per artwork would have overcharged every multi-piece order.
 
-* Converts vague input → structured brief
-* Reduces manual clarification
+### Accounts
 
-### Admin Layer
+Customers sign in with email and password or with Google. New accounts capture phone and delivery address at sign-up, with the email pre-filled, so checkout is not the first time anyone is asked for an address.
 
-* Artwork + tag management
-* Combo control
-* Activity logs
-* Recommendation debug insights
+Orders are tracked by order code without signing in.
 
-### Image Intelligence (Optional)
+### Commissions
 
-* PyTorch-based similarity
-* Duplicate detection
-* Offline execution
+Commission requests accept free text and are parsed into a structured brief — mood, palette, size, deadline — so the studio receives something actionable rather than a paragraph to interpret.
+
+### Administration
+
+A console at `/captain`, authenticated separately from customer accounts, covers catalogue and stock, orders and their lifecycle, coupons, curated combos, commissions, enquiries, and testimonials.
+
+The dashboard reports revenue, order volume, and per-artwork engagement, so attention goes to the pieces attracting interest.
+
+Orders export to CSV for fulfilment. Every privileged action is written to an activity log with the acting administrator and a timestamp.
 
 ---
 
-## Problems Faced & Solutions
+## Implementation notes
 
-### Weak recommendation accuracy
+### Server-authoritative pricing
 
-**Problem:** system behaved like keyword search
-**Fix:** introduced structured tags + scoring system + audit tooling
+The client submits a selection of artwork identifiers. It does not submit prices.
 
-### Dependency on external AI APIs
+The server loads current prices, recomputes discounts, revalidates any coupon against its own rules and redemption count, recalculates shipping from stored dimensions, and derives the total. A tampered request changes what is *ordered*, never what is *charged*. This also means a price edited in the admin console takes effect immediately, with no stale figure surviving in a client's open tab.
 
-**Problem:** cost + latency
-**Fix:** switched to local LLM (Ollama) + fallback logic
+### Stock and concurrency
 
-### Inventory issues in combos
+Serverless functions share no memory, and PostgREST exposes no interactive transactions, so mutual exclusion has to come from the database itself.
 
-**Problem:** multi-item overselling risk
-**Fix:** validation + safe stock handling
+Stock is claimed by conditional update — a compare-and-swap that succeeds only if the row still holds the quantity the request observed. Two simultaneous buyers of the same piece produce exactly one success and one clean rejection.
 
-### Poor search relevance
+Ordering matters as much as the mechanism: stock is claimed **before** the order row is written. Written the other way around, a failed claim would leave a paid order pointing at a piece someone else had already bought.
 
-**Problem:** keyword-only search
-**Fix:** hybrid retrieval (embeddings + tags + scoring)
+### Payment integrity
 
-### Overengineering AI
+Payment confirmation is never taken on the client's word.
 
-**Problem:** unnecessary frameworks
-**Fix:** used lightweight, explainable logic instead
+1. The client requests a Razorpay order and receives an identifier.
+2. Razorpay's checkout collects payment and returns a payment identifier and signature.
+3. The server recomputes the HMAC-SHA256 signature with the key secret and compares it using a constant-time comparison, so a timing side channel cannot leak the expected value byte by byte.
+4. Only then is the order marked paid.
 
----
+Webhooks are verified against the **raw** request body. Re-serialising parsed JSON changes the bytes and invalidates the signature, so body parsing is disabled on that route. Payment identifiers carry a unique constraint, so a replayed webhook cannot produce a second order.
 
-## Tech Stack
+### Input validation
 
-Frontend:
+Every request body is parsed by a Zod schema before reaching business logic. Validation is treated as a boundary rather than a formality: an address is checked for plausible length, a phone number against the Indian mobile numbering plan, and every free-text field carries an upper bound so an oversized payload cannot be used to exhaust storage.
 
-* React (Vite)
+### File uploads
 
-Backend:
+Uploads are capped at 10 MB and restricted to images. The client-declared MIME type is ignored for security purposes — it is trivially spoofable — and the file's actual signature bytes are inspected before anything is stored.
 
-* Node.js (serverless)
+### Rate limiting
 
-Database:
+Authentication and public write endpoints are limited by a database-backed counter keyed on client IP; administrator sign-in permits five attempts per fifteen minutes. The counter lives in Postgres rather than process memory because serverless instances are short-lived and horizontally scaled, which makes in-process counters close to decorative.
 
-* Supabase (PostgreSQL)
+### Caching
 
-AI / ML:
+Catalogue reads are served with `s-maxage` and `stale-while-revalidate`, so repeat visitors are answered by the CDN rather than a cold function.
 
-* Ollama (local LLM)
-* LangChain (integration)
-* PyTorch (image similarity)
+Administrator reads bypass that cache explicitly. Without the bypass, deleting an artwork appears to fail: the delete succeeds, the subsequent read is served from cache, and the row seems to return.
 
-Infra:
+### Client state
 
-* Vercel
-* Docker (dev usage)
+The cart lives in a small external store consumed through `useSyncExternalStore` rather than context. Every subscriber re-renders together, no provider has to wrap the tree, and non-React code can read the cart directly. It persists to `localStorage` and listens for storage events, so a cart edited in one tab is reflected in the others.
 
----
+Routes are code-split with `React.lazy`, so the initial download carries the landing and browsing experience and nothing else. The AR viewer — by far the heaviest dependency — is fetched only when a buyer opts into it.
 
-## What Could Have Been Better (Tech Decisions)
+### Adaptive contrast
 
-* Could have used **managed LLM APIs (OpenAI / Gemini)** for better semantic accuracy
-  → avoided due to cost, latency, and dependency concerns
+The homepage places navigation over full-bleed artwork, and artwork is not a predictable background. Fixed text colours fail as soon as a pale canvas follows a dark one.
 
-* Could have used **vector databases (Pinecone, Weaviate)**
-  → avoided to keep system simple and local
+Instead, the page samples the brightness of the image actually on screen and switches the overlay text between light and dark. Sampling accounts for `object-fit: cover` cropping, so only pixels the visitor can actually see are measured — the edges of a landscape image on a portrait screen are never visible and must not influence the decision. Header and body regions are evaluated separately, since a painting can be dark at the top and pale below.
 
-* Could have used **TensorFlow / deep models for tagging**
-  → avoided due to lack of dataset and overengineering risk
+### Colour and readability
 
-* Could have used **microservices architecture**
-  → kept monolithic serverless structure for simplicity and Vercel limits
+The interface uses a gold accent, which works as a border or fill but fails as text: at `#c6a962` it reaches roughly 2.3:1 against any light background, well under the 4.5:1 needed for body text, and darkening the background makes it worse rather than better.
 
-Overall choice:
-**prioritized control, cost-efficiency, and simplicity over complexity**
+Text and decoration therefore draw from separate tokens. `--accent-color` keeps the bright gold for borders, fills, and hover states; `--accent-text` carries a darkened variant for anything read as text, measured at about 5:1 in light mode. Dark mode maps both to the bright gold, which is already high-contrast there.
+
+### Transactional email
+
+Customer-facing mail is sent from a domain alias rather than a personal mailbox, with SPF, DKIM, and DMARC configured for the sending domain. The studio's personal address appears nowhere in the interface or the shipped bundle.
+
+Delivery failures are reported by the provider in the response body rather than thrown, so the send path inspects the result explicitly. Treating a resolved promise as success would have logged "delivered" for mail the provider had rejected outright.
 
 ---
 
-## Future Improvements
+## Discovery and search
 
-* Proper tagging system for all artworks (critical for accuracy)
-* Improved recommendation weighting and ranking tuning
-* Better UI explanation for discounts and combos
-* Real-time inventory locking using DB transactions
-* Enhanced semantic search quality with better embeddings
-* Auto-tagging pipeline using image + text signals
-* User accounts + persistent taste profiles
-* Analytics dashboard for conversion tracking
+Search and recommendations run on precomputed data and deterministic scoring. No model is loaded at request time and no external inference service is called, which keeps responses fast, free, and identical for identical inputs.
 
----
+**Semantic similarity.** `npm run build:embeddings` encodes each artwork with `Xenova/all-MiniLM-L6-v2` (384 dimensions) offline and writes the vectors into the repository. At request time a query is matched against those vectors by cosine similarity. The generated file is server-only — importing it in the browser would ship every vector to every visitor.
 
-## Runbook
+**Lexical and structural scoring.** Tags, category, medium, and title are scored alongside the semantic signal, which keeps exact-term queries reliable where embeddings alone are vague.
 
-1. Configure environment variables
-2. Apply Supabase migrations
-3. Deploy to Vercel
-4. Verify checkout and order flow
-5. Generate AR assets: `npm run build:ar-assets` (or run the "Build AR assets" GitHub Action). This needs `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` set — locally as env vars, and in the repo as GitHub Actions secrets for the automated workflow.
+**Behavioural ranking.** Views, clicks, and dwell time build a session-level taste profile that reorders results. Signals are session-scoped and require no sign-in.
+
+An optional offline script, `ml/build_image_intelligence.py`, derives visual similarity and duplicate detection from artwork images using PyTorch. It runs on demand and writes a JSON artifact; the application reads that artifact and never invokes Python at runtime.
 
 ---
 
-## Admin Credentials
+## Augmented reality preview
 
-Use environment variables:
+A buyer can place a piece on their own wall from the artwork page, at true physical size, without installing anything.
 
-* `ADMIN_EMAIL`
-* `ADMIN_PASSWORD`
-* `ADMIN_SESSION_SECRET`
+Rendering is delegated to each platform's own viewer through Google's `<model-viewer>`, rather than to a custom renderer:
 
-Do not expose credentials in frontend.
+| Platform | Path |
+| --- | --- |
+| iOS Safari | AR Quick Look (`.usdz`) |
+| Android | Scene Viewer / WebXR (`.glb`) |
+| Desktop | Interactive 3D preview, with a QR code to continue on a phone |
+
+Models are scaled from the artwork's recorded dimensions and anchored to a vertical surface, so what appears on the wall is the size that will arrive.
+
+Materials are emissive by design. An exported scene carries no lights, and a material that depends on lighting renders as a black rectangle on any device that supplies none — which is exactly how this failed on iOS before the material model was changed.
+
+Assets are generated offline by `scripts/build-ar-assets.mjs` using three.js exporters, written to `public/ar/`, and indexed in `public/ar/manifest.json`. A GitHub Actions workflow regenerates them on a schedule and commits the result, because artwork data lives in the database rather than in git.
+
+The camera feed is processed entirely on the device. No images of anyone's home are uploaded or stored.
 
 ---
 
-## Note
+## API
 
-Built independently as a full-stack system (frontend + backend + AI + infra), focused on real-world constraints like cost, latency, and reliability.
+Routes are grouped by resource. `vercel.json` rewrites clean paths onto query parameters, so `/api/orders/:id/status` reaches the same function as `/api/orders?id=…&action=status`.
 
-Also partly built as a personal project for sister — not just another generic portfolio build.
+| Route | Responsibility |
+| --- | --- |
+| `/api/artworks` | Catalogue reads, administrator writes |
+| `/api/orders` | Order creation, lookup, status transitions |
+| `/api/payments` | Razorpay order creation, signature verification, webhooks |
+| `/api/user` | Customer registration, sign-in, delivery profiles |
+| `/api/admin` | Administrator authentication, dashboard, order export |
+| `/api/coupons` | Validation and redemption |
+| `/api/commissions` | Commission requests |
+| `/api/inquiries` | Contact form |
+| `/api/testimonials` | Customer reviews |
+| `/api/assistant` | Search and recommendations |
+| `/api/analytics` | Behavioural event ingestion |
+| `/api/upload` | Image upload to Supabase Storage |
+
+---
+
+## Data model
+
+PostgreSQL, migrated through ordered SQL files. The principal tables:
+
+| Table | Contents |
+| --- | --- |
+| `artworks` | Catalogue: dimensions, medium, pricing, stock, images |
+| `orders` | Purchases, delivery details, payment status, lifecycle timestamps |
+| `payment_logs` | Razorpay event trail for reconciliation |
+| `user_accounts` | Customers, including saved delivery profiles |
+| `admins`, `admin_sessions`, `admin_activity_logs` | Administrator identity and audit trail |
+| `coupons`, `coupon_redemptions` | Discount codes and their use |
+| `combos` | Curated multi-piece offers |
+| `visitor_sessions`, `visitor_events`, `analytics_events` | Behavioural signals |
+| `rate_limits` | Distributed rate-limit counters |
+
+Orders move through `pending → advance_paid → processing → shipped → delivered`, with `cancelled` reachable before dispatch. Transitions are applied server-side and recorded with timestamps.
+
+Behavioural tables grow without bound by nature, so a retention routine prunes them on a schedule. Timestamps are `timestamptz` throughout.
+
+---
+
+## Getting started
+
+**Requirements:** Node.js 20 or newer, a Supabase project, a Razorpay account.
+
+```bash
+git clone https://github.com/CaptainAni187/Archiverse.git
+cd Archiverse
+npm install
+```
+
+Create a `.env` file with the variables listed under [Configuration](#configuration), then apply the migrations in `supabase/migrations/` in filename order, via the Supabase SQL editor or CLI.
+
+The frontend and the API run as two processes:
+
+```bash
+npm run dev       # Vite dev server, port 5173
+npm run dev:api   # serverless function host, port 3001
+```
+
+Vite proxies `/api` to the function host, so the application behaves as it does in production.
+
+---
+
+## Configuration
+
+Configuration is read from the environment. Nothing is committed; `.env` is git-ignored.
+
+### Client
+
+Compiled into the browser bundle at build time. Publishable values only.
+
+| Variable | Purpose |
+| --- | --- |
+| `VITE_SUPABASE_URL` | Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | Anonymous key, used for Google OAuth |
+| `VITE_RAZORPAY_KEY_ID` | Razorpay publishable key |
+
+### Server
+
+Never exposed to the browser.
+
+| Variable | Purpose |
+| --- | --- |
+| `SUPABASE_URL` | Falls back to `VITE_SUPABASE_URL` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Full database access; the most sensitive value here |
+| `RAZORPAY_KEY_ID` | Falls back to `VITE_RAZORPAY_KEY_ID` |
+| `RAZORPAY_KEY_SECRET` | Signs and verifies payment signatures |
+| `RAZORPAY_WEBHOOK_SECRET` | Verifies webhook authenticity |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Seed administrator credentials |
+| `ADMIN_SESSION_SECRET` | Signs administrator tokens |
+| `USER_SESSION_SECRET` | Signs customer tokens; must differ from the admin secret |
+| `RESEND_API_KEY`, `FROM_EMAIL` | Transactional email |
+| `INQUIRY_NOTIFICATION_RECIPIENTS` | Comma-separated recipients for contact form notifications |
+
+Administrator and customer tokens are signed with independent secrets, so compromising one audience's signing key cannot forge tokens for the other.
+
+---
+
+## Project layout
+
+```
+api/              serverless functions, one file per route group
+  _lib/           shared server modules: sessions, validation, rate
+                  limiting, Razorpay, Supabase, email
+shared/ai/        ranking, search, and tagging logic used by client and server
+src/
+  pages/          route components
+  components/     shared UI, including the administrator console
+  services/       API clients
+  state/          cart and order state
+  utils/          pricing, image measurement, formatting
+  constants/      values referenced across pages
+scripts/          offline generators: embeddings, AR assets, audits
+supabase/
+  migrations/     schema, applied in filename order
+tests/            Vitest suites for the server
+```
+
+---
+
+## Testing
+
+```bash
+npm test     # Vitest
+npm run lint # ESLint
+npm run build
+```
+
+Coverage is concentrated where failure costs money or trust: payment signature verification and replay rejection, order creation, administrator authentication and session handling, request validation, analytics ingestion, and artwork normalisation.
+
+Suites exercise the real handlers through mocked HTTP objects rather than testing helpers in isolation, so a route that stops matching its own validation schema fails the build.
+
+---
+
+## Deployment
+
+Vercel builds the static site and deploys `api/` as serverless functions. Environment variables are read at build time, so changing one requires a redeploy.
+
+Two constraints are worth knowing before adding routes:
+
+**Function count.** The Hobby plan permits twelve serverless functions, and the project sits at twelve. Exceeding the limit does not fail the build — the build succeeds and the deployment silently does not update, which presents as production running stale code. New endpoints therefore belong as an `action` on an existing handler rather than as a new file in `api/`.
+
+**Cache bypass.** Administrator reads must not be served from the CDN. See [Caching](#caching).
+
+Offline generators are run on demand:
+
+```bash
+npm run build:embeddings   # regenerate search vectors after catalogue changes
+npm run build:ar-assets    # regenerate AR models
+```
+
+---
+
+## Design decisions
+
+**Precomputed embeddings over a hosted inference API.** Search quality would improve with a large hosted model, at the cost of per-query spend, added latency, and an availability dependency on someone else's uptime. For a catalogue of this size, offline encoding plus cosine similarity captures most of the benefit with none of those liabilities.
+
+**PostgreSQL over a dedicated vector database.** A few hundred vectors fit comfortably in memory. A vector store would add an operational component to earn its keep at a scale this catalogue will not reach for a long time.
+
+**Conditional updates over transactions.** PostgREST exposes no interactive transactions. Rather than introduce a connection-pooled service to obtain them, stock claims use a compare-and-swap, which is sufficient for single-row exclusivity and keeps the deployment on one platform.
+
+**A modular monolith over microservices.** Route groups own their domains and share a `_lib` layer. Splitting them into services would multiply deployment surface and cold starts without dividing any load that needs dividing.
+
+**Full payment upfront over a partial advance.** A piece leaves the catalogue the moment it is reserved. Holding a one-of-one item against a partial payment transfers the risk of an abandoned order onto the studio, which for a single-artist catalogue is the difference between a sale and a month of lost availability.
+
+---
+
+## License
+
+All rights reserved. The artwork shown is the property of the artist and is not licensed for reuse.
