@@ -19,6 +19,14 @@ const SECTIONS = [
     ],
   },
   {
+    id: 'multiple',
+    label: 'BUYING MORE THAN ONE WORK',
+    paragraphs: [
+      'Several works can be bought in a single order, and doing so costs less than buying them separately.',
+      'Where two or more related pieces are purchased together, a discount is applied automatically at checkout — 10% on a pair, 15% on three or more. It is calculated on the artwork subtotal and shown in full before you pay. Delivery is also combined: the works travel as one parcel and are charged once for the largest piece plus a small allowance for the extra bulk, rather than a separate delivery fee per work. No code is needed and the discount cannot be stacked with a curated combo offer — whichever is better for you is the one applied.',
+    ],
+  },
+  {
     id: 'preparation',
     label: 'PREPARATION & DISPATCH',
     paragraphs: [
@@ -31,7 +39,7 @@ const SECTIONS = [
     label: 'DELIVERY',
     paragraphs: [
       'Each work travels wrapped in glassine, corner-protected, and boxed rigid.',
-      'Delivery timelines vary by destination and are shared with your tracking details at dispatch. Please open and inspect the piece in front of the delivery partner where possible — it makes any claim far simpler to resolve.',
+      'Delivery charges are calculated by size and shown before payment, never added afterwards. Where an order contains several works they ship together as one parcel. Timelines vary by destination and are shared with your tracking details at dispatch. Please open and inspect the piece in front of the delivery partner where possible — it makes any claim far simpler to resolve.',
     ],
   },
   {
@@ -84,16 +92,16 @@ const SECTIONS = [
 
 function Policies() {
   usePageMeta({
-    title: 'Policies | Archique',
+    title: 'Terms & Conditions | Archique',
     description:
-      'How Archique handles reservations, payment, dispatch, delivery, cancellations, and damage.',
+      'The terms your purchase is made under: reservations, payment, discounts, dispatch, delivery, cancellations, and damage.',
   })
 
   return (
     <section className="page-flow page-with-header-gap privacy-page">
       <Reveal className="privacy-editorial">
         <header className="privacy-header">
-          <h1 className="section-title">POLICIES</h1>
+          <h1 className="section-title">TERMS &amp; CONDITIONS</h1>
           <p className="privacy-subtitle">
             A transparent process, from reservation to the wall it lives on.
           </p>
