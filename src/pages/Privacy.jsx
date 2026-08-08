@@ -1,4 +1,5 @@
 import Reveal from '../components/Reveal'
+import { PUBLIC_EMAIL } from '../constants/contact'
 import usePageMeta from '../hooks/usePageMeta'
 
 const SECTIONS = [
@@ -78,7 +79,7 @@ const SECTIONS = [
     paragraphs: [
       'For questions about your privacy, your account, or your data:',
     ],
-    email: 'archikri07@gmail.com',
+    email: PUBLIC_EMAIL,
   },
 ]
 

@@ -4956,3 +4956,78 @@ body {
   letter-spacing: var(--tracking-body);
   line-height: 1.5;
 }
+
+/* Footer mail icon — address revealed on hover rather than printed inline. */
+.site-footer-mail {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Opaque rather than translucent: the tooltip sits over the tagline, and a
+   see-through panel let the text behind it show through the address. */
+.site-footer-mail {
+  --tip-bg: #fffdf8;
+  --tip-border: rgba(198, 169, 98, 0.42);
+}
+
+html[data-theme='dark'] .site-footer-mail {
+  --tip-bg: #1f1e1b;
+  --tip-border: rgba(198, 169, 98, 0.34);
+}
+
+.site-footer-mail-tip {
+  position: absolute;
+  bottom: calc(100% + 14px);
+  left: 50%;
+  transform: translateX(-50%) translateY(6px) scale(0.96);
+  padding: 9px 16px;
+  white-space: nowrap;
+  font-size: 0.82rem;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  color: var(--accent-text);
+  background: var(--tip-bg);
+  border: 1px solid var(--tip-border);
+  border-radius: 3px;
+  box-shadow:
+    0 10px 26px rgba(0, 0, 0, 0.16),
+    0 2px 6px rgba(0, 0, 0, 0.08);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s cubic-bezier(0.2, 0.8, 0.3, 1),
+    visibility 0.2s;
+}
+
+/* Caret: a rotated square sharing the panel's fill and hairline, so the two
+   read as one shape rather than a box floating above the icon. */
+.site-footer-mail-tip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -5px 0 0 -4px;
+  background: var(--tip-bg);
+  border-right: 1px solid var(--tip-border);
+  border-bottom: 1px solid var(--tip-border);
+  transform: rotate(45deg);
+}
+
+.site-footer-mail:hover .site-footer-mail-tip,
+.site-footer-mail:focus-visible .site-footer-mail-tip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0) scale(1);
+}
+
+/* Touch devices have no hover, so the tooltip would be unreachable — the
+   mailto still works, and a stuck tooltip would just obscure the footer. */
+@media (hover: none) {
+  .site-footer-mail-tip {
+    display: none;
+  }
+}
