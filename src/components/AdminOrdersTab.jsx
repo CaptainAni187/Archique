@@ -1,5 +1,29 @@
+import { getAdminToken } from '../services/adminAuthService'
+
 function formatPrice(price) {
   return `Rs. ${Number(price).toLocaleString()}`
+}
+
+/**
+ * Downloads the orders CSV. Uses fetch + a blob rather than a plain link
+ * because the endpoint needs the admin bearer token, which a link cannot send.
+ */
+async function downloadOrdersCsv(status = 'all') {
+  const response = await fetch(`/api/admin?action=orders-export&status=${encodeURIComponent(status)}`, {
+    headers: { Authorization: `Bearer ${getAdminToken() || ''}` },
+  })
+
+  if (!response.ok) {
+    throw new Error('Could not export orders.')
+  }
+
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = `archique-orders-${new Date().toISOString().slice(0, 10)}.csv`
+  anchor.click()
+  URL.revokeObjectURL(url)
 }
 
 function AdminOrdersTab({
@@ -12,6 +36,23 @@ function AdminOrdersTab({
 }) {
   return (
     <section className="admin-tab-panel">
+      <div className="admin-export-row">
+        <div>
+          <h3>Export orders</h3>
+          <p>
+            Every order with the full delivery address, as a spreadsheet — open it in Excel or
+            Google Sheets to work through fulfilment.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="text-link-button action-button"
+          onClick={() => downloadOrdersCsv('all').catch(() => window.alert('Could not export orders.'))}
+        >
+          Download CSV
+        </button>
+      </div>
+
       {selectedOrder ? (
         <section className="order-detail-card">
           <div className="order-detail-header">
