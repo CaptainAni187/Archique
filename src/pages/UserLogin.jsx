@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import DeliveryAddressFields from '../components/DeliveryAddressFields'
 import {
   loginUser,
+  saveDeliveryProfile,
   signupUser,
   requestPasswordReset,
   resetPassword,
@@ -18,6 +20,16 @@ function UserLogin() {
 
   const navigate = useNavigate()
   const [mode, setMode] = useState('login')
+  // A brand-new account has no phone or address, and asking at checkout is the
+  // worst moment. Collect it once, right after signup, so the first purchase is
+  // a single confirmation.
+  const [needsDetails, setNeedsDetails] = useState(false)
+  const [detailsForm, setDetailsForm] = useState({
+    name: '', phone: '', email: '',
+    address_line1: '', address_line2: '', landmark: '', city: '', state: '', pincode: '',
+  })
+  const [detailsError, setDetailsError] = useState('')
+  const [isSavingDetails, setIsSavingDetails] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', password: '' })
   const [errorMessage, setErrorMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -90,9 +102,34 @@ function UserLogin() {
 
     try {
       if (mode === 'signup') {
-        await signupUser(form)
-      } else {
-        await loginUser(form)
+        const user = await signupUser(form)
+        setDetailsForm((previous) => ({
+          ...previous,
+          name: user?.name || form.name || '',
+          email: user?.email || form.email || '',
+        }))
+        setNeedsDetails(true)
+        return
+      }
+
+      const user = await loginUser(form)
+      // An existing account that never supplied delivery details gets the same
+      // one-time prompt rather than being ambushed at checkout.
+      if (user && !user.delivery_profile_complete) {
+        setDetailsForm((previous) => ({
+          ...previous,
+          name: user.name || '',
+          email: user.email || '',
+          phone: user.phone || '',
+          address_line1: user.address_line1 || '',
+          address_line2: user.address_line2 || '',
+          landmark: user.landmark || '',
+          city: user.city || '',
+          state: user.state || '',
+          pincode: user.pincode || '',
+        }))
+        setNeedsDetails(true)
+        return
       }
 
       navigate('/account')
@@ -101,6 +138,58 @@ function UserLogin() {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+
+  const onDetailsField = (field, value) => {
+    setDetailsForm((previous) => ({ ...previous, [field]: value }))
+    setDetailsError('')
+  }
+
+  const onSaveDetails = async (event) => {
+    event.preventDefault()
+    setDetailsError('')
+    setIsSavingDetails(true)
+    try {
+      await saveDeliveryProfile(detailsForm)
+      navigate('/account')
+    } catch (error) {
+      setDetailsError(error.message || 'Could not save your details.')
+    } finally {
+      setIsSavingDetails(false)
+    }
+  }
+
+  if (needsDetails) {
+    return (
+      <section className="auth-card auth-card-wide">
+        <p className="eyebrow">ONE LAST STEP</p>
+        <h2 className="section-title">Where should we deliver?</h2>
+        <p className="section-copy">
+          Saved to your account, so checkout is just a confirmation next time.
+        </p>
+
+        <form className="admin-form" onSubmit={onSaveDetails}>
+          <DeliveryAddressFields values={detailsForm} onChange={onDetailsField} emailReadOnly />
+
+          {detailsError ? <p className="status-message error">{detailsError}</p> : null}
+
+          <div className="checkout-step-actions">
+            <button type="submit" disabled={isSavingDetails}>
+              {isSavingDetails ? 'Saving…' : 'Save and continue'}
+            </button>
+            <button
+              type="button"
+              className="text-link-button"
+              onClick={() => navigate('/account')}
+              disabled={isSavingDetails}
+            >
+              Skip for now
+            </button>
+          </div>
+        </form>
+      </section>
+    )
   }
 
   return (

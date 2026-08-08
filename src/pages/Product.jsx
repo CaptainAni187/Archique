@@ -13,8 +13,6 @@ import usePageMeta from '../hooks/usePageMeta'
 import { getUserFriendlyError } from '../utils/userErrors'
 import {
   getArtworkTasteMetadata,
-  getRecommendationReason,
-  getTasteProfile,
 } from '../services/tasteService'
 import {
   buildPurchaseSelection,
@@ -131,13 +129,6 @@ function Product() {
   const currentImage = activeImage || primaryImage
   const activeImageIndex = galleryImages.indexOf(currentImage)
   const safeImageIndex = activeImageIndex >= 0 ? activeImageIndex : 0
-  const recommendationReason = artwork
-    ? getRecommendationReason(artwork, getTasteProfile())
-    : ''
-  const recommendationReasonLabel = recommendationReason
-    .replace(/^Shown because it\s*/i, '')
-    .replace(/\.$/, '')
-
   const goToPreviousImage = () => {
     if (galleryImages.length <= 1) {
       return
@@ -378,12 +369,6 @@ function Product() {
             <p>SHIPS IN 7–10 DAYS</p>
           </div>
           <p className="product-description">{artwork.description}</p>
-          <div className="product-meta">
-            <p>
-              <span>Why this is shown</span>
-              {recommendationReasonLabel}
-            </p>
-          </div>
           <button
             type="button"
             className="text-link-button action-button"
@@ -535,8 +520,8 @@ function Product() {
       ) : null}
       {smartPairings.length > 0 ? (
         <Reveal className="section-block-home">
-          <p className="eyebrow">PAIR WITH THESE</p>
-          <h2 className="section-title">Smart Pairings</h2>
+          <p className="eyebrow">COMPLETE THE SET</p>
+          <h2 className="section-title">Pairs well with</h2>
           <div className="store-grid artwork-grid">
             {smartPairings.map((candidate) => (
               <div key={candidate.artwork.id}>
