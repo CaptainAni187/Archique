@@ -1,4 +1,5 @@
 import Reveal from '../components/Reveal'
+import { PUBLIC_EMAIL } from '../constants/contact'
 import usePageMeta from '../hooks/usePageMeta'
 
 const SECTIONS = [
@@ -86,7 +87,7 @@ const SECTIONS = [
     id: 'questions',
     label: 'QUESTIONS',
     paragraphs: ['If anything here is unclear, ask before you order rather than after:'],
-    email: 'archikri07@gmail.com',
+    email: PUBLIC_EMAIL,
   },
 ]
 

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Reveal from '../components/Reveal'
 import usePageMeta from '../hooks/usePageMeta'
+import { PUBLIC_EMAIL, PUBLIC_EMAIL_HREF } from '../constants/contact'
 
 function Contact() {
   usePageMeta({
@@ -72,7 +73,13 @@ function Contact() {
               </svg>
               <span className="sr-only">Instagram</span>
             </a>
-            <a href="mailto:archikri07@gmail.com" aria-label="Email" title="Email">
+            <a
+              href={PUBLIC_EMAIL_HREF}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Email ${PUBLIC_EMAIL}`}
+              title={PUBLIC_EMAIL}
+            >
               <svg className="contact-icon" aria-hidden="true" focusable="false">
                 <use href="/icons.svg#mail-icon" />
               </svg>
