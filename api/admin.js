@@ -607,6 +607,79 @@ async function handleDashboard(req, res) {
  * Razorpay webhook when money was captured but no order exists. Previously all
  * of this was written and never read, so a lost order was invisible.
  */
+/**
+ * Orders as CSV, for actually fulfilling them.
+ *
+ * Opens directly in Excel or Google Sheets, one row per order with the full
+ * delivery address split out, so a batch of orders can be worked through or
+ * handed to a courier without copying fields out of the dashboard by hand.
+ */
+function toCsvValue(value) {
+  const text = value === null || value === undefined ? '' : String(value)
+  // Escape quotes, and wrap anything containing a delimiter or newline.
+  const escaped = text.replace(/"/g, '""')
+  return /[",\n\r]/.test(escaped) ? `"${escaped}"` : escaped
+}
+
+async function handleOrdersExport(req, res) {
+  const session = await requireAdminAuth(req, res)
+  if (!session) {
+    return null
+  }
+
+  if (req.method !== 'GET') {
+    return sendJson(res, 405, {
+      success: false,
+      error: 'METHOD_NOT_ALLOWED',
+      message: 'Method not allowed.',
+    })
+  }
+
+  const status = String(req.query?.status || '').trim()
+  const filter = status && status !== 'all' ? `&payment_status=eq.${encodeURIComponent(status)}` : ''
+  const rows = await supabaseAdminRequest(
+    `orders?select=*&order=created_at.desc&limit=2000${filter}`,
+  ).catch(() => [])
+
+  const orders = Array.isArray(rows) ? rows : []
+
+  const columns = [
+    ['Order code', (o) => o.order_code || `#${o.id}`],
+    ['Date', (o) => (o.created_at ? new Date(o.created_at).toISOString().slice(0, 10) : '')],
+    ['Status', (o) => o.payment_status || ''],
+    ['Artwork', (o) => o.product_title || ''],
+    ['Artwork ID', (o) => o.product_id ?? ''],
+    ['Total', (o) => Number(o.total_amount || 0)],
+    ['Customer', (o) => o.customer_name || ''],
+    ['Phone', (o) => o.customer_phone || ''],
+    ['Email', (o) => o.customer_email || ''],
+    ['Address', (o) => o.customer_address || ''],
+    ['Coupon', (o) => o.coupon_code || ''],
+    ['Payment ID', (o) => o.razorpay_payment_id || ''],
+    ['Shipped on', (o) => (o.shipped_at ? new Date(o.shipped_at).toISOString().slice(0, 10) : '')],
+    ['Delivered on', (o) => (o.delivered_at ? new Date(o.delivered_at).toISOString().slice(0, 10) : '')],
+  ]
+
+  const lines = [columns.map(([label]) => toCsvValue(label)).join(',')]
+  orders.forEach((order) => {
+    lines.push(columns.map(([, read]) => toCsvValue(read(order))).join(','))
+  })
+
+  await logAdminActivity(session, {
+    action_type: 'orders_exported',
+    resource_type: 'order',
+    details: { count: orders.length, status: status || 'all' },
+  })
+
+  const filename = `archique-orders-${new Date().toISOString().slice(0, 10)}.csv`
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+  res.setHeader('Cache-Control', 'no-store')
+  // A BOM so Excel opens UTF-8 (and the rupee sign) correctly.
+  res.status(200).send('\uFEFF' + lines.join('\r\n'))
+  return null
+}
+
 async function handlePaymentLogs(req, res) {
   const session = await requireAdminAuth(req, res)
   if (!session) {
@@ -708,6 +781,10 @@ export default async function handler(req, res) {
 
     if (action === 'activity') {
       return await handleActivity(req, res)
+    }
+
+    if (action === 'orders-export') {
+      return await handleOrdersExport(req, res)
     }
 
     if (action === 'payment-logs') {

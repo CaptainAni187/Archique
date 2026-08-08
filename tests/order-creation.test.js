@@ -90,7 +90,7 @@ describe('order creation handler', () => {
         body: {
           product_id: 1,
           customer_name: 'Ada Lovelace',
-          customer_phone: '+911234567890',
+          customer_phone: '+919812345678',
           customer_address: '123 Main Street',
           customer_email: 'ada@example.com',
           razorpay_payment_id: paymentId,
