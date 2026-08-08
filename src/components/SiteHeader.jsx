@@ -8,7 +8,7 @@ function SocialIcons() {
   return (
     <div className="social-links">
       <a
-        href="https://www.instagram.com/__archiverse_/"
+        href="https://www.instagram.com/archique.in/"
         target="_blank"
         rel="noreferrer"
         aria-label="Instagram"
@@ -91,7 +91,9 @@ function SiteHeader({ isDarkBackground = false }) {
 
       <div className={`topbar-cluster ${isMenuOpen ? 'is-open' : ''}`}>
         <nav className="topbar-nav" aria-label="Primary">
-          <ThemeToggle />
+          <div className="topbar-icon-row">
+            <ThemeToggle />
+          </div>
           <NavLink to="/canvas" className={({ isActive }) => (isActive ? 'active-nav' : '')}>
             CANVAS
           </NavLink>
@@ -105,6 +107,7 @@ function SiteHeader({ isDarkBackground = false }) {
           >
             STORE
           </NavLink>
+          <div className="topbar-icon-row topbar-icon-row-end">
           <NavLink
             to="/cart"
             className={({ isActive }) =>
@@ -153,9 +156,9 @@ function SiteHeader({ isDarkBackground = false }) {
             )}
             <span className="sr-only">Account</span>
           </NavLink>
+          <SocialIcons />
+          </div>
         </nav>
-
-        <SocialIcons />
       </div>
     </header>
   )
