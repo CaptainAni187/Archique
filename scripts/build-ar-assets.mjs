@@ -13,6 +13,7 @@
  * generation is a one-time offline step, not a runtime cost.
  */
 import './lib/node-canvas-polyfill.mjs'
+import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { loadImage } from '@napi-rs/canvas'
@@ -110,7 +111,32 @@ async function exportUsdz(scene, outPath) {
   await fs.writeFile(outPath, Buffer.from(result))
 }
 
-async function buildForArtwork(artwork) {
+/**
+ * Fingerprint of everything that affects an artwork's AR output.
+ *
+ * USDZ is a zip, and zip entries carry the time they were written, so an
+ * unchanged artwork still exports to different bytes on every run. Left alone
+ * that means the nightly job always finds "changes" to commit, pushing 14
+ * rewritten files a day that differ only by timestamp. Comparing inputs
+ * instead of outputs makes an unchanged run a genuine no-op.
+ */
+function artworkFingerprint(artwork, imageUrl, widthM, heightM) {
+  return crypto
+    .createHash('sha256')
+    .update(
+      JSON.stringify({
+        id: artwork.id,
+        imageUrl,
+        widthM,
+        heightM,
+        maxTexturePx: MAX_TEXTURE_PX,
+      }),
+    )
+    .digest('hex')
+    .slice(0, 16)
+}
+
+async function buildForArtwork(artwork, previousEntry) {
   const imageUrl = primaryImageUrl(artwork)
   if (!imageUrl) {
     console.log(`  skip #${artwork.id} "${artwork.title}" — no image`)
@@ -118,6 +144,25 @@ async function buildForArtwork(artwork) {
   }
 
   const { widthM, heightM, isFallback } = getArtworkDimensionsMeters(artwork.size)
+  const fingerprint = artworkFingerprint(artwork, imageUrl, widthM, heightM)
+
+  // Nothing about this piece changed, and both files are still on disk.
+  if (previousEntry?.fingerprint === fingerprint) {
+    const stillOnDisk = await Promise.all(
+      [`${artwork.id}.glb`, `${artwork.id}.usdz`].map((name) =>
+        fs
+          .access(path.join(OUTPUT_DIR, name))
+          .then(() => true)
+          .catch(() => false),
+      ),
+    )
+
+    if (stillOnDisk.every(Boolean)) {
+      console.log(`  skip #${artwork.id} "${artwork.title}" — unchanged`)
+      return previousEntry
+    }
+  }
+
   const canvas = await loadArtworkCanvas(imageUrl)
   const scene = buildPlaneScene(canvas, widthM, heightM)
 
@@ -137,6 +182,7 @@ async function buildForArtwork(artwork) {
     usdz: `/ar/${artwork.id}.usdz`,
     widthM,
     heightM,
+    fingerprint,
   }
 }
 
@@ -155,10 +201,19 @@ async function main() {
 
   console.log(`Building AR assets for ${artworks.length} artwork(s)...`)
 
+  // Read first, so each artwork can be compared against what was built last
+  // time and skipped when nothing about it has changed.
+  let manifest = {}
+  try {
+    manifest = JSON.parse(await fs.readFile(MANIFEST_PATH, 'utf8'))
+  } catch {
+    manifest = {}
+  }
+
   const manifestEntries = []
   for (const artwork of artworks) {
     try {
-      const entry = await buildForArtwork(artwork)
+      const entry = await buildForArtwork(artwork, manifest[artwork.id])
       if (entry) {
         manifestEntries.push(entry)
       }
@@ -167,14 +222,8 @@ async function main() {
     }
   }
 
-  // Merge into any existing manifest so a partial/single-id run doesn't
+  // Merge into the existing manifest so a partial/single-id run doesn't
   // clobber entries for artworks that weren't touched this time.
-  let manifest = {}
-  try {
-    manifest = JSON.parse(await fs.readFile(MANIFEST_PATH, 'utf8'))
-  } catch {
-    manifest = {}
-  }
   for (const entry of manifestEntries) {
     manifest[entry.id] = entry
   }
