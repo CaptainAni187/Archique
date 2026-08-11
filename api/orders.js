@@ -13,6 +13,7 @@ import { fetchRazorpayPayment, verifyRazorpaySignature } from './_lib/razorpay.j
 import {
   createCouponRedemption,
   decrementArtworkStock,
+  restoreArtworkStock,
   fetchArtworkById,
   fetchComboById,
   fetchLatestOrderCodes,
@@ -101,7 +102,21 @@ function getNextOrderCode(existingCodes) {
   return `ARC-${currentYear}-${String(nextNumber).padStart(4, '0')}`
 }
 
+/**
+ * True when PostgREST rejected the write because a column does not exist yet.
+ *
+ * Order creation is the money path, so it must not depend on a migration
+ * having been applied first. If product_ids is missing the insert is retried
+ * without it, and starts recording the full selection as soon as the column
+ * lands.
+ */
+function isMissingColumnError(error, column) {
+  return error?.code === 'PGRST204' && String(error?.message || '').includes(column)
+}
+
 async function createOrderRecord(payload) {
+  let body = payload
+
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const latestCodes = await fetchLatestOrderCodes()
     const orderCode = getNextOrderCode(latestCodes)
@@ -113,13 +128,23 @@ async function createOrderRecord(payload) {
           Prefer: 'return=representation',
         },
         body: JSON.stringify({
-          ...payload,
+          ...body,
           order_code: orderCode,
         }),
       })
 
       return response[0]
     } catch (error) {
+      if (isMissingColumnError(error, 'product_ids')) {
+        console.warn(
+          '[orders] product_ids column missing — apply the order-items migration. ' +
+            'Cancelling a multi-piece order will only restore its primary artwork until then.',
+        )
+        const { product_ids: _unused, ...withoutProductIds } = body
+        body = withoutProductIds
+        continue
+      }
+
       if (error.code === '23505' && error.message.includes('razorpay_payment_id')) {
         const existingOrder = await fetchOrderByPaymentId(payload.razorpay_payment_id)
         if (existingOrder) {
@@ -460,6 +485,9 @@ async function handleCreateOrder(req, res) {
       customer_address: customerAddress,
       customer_email: customerEmail,
       product_id: primaryArtwork.id,
+      // Every piece in the order, not just the first. Cancellation reads this
+      // to return the right artwork to the catalogue.
+      product_ids: selection.items.map((artwork) => Number(artwork.id)),
       product_title: selection.title,
       total_amount: totalAmount,
       advance_amount: advanceAmount,
@@ -602,6 +630,19 @@ async function handleLookupOrderByCode(req, res) {
   })
 }
 
+/**
+ * Every artwork id an order claimed.
+ *
+ * Orders written before product_ids existed only recorded the primary piece,
+ * so fall back to that rather than restoring nothing.
+ */
+function getOrderArtworkIds(order) {
+  const recorded = Array.isArray(order?.product_ids) ? order.product_ids : []
+  const ids = recorded.length > 0 ? recorded : [order?.product_id]
+
+  return [...new Set(ids.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))]
+}
+
 async function handleUpdateOrderStatus(req, res) {
   const session = await requireAdminAuth(req, res)
   if (!session) {
@@ -646,6 +687,35 @@ async function handleUpdateOrderStatus(req, res) {
     orderId,
     getOrderStatusTimestampPatch(existingOrder.payment_status, payload.payment_status),
   )
+
+  // A cancelled order never completed, so its pieces go back on sale. Guarded
+  // on the previous status: re-sending 'cancelled' for an already-cancelled
+  // order is a permitted no-op transition, and must not restore stock twice.
+  if (payload.payment_status === 'cancelled' && existingOrder.payment_status !== 'cancelled') {
+    const restoredIds = getOrderArtworkIds(existingOrder)
+    const restored = await Promise.allSettled(
+      restoredIds.map((artworkId) => restoreArtworkStock(artworkId)),
+    )
+
+    restored.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        // The order is already cancelled; failing the request here would leave
+        // the admin unable to retry. Surface it loudly instead.
+        console.error('[orders] failed to restore stock after cancellation', {
+          order_id: orderId,
+          artwork_id: restoredIds[index],
+          message: result.reason?.message || 'Unknown error',
+        })
+      }
+    })
+
+    await logAdminActivity(session, {
+      action_type: 'order_stock_restored',
+      resource_type: 'order',
+      resource_id: orderId,
+      details: { artwork_ids: restoredIds },
+    })
+  }
 
   await logAdminActivity(session, {
     action_type: 'order_status_changed',
