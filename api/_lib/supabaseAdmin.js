@@ -246,6 +246,40 @@ export async function decrementArtworkStock(artwork) {
   return updated
 }
 
+/**
+ * Returns a piece to the catalogue after a cancelled order.
+ *
+ * Mirrors decrementArtworkStock: the quantity the caller observed is part of
+ * the match, so a concurrent write cannot be silently overwritten. Unlike the
+ * decrement this is not a contended path — only the order holding a
+ * one-of-one piece can release it — but keeping the shape identical means
+ * both directions fail the same way and are read the same way.
+ */
+export async function restoreArtworkStock(artworkId) {
+  const artwork = await fetchArtworkById(artworkId)
+
+  if (!artwork) {
+    return null
+  }
+
+  const currentQuantity = Number.isFinite(Number(artwork.quantity)) ? Number(artwork.quantity) : 0
+  const nextQuantity = currentQuantity + 1
+
+  const response = await supabaseAdminRequest(
+    `artworks?id=eq.${Number(artworkId)}&quantity=eq.${currentQuantity}`,
+    {
+      method: 'PATCH',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({
+        quantity: nextQuantity,
+        status: 'available',
+      }),
+    },
+  )
+
+  return response?.[0] || null
+}
+
 export async function deleteArtwork(id) {
   await supabaseAdminRequest(`artworks?id=eq.${Number(id)}`, {
     method: 'DELETE',
