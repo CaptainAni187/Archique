@@ -67,59 +67,91 @@ export function rankArtworksWithPipeline(artworks = [], {
     moods,
     limit: Math.max(Number(limit) || artworks.length, artworks.length),
   })
+
+  // Build an explanation once per (artwork, taste, breakdown) and reuse it.
+  const describe = (artwork, scored) => {
+    const key = `${Number(artwork.id)}|${JSON.stringify(tasteProfile || {})}|${JSON.stringify(
+      scored.breakdown,
+    )}`
+    if (!explanationCache.has(key)) {
+      setCache(explanationCache, key, {
+        reasons: buildRecommendationReasons(artwork, tasteProfile, scored.breakdown),
+        explanation: explainArtworkRecommendation(artwork, tasteProfile, scored.breakdown),
+      })
+    }
+    return explanationCache.get(key)
+  }
+
+  const decorate = (artwork, scored) => {
+    const described = describe(artwork, scored)
+    return {
+      ...artwork,
+      ai_score: Number((scored.score * 10).toFixed(3)),
+      confidence_score: scored.confidence_score,
+      score_breakdown: scored.breakdown,
+      recommendation_reasons: described.reasons,
+      recommendation_explanation: described.explanation,
+    }
+  }
+
+  const isUsable = (row) =>
+    Number.isFinite(Number(row.ai_score)) && Number.isFinite(Number(row.confidence_score))
+
+  // Greedy selection, so diversity actually applies.
+  //
+  // Scoring every candidate in one pass cannot diversify: the diversity term
+  // compares an artwork against those already chosen, and in a single map
+  // nothing has been chosen yet. It previously returned the same constant for
+  // every candidate, which adds an identical amount to every score and so
+  // cannot change the order — the feature was inert. Choosing one at a time
+  // and re-scoring what remains against the running selection is what makes
+  // the term mean anything.
   const selected = []
-  const ranked = candidates
-    .map((artwork) => {
-      const semanticScore = semanticScoresById.get(Number(artwork.id)) || 0
+  const remaining = [...candidates]
+  const targetCount = Math.max(1, Number(limit) || remaining.length)
+  const ranked = []
+
+  while (remaining.length > 0 && ranked.length < targetCount) {
+    let bestIndex = -1
+    let bestRow = null
+
+    for (let index = 0; index < remaining.length; index += 1) {
+      const artwork = remaining[index]
       const scored = scoreArtworkWithPipeline(artwork, {
         tasteProfile,
         query,
         moods,
-        semanticScore,
+        semanticScore: semanticScoresById.get(Number(artwork.id)) || 0,
         selectedArtworks: selected,
       })
+      const row = decorate(artwork, scored)
 
-      return {
-        ...artwork,
-        ai_score: Number((scored.score * 10).toFixed(3)),
-        confidence_score: scored.confidence_score,
-        score_breakdown: scored.breakdown,
-        recommendation_reasons: (() => {
-          const key = `${Number(artwork.id)}|${JSON.stringify(tasteProfile || {})}|${JSON.stringify(
-            scored.breakdown,
-          )}`
-          if (explanationCache.has(key)) {
-            return explanationCache.get(key).reasons
-          }
-          const reasons = buildRecommendationReasons(artwork, tasteProfile, scored.breakdown)
-          const explanation = explainArtworkRecommendation(artwork, tasteProfile, scored.breakdown)
-          setCache(explanationCache, key, { reasons, explanation })
-          return reasons
-        })(),
-        recommendation_explanation: (() => {
-          const key = `${Number(artwork.id)}|${JSON.stringify(tasteProfile || {})}|${JSON.stringify(
-            scored.breakdown,
-          )}`
-          if (explanationCache.has(key)) {
-            return explanationCache.get(key).explanation
-          }
-          const reasons = buildRecommendationReasons(artwork, tasteProfile, scored.breakdown)
-          const explanation = explainArtworkRecommendation(artwork, tasteProfile, scored.breakdown)
-          setCache(explanationCache, key, { reasons, explanation })
-          return explanation
-        })(),
+      if (!isUsable(row)) {
+        continue
       }
-    })
-    .filter(
-      (artwork) =>
-        Number.isFinite(Number(artwork.ai_score)) &&
-        Number.isFinite(Number(artwork.confidence_score)),
-    )
-    .sort((left, right) => right.ai_score - left.ai_score || Number(left.id) - Number(right.id))
 
-  ranked.slice(0, limit).forEach((artwork) => selected.push(artwork))
-  const result = ranked.slice(0, Math.max(1, Number(limit) || ranked.length))
-  const safeResult = result.length > 0 ? result : safeArtworks.map((artwork) => ({ ...artwork }))
+      // Ties break on id so ordering stays stable across identical inputs.
+      const better =
+        bestRow === null ||
+        row.ai_score > bestRow.ai_score ||
+        (row.ai_score === bestRow.ai_score && Number(row.id) < Number(bestRow.id))
+
+      if (better) {
+        bestIndex = index
+        bestRow = row
+      }
+    }
+
+    if (bestIndex === -1) {
+      break
+    }
+
+    ranked.push(bestRow)
+    selected.push(bestRow)
+    remaining.splice(bestIndex, 1)
+  }
+
+  const safeResult = ranked.length > 0 ? ranked : safeArtworks.map((artwork) => ({ ...artwork }))
   setCache(rankingCache, cacheKey, cloneRankedRows(safeResult))
   return cloneRankedRows(safeResult)
 }

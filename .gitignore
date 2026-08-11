@@ -27,3 +27,10 @@ dist-ssr
 .env.*
 .vercel
 .env*.local
+
+# Private working notes — never publish to the repository.
+docs/
+notes/
+
+# Supabase CLI local link state
+supabase/.temp/
