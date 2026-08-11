@@ -14,6 +14,12 @@ on:
   schedule:
     - cron: "0 3 * * *" # 03:00 UTC daily — safety net for anything missed manually
 
+# The job commits regenerated assets back, which the default read-only token
+# cannot do — without this the push fails and the whole run is reported as
+# failed.
+permissions:
+  contents: write
+
 jobs:
   build-ar-assets:
     runs-on: ubuntu-latest
