@@ -4,97 +4,111 @@
     "glb": "/ar/8.glb",
     "usdz": "/ar/8.usdz",
     "widthM": 0.2032,
-    "heightM": 0.3048
+    "heightM": 0.3048,
+    "fingerprint": "5656b54d3c295882"
   },
   "9": {
     "id": 9,
     "glb": "/ar/9.glb",
     "usdz": "/ar/9.usdz",
     "widthM": 0.2032,
-    "heightM": 0.2032
+    "heightM": 0.2032,
+    "fingerprint": "2d48ea282c248cd3"
   },
   "10": {
     "id": 10,
     "glb": "/ar/10.glb",
     "usdz": "/ar/10.usdz",
     "widthM": 0.2032,
-    "heightM": 0.3048
+    "heightM": 0.3048,
+    "fingerprint": "8b06e944ec0a0e94"
   },
   "11": {
     "id": 11,
     "glb": "/ar/11.glb",
     "usdz": "/ar/11.usdz",
     "widthM": 0.2032,
-    "heightM": 0.3048
+    "heightM": 0.3048,
+    "fingerprint": "932d0085bad8022f"
   },
   "13": {
     "id": 13,
     "glb": "/ar/13.glb",
     "usdz": "/ar/13.usdz",
     "widthM": 0.2032,
-    "heightM": 0.3048
+    "heightM": 0.3048,
+    "fingerprint": "84fa9aaaaef8d7a2"
   },
   "14": {
     "id": 14,
     "glb": "/ar/14.glb",
     "usdz": "/ar/14.usdz",
     "widthM": 0.2032,
-    "heightM": 0.2032
+    "heightM": 0.2032,
+    "fingerprint": "9d3ae5ec54254ea3"
   },
   "15": {
     "id": 15,
     "glb": "/ar/15.glb",
     "usdz": "/ar/15.usdz",
     "widthM": 0.2032,
-    "heightM": 0.3048
+    "heightM": 0.3048,
+    "fingerprint": "2e66784e68973849"
   },
   "16": {
     "id": 16,
     "glb": "/ar/16.glb",
     "usdz": "/ar/16.usdz",
     "widthM": 0.2032,
-    "heightM": 0.3048
+    "heightM": 0.3048,
+    "fingerprint": "701b54a3f2727fe1"
   },
   "17": {
     "id": 17,
     "glb": "/ar/17.glb",
     "usdz": "/ar/17.usdz",
     "widthM": 0.2032,
-    "heightM": 0.2032
+    "heightM": 0.2032,
+    "fingerprint": "451bd968032ed0cd"
   },
   "18": {
     "id": 18,
     "glb": "/ar/18.glb",
     "usdz": "/ar/18.usdz",
     "widthM": 0.2032,
-    "heightM": 0.3048
+    "heightM": 0.3048,
+    "fingerprint": "8d1c3d13ebcbab05"
   },
   "19": {
     "id": 19,
     "glb": "/ar/19.glb",
     "usdz": "/ar/19.usdz",
     "widthM": 0.2032,
-    "heightM": 0.3048
+    "heightM": 0.3048,
+    "fingerprint": "d330b84cdb593e5c"
   },
   "20": {
     "id": 20,
     "glb": "/ar/20.glb",
     "usdz": "/ar/20.usdz",
     "widthM": 0.2032,
-    "heightM": 0.3048
+    "heightM": 0.3048,
+    "fingerprint": "ea5637f97c921015"
   },
   "21": {
     "id": 21,
     "glb": "/ar/21.glb",
     "usdz": "/ar/21.usdz",
     "widthM": 0.2032,
-    "heightM": 0.3048
+    "heightM": 0.3048,
+    "fingerprint": "0cd583193dcb91a1"
   },
   "22": {
     "id": 22,
     "glb": "/ar/22.glb",
     "usdz": "/ar/22.usdz",
     "widthM": 0.2032,
-    "heightM": 0.2032
+    "heightM": 0.2032,
+    "fingerprint": "be001f2c4b25b565"
   }
 }

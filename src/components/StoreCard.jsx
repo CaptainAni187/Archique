@@ -18,7 +18,7 @@ function StoreCard({ artwork, isSaved = false, onToggleSave = null }) {
         : artwork.image
           ? [artwork.image]
           : [],
-    [artwork.id, artwork.image, artwork.images],
+    [artwork.image, artwork.images],
   )
   const primaryImage = images[0]
   const openProduct = () => {

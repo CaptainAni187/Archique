@@ -248,8 +248,8 @@ Behavioural tables grow without bound by nature, so a retention routine prunes t
 **Requirements:** Node.js 20 or newer, a Supabase project, a Razorpay account.
 
 ```bash
-git clone https://github.com/CaptainAni187/Archiverse.git
-cd Archiverse
+git clone https://github.com/CaptainAni187/Archique.git
+cd Archique
 npm install
 ```
 
