@@ -2,9 +2,47 @@ function formatPrice(price) {
   return `Rs. ${Number(price).toLocaleString()}`
 }
 
-function AdminDashboardTab({ dashboardStats }) {
+const ATTENTION_LABELS = {
+  orphan_payment: 'Payment captured, no order recorded',
+  payment_mismatch: 'Amount did not match the order',
+  artwork_sold_race: 'Paid, but the piece was already sold',
+  invalid_signature: 'Signature verification failed',
+}
+
+function formatLogDate(value) {
+  return value ? new Date(value).toLocaleString() : ''
+}
+
+function AdminDashboardTab({ dashboardStats, paymentAttention }) {
+  const attention = paymentAttention?.logs || []
+
   return (
     <section className="admin-tab-panel">
+      {attention.length > 0 ? (
+        <div className="admin-attention-panel">
+          <div className="admin-attention-header">
+            <h3>Needs attention</h3>
+            <span className="admin-attention-count">{attention.length}</span>
+          </div>
+          <p className="admin-attention-note">
+            Payments that did not result in a clean order. Each one is money taken from a
+            customer, so resolve or refund it.
+          </p>
+          <ul className="admin-attention-list">
+            {attention.slice(0, 12).map((log) => (
+              <li key={log.id}>
+                <span className="admin-attention-reason">
+                  {ATTENTION_LABELS[log.status] || log.status}
+                </span>
+                <span className="admin-attention-meta">
+                  {log.razorpay_payment_id || 'no payment id'} · {formatLogDate(log.created_at)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <div className="stats-grid">
         <article className="stat-card">
           <p>Total Orders</p>
