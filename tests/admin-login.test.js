@@ -7,6 +7,13 @@ describe('admin login handler', () => {
     process.env.ADMIN_EMAIL = 'admin@example.com'
     process.env.ADMIN_PASSWORD = 'SuperSecret123!'
     process.env.ADMIN_SESSION_SECRET = 'test-admin-session-secret-0123456789abcdef'
+    // Required by the rate limiter, which runs before credentials are checked
+    // and now fails closed rather than degrading to a per-instance counter.
+    // Without these the limiter cannot reach its table, denies the request,
+    // and every login test sees a 429. Set explicitly so the suite does not
+    // depend on a local .env being present.
+    process.env.SUPABASE_URL = 'https://supabase.example.com'
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key'
     // Deterministic Supabase: every REST/RPC call resolves to an empty result
     // so tests never depend on live network (rate-limit RPC, admin lookups).
     vi.stubGlobal(
