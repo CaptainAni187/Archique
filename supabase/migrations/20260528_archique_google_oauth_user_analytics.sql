@@ -7,6 +7,9 @@ alter table if exists public.user_accounts
   add column if not exists welcome_email_sent boolean not null default false;
 
 alter table if exists public.user_accounts
+  drop constraint if exists user_accounts_provider_check;
+
+alter table if exists public.user_accounts
   add constraint user_accounts_provider_check
   check (provider in ('email', 'google', 'email+google'));
 
@@ -22,6 +25,9 @@ create table if not exists public.user_login_events (
   ip_address text,
   user_agent text
 );
+
+alter table if exists public.user_login_events
+  drop constraint if exists user_login_events_provider_check;
 
 alter table if exists public.user_login_events
   add constraint user_login_events_provider_check
