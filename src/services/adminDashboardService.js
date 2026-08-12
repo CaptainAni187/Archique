@@ -51,3 +51,17 @@ export async function fetchDashboardAnalytics() {
 }
 
 export { emptyDashboard }
+
+/**
+ * Payments that need a human: money captured with no order recorded, a
+ * mismatched amount, or a buyer who lost the race for a one-of-one piece.
+ * These are logged during checkout but were previously never surfaced.
+ */
+export async function fetchPaymentAttention() {
+  const response = await backendAdminRequest('/api/admin?action=payment-logs&unresolved=true')
+
+  return {
+    logs: response?.data?.logs || [],
+    needsAttentionCount: Number(response?.data?.needs_attention_count || 0),
+  }
+}
