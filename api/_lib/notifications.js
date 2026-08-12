@@ -29,6 +29,22 @@ function formatCurrency(value) {
   return `Rs. ${Number(value || 0).toLocaleString()}`
 }
 
+/**
+ * Absolute base for links in email. Relative paths are not clickable in a mail
+ * client, so the receipt's tracking link has to be a full URL.
+ */
+function getSiteUrl() {
+  const configured = String(process.env.SITE_URL || '').trim().replace(/\/+$/, '')
+
+  if (configured) {
+    return configured
+  }
+
+  const vercelUrl = String(process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL || '').trim()
+
+  return vercelUrl ? `https://${vercelUrl}` : 'https://www.archique.in'
+}
+
 export async function sendResendEmail({ resendApiKey, fromEmail, to, subject, html }) {
   if (!resendApiKey || !fromEmail || !to) {
     return { delivered: false, skipped: true }
@@ -133,18 +149,104 @@ export async function notifyAdmin(order, config) {
 }
 
 export async function notifyCustomer(order, config) {
+  const trackingUrl = `${getSiteUrl()}/order/${encodeURIComponent(order.order_code || '')}`
+  const subtotal = Number(order.total_amount || 0)
+  const couponDiscount = Number(order.coupon_discount_amount || 0)
+  const paid = Number(order.advance_amount || 0)
+
+  // An itemised receipt rather than a bare confirmation: the buyer should be
+  // able to see exactly what was charged without asking for it.
+  const rows = [
+    ['Artwork', escapeHtml(order.product_title || '')],
+    couponDiscount > 0
+      ? [`Coupon${order.coupon_code ? ` (${escapeHtml(order.coupon_code)})` : ''}`, `- ${formatCurrency(couponDiscount)}`]
+      : null,
+    ['Order total', formatCurrency(subtotal)],
+    ['Amount paid', `<strong>${formatCurrency(paid)}</strong>`],
+  ].filter(Boolean)
+
   return sendResendEmail({
     resendApiKey: config.resendApiKey,
     fromEmail: config.fromEmail,
     to: order.customer_email,
-    subject: `Your Archique order ${order.order_code}`,
+    subject: `Your Archique receipt - order ${order.order_code}`,
     html: `
-      <h2>Payment confirmed</h2>
-      <p>Thank you for your Archique order. Your payment has been received in full and the work is reserved for you.</p>
-      <p><strong>Order:</strong> ${escapeHtml(order.order_code)}</p>
-      <p><strong>Artwork:</strong> ${escapeHtml(order.product_title)}</p>
-      <p><strong>Amount Paid:</strong> ${formatCurrency(order.advance_amount)}</p>
-      <p>You can track your order here: /order/${encodeURIComponent(order.order_code || '')}</p>
+      <div style="font-family:Helvetica,Arial,sans-serif;max-width:560px;color:#2b2b2b;">
+        <h2 style="font-weight:400;letter-spacing:0.08em;">PAYMENT CONFIRMED</h2>
+        <p>Thank you. Your payment has been received in full and the work is reserved for you.</p>
+
+        <p style="margin:20px 0 6px;"><strong>Order ${escapeHtml(order.order_code || '')}</strong><br/>
+        <span style="color:#666;">Placed ${escapeHtml(new Date(order.created_at || Date.now()).toDateString())}</span></p>
+
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+          ${rows
+            .map(
+              ([label, value]) =>
+                `<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#666;">${label}</td>` +
+                `<td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;">${value}</td></tr>`,
+            )
+            .join('')}
+        </table>
+
+        <p style="margin:18px 0 4px;color:#666;">Delivering to</p>
+        <p style="margin:0;">${escapeHtml(order.customer_name || '')}<br/>
+        ${escapeHtml(order.customer_address || '').replaceAll('\n', '<br/>')}<br/>
+        ${escapeHtml(order.customer_phone || '')}</p>
+
+        <p style="margin:24px 0;">
+          <a href="${trackingUrl}" style="background:#c6a962;color:#1a1a1a;padding:12px 22px;text-decoration:none;border-radius:2px;display:inline-block;">Track your order</a>
+        </p>
+
+        <p style="color:#666;font-size:13px;">Ready pieces are dispatched within 4-7 business days. You will receive an update when your work ships.</p>
+        <p style="color:#666;font-size:13px;">Questions? Reply to this email or write to archi@archique.in</p>
+      </div>
+    `,
+  }).catch(() => ({ delivered: false, skipped: false }))
+}
+
+/**
+ * Sent when an order moves to shipped or delivered, so the buyer is not left
+ * checking a tracking page for a change nobody told them about.
+ */
+export async function notifyOrderStatusChange(order, config, nextStatus) {
+  const trackingUrl = `${getSiteUrl()}/order/${encodeURIComponent(order.order_code || '')}`
+  const copy = {
+    processing: {
+      subject: `Your Archique order ${order.order_code} is being prepared`,
+      heading: 'IN PREPARATION',
+      body: 'Your work is being finished, cured, and packed by hand. We will let you know the moment it ships.',
+    },
+    shipped: {
+      subject: `Your Archique order ${order.order_code} has shipped`,
+      heading: 'ON ITS WAY',
+      body: 'Your work has left the studio. Please open and inspect it in front of the delivery partner where possible.',
+    },
+    delivered: {
+      subject: `Your Archique order ${order.order_code} has been delivered`,
+      heading: 'DELIVERED',
+      body: 'Your work has arrived. If anything is not as it should be, tell us within 48 hours with photographs.',
+    },
+  }[nextStatus]
+
+  if (!copy) {
+    return { delivered: false, skipped: true }
+  }
+
+  return sendResendEmail({
+    resendApiKey: config.resendApiKey,
+    fromEmail: config.fromEmail,
+    to: order.customer_email,
+    subject: copy.subject,
+    html: `
+      <div style="font-family:Helvetica,Arial,sans-serif;max-width:560px;color:#2b2b2b;">
+        <h2 style="font-weight:400;letter-spacing:0.08em;">${copy.heading}</h2>
+        <p>${copy.body}</p>
+        <p><strong>Order:</strong> ${escapeHtml(order.order_code || '')}<br/>
+        <strong>Artwork:</strong> ${escapeHtml(order.product_title || '')}</p>
+        <p style="margin:24px 0;">
+          <a href="${trackingUrl}" style="background:#c6a962;color:#1a1a1a;padding:12px 22px;text-decoration:none;border-radius:2px;display:inline-block;">Track your order</a>
+        </p>
+      </div>
     `,
   }).catch(() => ({ delivered: false, skipped: false }))
 }

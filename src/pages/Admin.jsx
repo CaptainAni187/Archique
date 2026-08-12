@@ -25,7 +25,11 @@ import {
 } from '../services/comboService'
 import { fetchOrders, updateOrderPaymentStatus } from '../services/orderService'
 import { fetchCommissions, updateCommissionStatus } from '../services/commissionService'
-import { emptyDashboard, fetchDashboardAnalytics } from '../services/adminDashboardService'
+import {
+  emptyDashboard,
+  fetchDashboardAnalytics,
+  fetchPaymentAttention,
+} from '../services/adminDashboardService'
 import { backendAdminRequest } from '../services/backendApiService'
 import { ORDER_STATUSES } from '../constants/orderStatus'
 import {
@@ -164,6 +168,7 @@ function Admin() {
   const [inquiries, setInquiries] = useState([])
   const [testimonials, setTestimonials] = useState([])
   const [dashboardStats, setDashboardStats] = useState(emptyDashboard)
+  const [paymentAttention, setPaymentAttention] = useState({ logs: [], needsAttentionCount: 0 })
   const [adminSession, setAdminSession] = useState(null)
   const [activityLogs, setActivityLogs] = useState([])
   const [selectedOrderId, setSelectedOrderId] = useState(null)
@@ -213,6 +218,13 @@ function Admin() {
   const loadDashboardStats = async () => {
     const response = await fetchDashboardAnalytics()
     setDashboardStats(response)
+
+    // Never let a reconciliation fetch break the dashboard itself.
+    const attention = await fetchPaymentAttention().catch(() => ({
+      logs: [],
+      needsAttentionCount: 0,
+    }))
+    setPaymentAttention(attention)
   }
 
   const loadTagRegistry = async (query = '') => {
@@ -339,6 +351,12 @@ function Admin() {
       isCancelled = true
     }
   }, [])
+
+  // The uploader writes several image slots at once, so it patches the form
+  // rather than going through the single-field change handler.
+  const onImagesChange = (patch) => {
+    setForm((previous) => ({ ...previous, ...patch }))
+  }
 
   const onChange = (event) => {
     const { name, value } = event.target
@@ -945,9 +963,10 @@ function Admin() {
         <AdminSidebar tabs={adminTabs} activeTab={activeTab} onChangeTab={setActiveTab} />
 
         <div className="admin-content">
-          {activeTab === 'dashboard' ? <AdminDashboardTab dashboardStats={dashboardStats} /> : null}
+          {activeTab === 'dashboard' ? <AdminDashboardTab dashboardStats={dashboardStats} paymentAttention={paymentAttention} /> : null}
           {activeTab === 'artworks' ? (
             <AdminArtworksTab
+              onImagesChange={onImagesChange}
               form={form}
               editingId={editingId}
               artworkFilter={artworkFilter}
