@@ -3,7 +3,8 @@ import { logAdminActivity } from './_lib/adminActivity.js'
 import { validateCoupon } from './_lib/coupons.js'
 import { getBackendConfig } from './_lib/env.js'
 import { methodNotAllowed, readJson, sendJson } from './_lib/http.js'
-import { notifyAdmin, notifyCustomer } from './_lib/notifications.js'
+import { enforcePublicRateLimit } from './_lib/rateLimit.js'
+import { notifyAdmin, notifyCustomer, notifyOrderStatusChange } from './_lib/notifications.js'
 import {
   getOrderStatusTimestampPatch,
   getOrderStatusTransitionError,
@@ -23,7 +24,7 @@ import {
   fetchOrders,
   fetchShopSetting,
   supabaseAdminRequest,
-  updateOrderById,
+  updateOrderStatusIfUnchanged,
 } from './_lib/supabaseAdmin.js'
 import {
   orderCreationSchema,
@@ -61,6 +62,59 @@ function normalizeOrder(order) {
   }
 }
 
+/**
+ * Tracking is looked up by order code alone, with no sign-in — the buyer
+ * follows a link from their receipt. Order codes are sequential and therefore
+ * guessable, so this response must never carry anything that would harm the
+ * customer if a stranger walked the sequence. Contact details are masked to
+ * the minimum that lets the real buyer confirm the order is theirs.
+ */
+/** First name plus an initial — recognisable to the buyer, of little use in bulk. */
+function maskName(value) {
+  const parts = String(value || '').trim().split(/\s+/).filter(Boolean)
+
+  if (parts.length === 0) {
+    return null
+  }
+
+  return parts.length === 1 ? parts[0] : `${parts[0]} ${parts[parts.length - 1][0]}.`
+}
+
+function maskEmail(value) {
+  const email = String(value || '')
+  const at = email.indexOf('@')
+
+  if (at < 1) {
+    return null
+  }
+
+  return `${email[0]}${'•'.repeat(Math.max(3, at - 1))}${email.slice(at)}`
+}
+
+function maskPhone(value) {
+  const digits = String(value || '').replace(/\D/g, '')
+
+  return digits.length >= 4 ? `••••••${digits.slice(-4)}` : null
+}
+
+/** Enough for the buyer to recognise the destination, not enough to find them. */
+function maskAddress(value) {
+  const address = String(value || '').trim()
+
+  if (!address) {
+    return null
+  }
+
+  const pincode = address.match(/\b(\d{6})\b/)
+  const parts = address
+    .split(/[\n,]+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+  const locality = parts.length > 1 ? parts[parts.length - 1].replace(/\b\d{6}\b/, '').trim() : ''
+
+  return [locality || null, pincode ? pincode[1] : null].filter(Boolean).join(' ') || null
+}
+
 function normalizeTrackingOrder(order) {
   return {
     order_code: order.order_code,
@@ -73,11 +127,10 @@ function normalizeTrackingOrder(order) {
     processing_at: order.processing_at || null,
     shipped_at: order.shipped_at || null,
     delivered_at: order.delivered_at || null,
-    customer_name: order.customer_name || null,
-    customer_email: order.customer_email || null,
-    customer_phone: order.customer_phone || null,
-    customer_address: order.customer_address || null,
-    razorpay_payment_id: order.razorpay_payment_id || null,
+    customer_name: maskName(order.customer_name),
+    customer_email: maskEmail(order.customer_email),
+    customer_phone: maskPhone(order.customer_phone),
+    customer_address: maskAddress(order.customer_address),
   }
 }
 
@@ -603,6 +656,19 @@ async function handleLookupOrders(req, res) {
 }
 
 async function handleLookupOrderByCode(req, res) {
+  // Order codes run in sequence, so without a limit the whole year's orders
+  // could be walked in a single pass.
+  const limited = await enforcePublicRateLimit(req, res, {
+    scope: 'order-tracking',
+    limit: 30,
+    windowMs: 10 * 60 * 1000,
+    message: 'Too many tracking lookups. Please wait a few minutes and try again.',
+  })
+
+  if (limited) {
+    return null
+  }
+
   const orderCode = String(req.query?.orderCode || '').trim()
 
   if (!orderCode) {
@@ -683,14 +749,32 @@ async function handleUpdateOrderStatus(req, res) {
     })
   }
 
-  const updatedOrder = await updateOrderById(
+  // Conditional on the status we just read. If another request transitioned
+  // this order in between, we did not perform the change and must not run its
+  // side effects.
+  const updatedOrder = await updateOrderStatusIfUnchanged(
     orderId,
+    existingOrder.payment_status,
     getOrderStatusTimestampPatch(existingOrder.payment_status, payload.payment_status),
   )
+
+  if (!updatedOrder) {
+    const current = await fetchOrderById(orderId)
+
+    return sendJson(res, 409, {
+      success: false,
+      error: 'ORDER_STATUS_CHANGED',
+      message: `This order was updated by someone else. It is now ${
+        current?.payment_status || 'in a different state'
+      }.`,
+    })
+  }
 
   // A cancelled order never completed, so its pieces go back on sale. Guarded
   // on the previous status: re-sending 'cancelled' for an already-cancelled
   // order is a permitted no-op transition, and must not restore stock twice.
+  // Reaching here means this request performed the transition, so the side
+  // effects run exactly once.
   if (payload.payment_status === 'cancelled' && existingOrder.payment_status !== 'cancelled') {
     const restoredIds = getOrderArtworkIds(existingOrder)
     const restored = await Promise.allSettled(
@@ -715,6 +799,24 @@ async function handleUpdateOrderStatus(req, res) {
       resource_id: orderId,
       details: { artwork_ids: restoredIds },
     })
+  }
+
+  // Tell the buyer their order moved. Best-effort: a mail failure must not
+  // stop a status change the studio has already made.
+  if (payload.payment_status !== existingOrder.payment_status) {
+    const notified = await notifyOrderStatusChange(
+      { ...existingOrder, ...updatedOrder },
+      getBackendConfig(),
+      payload.payment_status,
+    ).catch((error) => ({ delivered: false, error: error?.message }))
+
+    if (!notified?.delivered && !notified?.skipped) {
+      console.error('[orders] status email not delivered', {
+        order_id: orderId,
+        next_status: payload.payment_status,
+        error: notified?.error || 'provider rejected',
+      })
+    }
   }
 
   await logAdminActivity(session, {
