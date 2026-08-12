@@ -45,7 +45,7 @@ function getSiteUrl() {
   return vercelUrl ? `https://${vercelUrl}` : 'https://www.archique.in'
 }
 
-export async function sendResendEmail({ resendApiKey, fromEmail, to, subject, html }) {
+export async function sendResendEmail({ resendApiKey, fromEmail, to, subject, html, replyTo }) {
   if (!resendApiKey || !fromEmail || !to) {
     return { delivered: false, skipped: true }
   }
@@ -58,6 +58,7 @@ export async function sendResendEmail({ resendApiKey, fromEmail, to, subject, ht
     },
     body: JSON.stringify({
       from: fromEmail,
+      ...(replyTo ? { reply_to: replyTo } : {}),
       to: [to],
       subject,
       html,
@@ -86,6 +87,34 @@ export async function sendResendEmail({ resendApiKey, fromEmail, to, subject, ht
 function getAdminNotificationEmail(config) {
   return config.adminNotificationEmail || process.env.ADMIN_EMAIL || ''
 }
+
+/**
+ * Every customer email ends with a way to reach a person.
+ *
+ * After paying for something that will not arrive for days, the most common
+ * anxiety is not knowing who to ask. A reply address, the studio's own inbox
+ * and a tracking link cost nothing and remove that.
+ */
+function emailFooter(order) {
+  const trackingUrl = order?.order_code
+    ? `${getSiteUrl()}/order/${encodeURIComponent(order.order_code)}`
+    : `${getSiteUrl()}/store`
+
+  return `
+    <div style="margin-top:28px;padding-top:16px;border-top:1px solid #e6e0d4;font-size:12px;color:#6b6b6b;line-height:1.7;">
+      <p style="margin:0 0 6px;"><strong style="color:#3a3a3a;">Need help with this order?</strong></p>
+      <p style="margin:0 0 3px;">Reply to this email, or write to
+        <a href="mailto:archi@archique.in" style="color:#7d6320;">archi@archique.in</a></p>
+      <p style="margin:0 0 3px;">Track it any time:
+        <a href="${trackingUrl}" style="color:#7d6320;">${trackingUrl}</a></p>
+      <p style="margin:0 0 3px;">Instagram:
+        <a href="https://www.instagram.com/archique.in/" style="color:#7d6320;">@archique.in</a></p>
+      <p style="margin:12px 0 0;color:#9a9a9a;">Archique &middot; original artwork &middot; archique.in</p>
+    </div>`
+}
+
+/** Reaching the studio must be one tap, so replies go to a monitored inbox. */
+const REPLY_TO = 'archi@archique.in'
 
 export async function notifyAdmin(order, config) {
   const structuredLog = {
@@ -150,55 +179,107 @@ export async function notifyAdmin(order, config) {
 
 export async function notifyCustomer(order, config) {
   const trackingUrl = `${getSiteUrl()}/order/${encodeURIComponent(order.order_code || '')}`
-  const subtotal = Number(order.total_amount || 0)
-  const couponDiscount = Number(order.coupon_discount_amount || 0)
-  const paid = Number(order.advance_amount || 0)
+  const invoice = order.invoice || null
+  const totals = invoice?.totals || {}
+  const isGift = order.is_gift === true
 
-  // An itemised receipt rather than a bare confirmation: the buyer should be
-  // able to see exactly what was charged without asking for it.
-  const rows = [
-    ['Artwork', escapeHtml(order.product_title || '')],
+  // Prefer the stored invoice: it is what was actually charged. Fall back to
+  // the order columns for anything written before invoices were captured.
+  const subtotal = Number(totals.subtotal ?? order.total_amount ?? 0)
+  const pairingDiscount = Number(totals.pairing_discount_amount ?? 0)
+  const couponDiscount = Number(totals.coupon_discount_amount ?? order.coupon_discount_amount ?? 0)
+  const shipping = Number(totals.shipping ?? 0)
+  const paid = Number(totals.amount_paid ?? order.advance_amount ?? 0)
+
+  const lineItems = invoice?.line_items?.length
+    ? invoice.line_items
+    : [{ title: order.product_title, unit_price: subtotal, size: null }]
+
+  const itemRows = lineItems
+    .map(
+      (item) =>
+        `<tr>
+          <td style="padding:8px 0;border-bottom:1px solid #eee;">
+            ${escapeHtml(item.title || '')}
+            ${item.size ? `<br/><span style="color:#8a8a8a;font-size:12px;">${escapeHtml(item.size)}</span>` : ''}
+          </td>
+          <td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;white-space:nowrap;">
+            ${formatCurrency(item.unit_price)}
+          </td>
+        </tr>`,
+    )
+    .join('')
+
+  const summaryRow = (label, value, strong = false) =>
+    `<tr>
+      <td style="padding:6px 0;color:#666;">${label}</td>
+      <td style="padding:6px 0;text-align:right;${strong ? 'font-weight:600;color:#000;' : ''}">${value}</td>
+    </tr>`
+
+  const summaryRows = [
+    pairingDiscount > 0
+      ? summaryRow(
+          `Multi-piece discount${totals.pairing_discount_percent ? ` (${totals.pairing_discount_percent}%)` : ''}`,
+          `- ${formatCurrency(pairingDiscount)}`,
+        )
+      : '',
     couponDiscount > 0
-      ? [`Coupon${order.coupon_code ? ` (${escapeHtml(order.coupon_code)})` : ''}`, `- ${formatCurrency(couponDiscount)}`]
-      : null,
-    ['Order total', formatCurrency(subtotal)],
-    ['Amount paid', `<strong>${formatCurrency(paid)}</strong>`],
-  ].filter(Boolean)
+      ? summaryRow(
+          `Coupon${totals.coupon_code ? ` (${escapeHtml(totals.coupon_code)})` : ''}`,
+          `- ${formatCurrency(couponDiscount)}`,
+        )
+      : '',
+    shipping > 0 ? summaryRow('Delivery', formatCurrency(shipping)) : '',
+    summaryRow('Amount paid', formatCurrency(paid), true),
+  ].join('')
 
   return sendResendEmail({
     resendApiKey: config.resendApiKey,
     fromEmail: config.fromEmail,
+    replyTo: REPLY_TO,
     to: order.customer_email,
     subject: `Your Archique receipt - order ${order.order_code}`,
     html: `
-      <div style="font-family:Helvetica,Arial,sans-serif;max-width:560px;color:#2b2b2b;">
-        <h2 style="font-weight:400;letter-spacing:0.08em;">PAYMENT CONFIRMED</h2>
-        <p>Thank you. Your payment has been received in full and the work is reserved for you.</p>
+      <div style="font-family:Helvetica,Arial,sans-serif;max-width:580px;color:#2b2b2b;">
+        <h2 style="font-weight:400;letter-spacing:0.08em;margin:0 0 6px;">PAYMENT CONFIRMED</h2>
+        <p style="margin:0 0 18px;">Thank you. Your payment has been received in full and the work is reserved for you.</p>
 
-        <p style="margin:20px 0 6px;"><strong>Order ${escapeHtml(order.order_code || '')}</strong><br/>
-        <span style="color:#666;">Placed ${escapeHtml(new Date(order.created_at || Date.now()).toDateString())}</span></p>
+        <p style="margin:0 0 4px;"><strong>Invoice ${escapeHtml(order.order_code || '')}</strong></p>
+        <p style="margin:0 0 16px;color:#666;font-size:13px;">
+          Issued ${escapeHtml(new Date(order.created_at || Date.now()).toDateString())}
+        </p>
 
-        <table style="width:100%;border-collapse:collapse;margin:16px 0;">
-          ${rows
-            .map(
-              ([label, value]) =>
-                `<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#666;">${label}</td>` +
-                `<td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;">${value}</td></tr>`,
-            )
-            .join('')}
-        </table>
+        <table style="width:100%;border-collapse:collapse;margin:0 0 4px;">${itemRows}</table>
+        <table style="width:100%;border-collapse:collapse;margin:0 0 20px;">${summaryRows}</table>
 
-        <p style="margin:18px 0 4px;color:#666;">Delivering to</p>
-        <p style="margin:0;">${escapeHtml(order.customer_name || '')}<br/>
-        ${escapeHtml(order.customer_address || '').replaceAll('\n', '<br/>')}<br/>
-        ${escapeHtml(order.customer_phone || '')}</p>
+        ${
+          isGift
+            ? `<div style="margin:0 0 18px;padding:12px 14px;background:#faf7f0;border-left:3px solid #c6a962;">
+                 <p style="margin:0 0 4px;"><strong>Sent as a gift</strong></p>
+                 <p style="margin:0;color:#555;font-size:13px;">
+                   ${order.gift_recipient_name ? `For ${escapeHtml(order.gift_recipient_name)}.` : ''}
+                   No prices are included in the parcel.
+                 </p>
+               </div>`
+            : ''
+        }
 
-        <p style="margin:24px 0;">
+        <p style="margin:0 0 4px;color:#666;font-size:13px;">Delivering to</p>
+        <p style="margin:0 0 20px;">
+          ${escapeHtml(order.gift_recipient_name || order.customer_name || '')}<br/>
+          ${escapeHtml(order.customer_address || '').replaceAll('\n', '<br/>')}<br/>
+          ${escapeHtml(order.customer_phone || '')}
+        </p>
+
+        <p style="margin:0 0 20px;">
           <a href="${trackingUrl}" style="background:#c6a962;color:#1a1a1a;padding:12px 22px;text-decoration:none;border-radius:2px;display:inline-block;">Track your order</a>
         </p>
 
-        <p style="color:#666;font-size:13px;">Ready pieces are dispatched within 4-7 business days. You will receive an update when your work ships.</p>
-        <p style="color:#666;font-size:13px;">Questions? Reply to this email or write to archi@archique.in</p>
+        <p style="color:#666;font-size:13px;margin:0;">
+          Ready pieces are dispatched within 4-7 business days. You will hear from us the moment yours ships.
+        </p>
+
+        ${emailFooter(order)}
       </div>
     `,
   }).catch(() => ({ delivered: false, skipped: false }))
@@ -235,6 +316,7 @@ export async function notifyOrderStatusChange(order, config, nextStatus) {
   return sendResendEmail({
     resendApiKey: config.resendApiKey,
     fromEmail: config.fromEmail,
+    replyTo: REPLY_TO,
     to: order.customer_email,
     subject: copy.subject,
     html: `
@@ -246,6 +328,7 @@ export async function notifyOrderStatusChange(order, config, nextStatus) {
         <p style="margin:24px 0;">
           <a href="${trackingUrl}" style="background:#c6a962;color:#1a1a1a;padding:12px 22px;text-decoration:none;border-radius:2px;display:inline-block;">Track your order</a>
         </p>
+        ${emailFooter(order)}
       </div>
     `,
   }).catch(() => ({ delivered: false, skipped: false }))

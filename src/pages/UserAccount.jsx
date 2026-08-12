@@ -12,6 +12,7 @@ import {
   updateAccountSettings,
 } from '../services/userAuthService'
 import usePageMeta from '../hooks/usePageMeta'
+import { downloadInvoicePdf } from '../utils/invoicePdf'
 import ErrorState from '../components/ErrorState'
 import StoreCard from '../components/StoreCard'
 import { SkeletonAccount } from '../components/SkeletonLoader'
@@ -62,6 +63,40 @@ function topAffinities(affinity, limit = 6) {
     .sort((left, right) => Number(right[1]) - Number(left[1]))
     .slice(0, limit)
     .map(([label]) => label)
+}
+
+/**
+ * Render the stored invoice as a PDF.
+ *
+ * The figures come from the server snapshot rather than being recalculated in
+ * the browser, so what the customer downloads is exactly what was charged.
+ */
+function downloadOrderInvoice(order) {
+  const invoice = order.invoice || null
+  const totals = invoice?.totals || {}
+
+  downloadInvoicePdf({
+    orderId: order.order_code || `Order #${order.id}`,
+    orderCode: order.order_code,
+    productTitle: invoice?.line_items?.map((item) => item.title).join(', ') || order.product_title,
+    lineItems: invoice?.line_items || null,
+    totalAmount: Number(totals.total ?? order.total_amount ?? 0),
+    advanceAmount: Number(totals.amount_paid ?? order.advance_amount ?? 0),
+    pairingDiscountAmount: Number(totals.pairing_discount_amount ?? 0),
+    pairingDiscountPercent: Number(totals.pairing_discount_percent ?? 0),
+    couponCode: totals.coupon_code || order.coupon_code || null,
+    couponDiscountAmount: Number(totals.coupon_discount_amount ?? order.coupon_discount_amount ?? 0),
+    shipping: Number(totals.shipping ?? 0),
+    paymentId: order.razorpay_payment_id,
+    paymentStatus: order.payment_status,
+    paymentVerifiedAt: order.payment_verified_at,
+    customerName: order.customer_name,
+    customerEmail: order.customer_email,
+    customerPhone: order.customer_phone,
+    customerAddress: order.customer_address,
+    isGift: order.is_gift === true,
+    giftRecipientName: order.gift_recipient_name || null,
+  })
 }
 
 function UserAccount() {
@@ -262,6 +297,7 @@ function UserAccount() {
 
                   <div className="account-order-side">
                     <span className={`account-stage is-${stage.tone}`}>{stage.label}</span>
+                    {order.is_gift ? <span className="account-gift-tag">Gift</span> : null}
                     {order.order_code ? (
                       <Link
                         to={`/order/${encodeURIComponent(order.order_code)}`}
@@ -270,6 +306,16 @@ function UserAccount() {
                         Track order
                       </Link>
                     ) : null}
+                    {/* Built from the invoice stored on the server at purchase
+                        time, so it stays available and cannot drift if a price
+                        changes later. */}
+                    <button
+                      type="button"
+                      className="text-link-button"
+                      onClick={() => downloadOrderInvoice(order)}
+                    >
+                      Download invoice
+                    </button>
                   </div>
                 </article>
               )

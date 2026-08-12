@@ -818,6 +818,65 @@ export async function consumeRateLimitRecord(key, { limit, windowMs }) {
   }
 }
 
+// ── Saved delivery addresses ────────────────────────────────────────────────
+export async function fetchUserAddresses(userId) {
+  return supabaseAdminRequest(
+    `user_addresses?select=*&user_id=eq.${Number(userId)}&order=is_default.desc,updated_at.desc`,
+  )
+}
+
+export async function fetchUserAddressById(userId, addressId) {
+  const rows = await supabaseAdminRequest(
+    `user_addresses?select=*&user_id=eq.${Number(userId)}&id=eq.${Number(addressId)}&limit=1`,
+  )
+
+  return rows?.[0] || null
+}
+
+/** Only one address per account may be default, enforced by a partial index. */
+export async function clearDefaultAddress(userId) {
+  return supabaseAdminRequest(
+    `user_addresses?user_id=eq.${Number(userId)}&is_default=is.true`,
+    {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ is_default: false }),
+    },
+  )
+}
+
+export async function createUserAddress(payload) {
+  const rows = await supabaseAdminRequest('user_addresses', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify(payload),
+  })
+
+  return rows?.[0] || null
+}
+
+export async function updateUserAddress(userId, addressId, payload) {
+  const rows = await supabaseAdminRequest(
+    `user_addresses?user_id=eq.${Number(userId)}&id=eq.${Number(addressId)}`,
+    {
+      method: 'PATCH',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({ ...payload, updated_at: new Date().toISOString() }),
+    },
+  )
+
+  return rows?.[0] || null
+}
+
+export async function deleteUserAddress(userId, addressId) {
+  await supabaseAdminRequest(
+    `user_addresses?user_id=eq.${Number(userId)}&id=eq.${Number(addressId)}`,
+    { method: 'DELETE', headers: { Prefer: 'return=minimal' } },
+  )
+
+  return { id: Number(addressId) }
+}
+
 // ── Admin password reset tokens ─────────────────────────────────────────────
 export async function createAdminResetTokenRecord(payload) {
   const response = await supabaseAdminRequest('admin_password_reset_tokens', {

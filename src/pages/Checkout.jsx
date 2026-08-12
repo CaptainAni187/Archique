@@ -16,6 +16,7 @@ import { fetchShippingRates, validateCoupon } from '../services/couponService'
 import Reveal from '../components/Reveal'
 import ErrorState from '../components/ErrorState'
 import DeliveryAddressFields from '../components/DeliveryAddressFields'
+import { fetchUserAddresses } from '../services/userAuthService'
 import {
   fetchCurrentUser,
   formatDeliveryAddress,
@@ -42,6 +43,27 @@ const initialForm = {
   state: '',
   pincode: '',
   acceptedPolicies: false,
+  isGift: false,
+  giftRecipientName: '',
+  giftMessage: '',
+}
+
+/** Map a saved address row onto the checkout form's field names. */
+function addressToForm(address) {
+  if (!address) {
+    return {}
+  }
+
+  return {
+    name: address.recipient_name || '',
+    phone: address.phone || '',
+    address_line1: address.house || '',
+    address_line2: address.street || '',
+    landmark: address.landmark || '',
+    city: address.city || '',
+    state: address.state || '',
+    pincode: address.pincode || '',
+  }
 }
 
 const STEPS = [
@@ -85,6 +107,32 @@ function Checkout() {
   const [form, setForm] = useState(initialForm)
   const [step, setStep] = useState(1)
   const [stepError, setStepError] = useState('')
+  const [savedAddresses, setSavedAddresses] = useState([])
+
+  // Saved addresses, so a returning buyer picks rather than retypes. Failure is
+  // silent: the form still works, it just has nothing to offer.
+  useEffect(() => {
+    let cancelled = false
+
+    if (!getStoredUser()) {
+      return undefined
+    }
+
+    fetchUserAddresses()
+      .then((addresses) => {
+        if (cancelled || !Array.isArray(addresses) || addresses.length === 0) {
+          return
+        }
+        setSavedAddresses(addresses)
+        const preferred = addresses.find((address) => address.is_default) || addresses[0]
+        setForm((previous) => ({ ...previous, ...addressToForm(preferred) }))
+      })
+      .catch(() => null)
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Prefill delivery details from the account. Uses the cached profile first so
   // fields are populated on the very first paint, then refreshes from the
@@ -461,6 +509,11 @@ function Checkout() {
       return
     }
 
+    if (form.isGift && !form.giftRecipientName.trim()) {
+      setErrorMessage("Please tell us who the gift is for, so the parcel is addressed correctly.")
+      return
+    }
+
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailPattern.test(trimmedEmail)) {
       setErrorMessage('Please enter a valid email address.')
@@ -548,6 +601,9 @@ function Checkout() {
         combo_title: checkoutSelection.comboTitle || undefined,
         discount_percent: checkoutSelection.pricing.discountPercent,
         coupon_code: appliedCoupon?.code || undefined,
+        is_gift: form.isGift === true,
+        gift_recipient_name: form.isGift ? form.giftRecipientName.trim() || undefined : undefined,
+        gift_message: form.isGift ? form.giftMessage.trim() || undefined : undefined,
         payment_status: 'advance_paid',
         ...paymentResult,
       })
@@ -674,7 +730,77 @@ function Checkout() {
               : 'We use these details for delivery and your order confirmation.'}
           </p>
 
+          {savedAddresses.length > 0 ? (
+            <div className="saved-address-picker">
+              <span className="saved-address-label">Deliver to a saved address</span>
+              <div className="saved-address-options">
+                {savedAddresses.map((address) => {
+                  const isActive =
+                    form.pincode === address.pincode &&
+                    form.address_line1 === (address.house || '')
+                  return (
+                    <button
+                      key={address.id}
+                      type="button"
+                      className={`saved-address-option ${isActive ? 'is-active' : ''}`.trim()}
+                      onClick={() => setForm((previous) => ({ ...previous, ...addressToForm(address) }))}
+                    >
+                      <strong>{address.label || address.recipient_name}</strong>
+                      <span>
+                        {address.house}, {address.street}
+                        <br />
+                        {address.city} {address.pincode}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ) : null}
+
           <DeliveryAddressFields values={form} onChange={setField} />
+
+          {/* A gift goes to someone who did not pay, so the recipient's name is
+              captured separately and the parcel must carry no prices. */}
+          <div className="gift-block">
+            <label className="gift-toggle">
+              <input
+                type="checkbox"
+                checked={form.isGift}
+                onChange={(event) => setField('isGift', event.target.checked)}
+              />
+              <span>This is a gift</span>
+            </label>
+
+            {form.isGift ? (
+              <div className="gift-fields">
+                <p className="gift-note">
+                  No prices or invoice will be included in the parcel. Your receipt still comes to
+                  you by email.
+                </p>
+                <label>
+                  Recipient's name
+                  <input
+                    type="text"
+                    value={form.giftRecipientName}
+                    maxLength={80}
+                    onChange={(event) => setField('giftRecipientName', event.target.value)}
+                    placeholder="Who is receiving it?"
+                  />
+                </label>
+                <label>
+                  Message on the card <span className="optional">(optional)</span>
+                  <textarea
+                    rows={3}
+                    maxLength={400}
+                    value={form.giftMessage}
+                    onChange={(event) => setField('giftMessage', event.target.value)}
+                    placeholder="A short note to include"
+                  />
+                </label>
+              </div>
+            ) : null}
+          </div>
 
           <label className="checkout-consent">
             <input

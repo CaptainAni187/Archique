@@ -93,20 +93,74 @@ function buildInvoiceLines(invoice) {
 
   const detailsTop = Math.min(customerY - 18, 568)
 
-  lines.push(
-    { text: 'Order Details', x: 48, y: detailsTop, size: 14 },
-    { text: `Artwork: ${invoice.productTitle || 'Original artwork'}`, x: 48, y: detailsTop - 24 },
-    { text: `Payment Status: Paid in full`, x: 48, y: detailsTop - 42 },
-    { text: `Amount Paid: ${formatPrice(amountPaid)}`, x: 48, y: detailsTop - 78 },
-    { text: `Total Amount: ${formatPrice(totalAmount)}`, x: 48, y: detailsTop - 96 },
-  )
+  lines.push({ text: 'Order Details', x: 48, y: detailsTop, size: 14 })
 
-  if (invoice.deliveryEstimate) {
-    lines.push({
-      text: `Delivery Estimate: ${invoice.deliveryEstimate}`,
-      x: 48,
-      y: detailsTop - 132,
+  let rowY = detailsTop - 24
+
+  // Itemise from the stored invoice when it is available, so a multi-piece
+  // order shows each work and its price rather than one concatenated title.
+  const lineItems = Array.isArray(invoice.lineItems) ? invoice.lineItems : []
+
+  if (lineItems.length > 0) {
+    lineItems.forEach((item) => {
+      const label = item.size ? `${item.title} (${item.size})` : item.title
+      lines.push({ text: label, x: 48, y: rowY })
+      lines.push({ text: formatPrice(item.unit_price), x: 430, y: rowY })
+      rowY -= 18
     })
+    rowY -= 8
+  } else {
+    lines.push({ text: `Artwork: ${invoice.productTitle || 'Original artwork'}`, x: 48, y: rowY })
+    rowY -= 18
+  }
+
+  if (Number(invoice.pairingDiscountAmount) > 0) {
+    const percent = Number(invoice.pairingDiscountPercent) || 0
+    lines.push({
+      text: `Multi-piece discount${percent ? ` (${percent}%)` : ''}`,
+      x: 48,
+      y: rowY,
+    })
+    lines.push({ text: `- ${formatPrice(invoice.pairingDiscountAmount)}`, x: 430, y: rowY })
+    rowY -= 18
+  }
+
+  if (Number(invoice.couponDiscountAmount) > 0) {
+    lines.push({ text: `Coupon ${invoice.couponCode || ''}`.trim(), x: 48, y: rowY })
+    lines.push({ text: `- ${formatPrice(invoice.couponDiscountAmount)}`, x: 430, y: rowY })
+    rowY -= 18
+  }
+
+  if (Number(invoice.shipping) > 0) {
+    lines.push({ text: 'Delivery', x: 48, y: rowY })
+    lines.push({ text: formatPrice(invoice.shipping), x: 430, y: rowY })
+    rowY -= 18
+  }
+
+  rowY -= 6
+  lines.push({ text: 'Payment Status: Paid in full', x: 48, y: rowY })
+  rowY -= 18
+  lines.push({ text: 'Total Amount:', x: 48, y: rowY })
+  lines.push({ text: formatPrice(totalAmount), x: 430, y: rowY })
+  rowY -= 18
+  lines.push({ text: 'Amount Paid:', x: 48, y: rowY, size: 13 })
+  lines.push({ text: formatPrice(amountPaid), x: 430, y: rowY, size: 13 })
+  rowY -= 24
+
+  if (invoice.isGift) {
+    lines.push({
+      text: `Gift order${invoice.giftRecipientName ? ` for ${invoice.giftRecipientName}` : ''}`,
+      x: 48,
+      y: rowY,
+    })
+    rowY -= 18
+  }
+
+  // Follows the running cursor rather than a fixed offset, which would now
+  // collide with the itemised rows above.
+  if (invoice.deliveryEstimate) {
+    lines.push({ text: `Delivery Estimate: ${invoice.deliveryEstimate}`, x: 48, y: rowY })
+    rowY -= 18
   }
 
   lines.push({

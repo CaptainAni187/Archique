@@ -90,6 +90,29 @@ export const comboPayloadSchema = z.object({
   is_active: z.boolean().default(true),
 })
 
+const INDIAN_PINCODE = /^[1-9][0-9]{5}$/
+
+/**
+ * A saved delivery address. Split into the fields an Indian courier actually
+ * needs, rather than one free-text blob, so the studio can hand a parcel over
+ * without re-typing anything.
+ */
+export const userAddressSchema = z.object({
+  label: z.preprocess(trimString, z.string().max(40, 'Label is too long.').optional()),
+  recipient_name: customerNameSchema,
+  phone: customerPhoneSchema,
+  house: z.preprocess(trimString, z.string().min(1, 'House or flat number is required.').max(120)),
+  street: z.preprocess(trimString, z.string().min(2, 'Street is required.').max(160)),
+  landmark: z.preprocess(trimString, z.string().max(120).optional()),
+  city: z.preprocess(trimString, z.string().min(2, 'City is required.').max(80)),
+  state: z.preprocess(trimString, z.string().min(2, 'State is required.').max(80)),
+  pincode: z.preprocess(
+    trimString,
+    z.string().regex(INDIAN_PINCODE, 'Enter a valid 6-digit PIN code.'),
+  ),
+  is_default: z.coerce.boolean().optional(),
+})
+
 export const orderCreationSchema = z.object({
   product_id: z.coerce.number().int().positive('A valid product_id is required.'),
   product_ids: z
@@ -110,6 +133,14 @@ export const orderCreationSchema = z.object({
   razorpay_signature: nonEmptyString,
   total_amount: z.coerce.number().positive().optional(),
   advance_amount: z.coerce.number().positive().optional(),
+  // A gift is delivered to someone who did not pay for it, so the recipient's
+  // name is captured separately and the message is bounded like any free text.
+  is_gift: z.coerce.boolean().optional(),
+  gift_message: z.preprocess(trimString, z.string().max(400, 'Gift message is too long.').optional()),
+  gift_recipient_name: z.preprocess(
+    trimString,
+    z.string().max(80, 'Recipient name is too long.').optional(),
+  ),
 })
 
 export const couponPayloadSchema = z.object({
