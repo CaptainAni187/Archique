@@ -64,6 +64,76 @@ function AdminOrdersTab({
               {selectedOrder.payment_status}
             </span>
           </div>
+          {selectedOrder.is_gift ? (
+            <div className="order-gift-banner">
+              <strong>Gift order</strong>
+              <span>
+                Ship to {selectedOrder.gift_recipient_name || selectedOrder.customer_name}. Do not
+                include any price or invoice in the parcel.
+              </span>
+              {selectedOrder.gift_message ? (
+                <blockquote>“{selectedOrder.gift_message}”</blockquote>
+              ) : null}
+            </div>
+          ) : null}
+
+          {selectedOrder.invoice ? (
+            <div className="order-invoice-block">
+              <h4>Invoice {selectedOrder.invoice.invoice_number}</h4>
+              <p className="order-invoice-note">
+                Frozen at the moment of payment — this is exactly what was charged, regardless of
+                any later price change.
+              </p>
+              <table className="order-invoice-table">
+                <tbody>
+                  {(selectedOrder.invoice.line_items || []).map((item) => (
+                    <tr key={item.artwork_id}>
+                      <td>
+                        {item.title}
+                        {item.size ? <span className="muted"> · {item.size}</span> : null}
+                      </td>
+                      <td className="numeric">{formatPrice(item.unit_price)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  {Number(selectedOrder.invoice.totals?.pairing_discount_amount) > 0 ? (
+                    <tr>
+                      <td>
+                        Multi-piece discount ({selectedOrder.invoice.totals.pairing_discount_percent}%)
+                      </td>
+                      <td className="numeric">
+                        − {formatPrice(selectedOrder.invoice.totals.pairing_discount_amount)}
+                      </td>
+                    </tr>
+                  ) : null}
+                  {Number(selectedOrder.invoice.totals?.coupon_discount_amount) > 0 ? (
+                    <tr>
+                      <td>Coupon {selectedOrder.invoice.totals.coupon_code || ''}</td>
+                      <td className="numeric">
+                        − {formatPrice(selectedOrder.invoice.totals.coupon_discount_amount)}
+                      </td>
+                    </tr>
+                  ) : null}
+                  {Number(selectedOrder.invoice.totals?.shipping) > 0 ? (
+                    <tr>
+                      <td>Delivery</td>
+                      <td className="numeric">
+                        {formatPrice(selectedOrder.invoice.totals.shipping)}
+                      </td>
+                    </tr>
+                  ) : null}
+                  <tr className="order-invoice-total">
+                    <td>Amount paid</td>
+                    <td className="numeric">
+                      {formatPrice(selectedOrder.invoice.totals?.amount_paid)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          ) : null}
+
           <div className="order-detail-grid">
             <div>
               <h4>Customer</h4>
