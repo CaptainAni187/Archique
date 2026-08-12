@@ -5031,3 +5031,187 @@ html[data-theme='dark'] .site-footer-mail {
     display: none;
   }
 }
+
+/* Admin: payments that need a human */
+.admin-attention-panel {
+  margin-bottom: 28px;
+  padding: 20px 22px;
+  border: 1px solid rgba(198, 106, 90, 0.42);
+  border-left: 3px solid #c66a5a;
+  border-radius: 3px;
+  background: rgba(198, 106, 90, 0.06);
+}
+
+.admin-attention-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.admin-attention-header h3 {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 400;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-color);
+}
+
+.admin-attention-count {
+  min-width: 22px;
+  padding: 2px 8px;
+  border-radius: 11px;
+  background: #c66a5a;
+  color: #fff;
+  font-size: 0.72rem;
+  text-align: center;
+}
+
+.admin-attention-note {
+  margin: 0 0 14px;
+  max-width: 60ch;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--text-soft);
+}
+
+.admin-attention-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-attention-list li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 0;
+  border-top: 1px solid var(--border-gold-soft);
+}
+
+.admin-attention-reason {
+  font-size: 0.8rem;
+  color: var(--text-color);
+}
+
+.admin-attention-meta {
+  font-size: 0.72rem;
+  color: var(--text-soft);
+}
+
+/* Admin: artwork photo uploader */
+.admin-form-fullwidth {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-field-heading {
+  font-size: 0.72rem;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.artwork-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 30px 20px;
+  border: 1px dashed var(--border-gold-medium);
+  border-radius: 4px;
+  background: var(--bg-surface-faint);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.artwork-dropzone:hover,
+.artwork-dropzone.is-dragging {
+  border-color: var(--accent-color);
+  background: rgba(198, 169, 98, 0.1);
+}
+
+.artwork-dropzone.is-uploading {
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.artwork-dropzone-title {
+  font-size: 0.85rem;
+  color: var(--text-color);
+  letter-spacing: var(--tracking-body);
+}
+
+.artwork-dropzone-hint {
+  font-size: 0.72rem;
+  color: var(--text-soft);
+}
+
+.artwork-uploader-message {
+  font-size: 0.75rem;
+  color: var(--accent-text);
+}
+
+.artwork-uploader-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.artwork-uploader-thumb {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  border: 1px solid var(--border-gold-soft);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.artwork-uploader-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.artwork-thumb-badge {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  padding: 2px 6px;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: var(--accent-color);
+  color: #1a1a1a;
+}
+
+.artwork-thumb-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.artwork-thumb-remove:hover {
+  background: #c0392b;
+}

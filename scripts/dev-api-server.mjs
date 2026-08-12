@@ -122,6 +122,19 @@ async function parseRequestBody(req) {
     return undefined
   }
 
+  const contentTypeHeader = String(req.headers['content-type'] || '').toLowerCase()
+
+  // Leave the stream alone for routes that read it themselves.
+  //
+  // File uploads are parsed by formidable and the Razorpay webhook verifies
+  // its signature over the raw bytes; both consume `req` directly. Draining it
+  // here leaves them waiting on a stream that has already ended, which hangs
+  // the request rather than failing it. Vercel passes the stream through
+  // untouched, so this only ever affected local development.
+  if (contentTypeHeader.includes('multipart/form-data')) {
+    return undefined
+  }
+
   const chunks = []
 
   for await (const chunk of req) {
@@ -137,8 +150,7 @@ async function parseRequestBody(req) {
     return undefined
   }
 
-  const contentType = String(req.headers['content-type'] || '').toLowerCase()
-  if (contentType.includes('application/json')) {
+  if (contentTypeHeader.includes('application/json')) {
     return JSON.parse(rawBody)
   }
 

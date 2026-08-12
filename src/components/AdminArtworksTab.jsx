@@ -1,3 +1,4 @@
+import ArtworkImageUploader from './ArtworkImageUploader'
 function formatPrice(price) {
   return `Rs. ${Number(price).toLocaleString()}`
 }
@@ -34,10 +35,15 @@ function AdminArtworksTab({
   onNewTagNameChange,
   onNewTagTypeChange,
   onStudioSuggest,
+  onImagesChange,
 }) {
   return (
     <section className="admin-tab-panel">
       <form className="admin-form" onSubmit={onSubmit}>
+        <div className="admin-form-fullwidth">
+          <span className="admin-field-heading">Artwork photos</span>
+          <ArtworkImageUploader form={form} onImagesChange={onImagesChange} />
+        </div>
         <label>
           Image URL 1
           <input name="image1" value={form.image1} onChange={onChange} required />

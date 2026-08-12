@@ -317,3 +317,18 @@ export async function fetchAiFeedback() {
   const payload = await backendAdminRequest('/api/artworks?action=ai-feedback')
   return Array.isArray(payload.data) ? payload.data : []
 }
+
+/**
+ * Upload artwork photographs to storage and get back their public URLs.
+ *
+ * Sends multipart/form-data — backendRequest omits the JSON content type for
+ * FormData so the browser can set its own multipart boundary.
+ */
+export async function uploadArtworkImages(files) {
+  const body = new FormData()
+  Array.from(files).forEach((file) => body.append('images', file))
+
+  const response = await backendAdminRequest('/api/upload', { method: 'POST', body })
+
+  return response?.images || response?.data?.images || []
+}
