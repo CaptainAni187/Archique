@@ -308,3 +308,26 @@ export function formatDeliveryAddress(profile) {
     .filter(Boolean)
     .join(', ')
 }
+
+/** Saved delivery addresses for the signed-in customer. */
+export async function fetchUserAddresses() {
+  const payload = await backendRequest('/api/user/addresses', {
+    headers: { Authorization: `Bearer ${getUserToken() || ''}` },
+  })
+
+  return payload?.addresses || []
+}
+
+/**
+ * Create, update, delete or re-default an address.
+ * The server returns the full list each time, so callers never reconcile state.
+ */
+export async function mutateUserAddress(input) {
+  const payload = await backendRequest('/api/user/addresses', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${getUserToken() || ''}` },
+    body: JSON.stringify(input),
+  })
+
+  return payload?.addresses || []
+}

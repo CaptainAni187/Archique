@@ -39,7 +39,14 @@ import {
   updateUserAccountById,
   updateVisitorEventsForSession,
   upsertUserTasteProfile,
+  fetchUserAddresses,
+  fetchUserAddressById,
+  createUserAddress,
+  updateUserAddress,
+  deleteUserAddress,
+  clearDefaultAddress,
 } from './_lib/supabaseAdmin.js'
+import { userAddressSchema, validateWithSchema } from './_lib/validation.js'
 import { createEmptyTasteProfile } from '../shared/ai/core/index.js'
 
 function getAction(req) {
@@ -78,14 +85,25 @@ function serializeUser(user) {
   }
 }
 
+/**
+ * A customer's own order. The payment signature is stripped: it is an internal
+ * verification artefact with no use in a client, and spreading the raw row
+ * would ship it to the browser for no reason.
+ */
 function normalizeOrder(order) {
+  const { razorpay_signature: _signature, ...safe } = order
+
   return {
-    ...order,
+    ...safe,
     total_amount: Number(order.total_amount),
     advance_amount: Number(order.advance_amount),
     processing_at: order.processing_at || null,
     shipped_at: order.shipped_at || null,
     delivered_at: order.delivered_at || null,
+    invoice: order.invoice || null,
+    is_gift: order.is_gift === true,
+    gift_message: order.gift_message || null,
+    gift_recipient_name: order.gift_recipient_name || null,
   }
 }
 
@@ -1008,6 +1026,115 @@ async function handleOrders(req, res) {
   })
 }
 
+/**
+ * Saved delivery addresses.
+ *
+ * Grouped into one handler with an `op` so the whole address book costs no
+ * extra serverless function — the platform counts files, and the project is at
+ * its ceiling.
+ */
+async function handleAddresses(req, res) {
+  const session = requireUserAuth(req, res)
+  if (!session) {
+    return null
+  }
+
+  if (req.method === 'GET') {
+    const addresses = await fetchUserAddresses(session.id)
+    return sendJson(res, 200, { success: true, addresses })
+  }
+
+  if (req.method !== 'POST') {
+    return methodNotAllowed(res, ['GET', 'POST'])
+  }
+
+  if (!ensureSameOriginRequest(req, res)) {
+    return null
+  }
+
+  const body = await readJson(req)
+  const op = String(body.op || 'create').trim()
+  const addressId = Number(body.id)
+
+  if (op === 'delete') {
+    const existing = await fetchUserAddressById(session.id, addressId)
+    if (!existing) {
+      return sendJson(res, 404, {
+        success: false,
+        error: 'ADDRESS_NOT_FOUND',
+        message: 'That address no longer exists.',
+      })
+    }
+
+    await deleteUserAddress(session.id, addressId)
+
+    // Never leave an account with saved addresses but no default.
+    if (existing.is_default) {
+      const remaining = await fetchUserAddresses(session.id)
+      if (remaining.length > 0) {
+        await updateUserAddress(session.id, remaining[0].id, { is_default: true })
+      }
+    }
+
+    return sendJson(res, 200, { success: true, addresses: await fetchUserAddresses(session.id) })
+  }
+
+  if (op === 'set-default') {
+    const existing = await fetchUserAddressById(session.id, addressId)
+    if (!existing) {
+      return sendJson(res, 404, {
+        success: false,
+        error: 'ADDRESS_NOT_FOUND',
+        message: 'That address no longer exists.',
+      })
+    }
+
+    await clearDefaultAddress(session.id)
+    await updateUserAddress(session.id, addressId, { is_default: true })
+
+    return sendJson(res, 200, { success: true, addresses: await fetchUserAddresses(session.id) })
+  }
+
+  const payload = validateWithSchema(userAddressSchema, body)
+  const existingAddresses = await fetchUserAddresses(session.id)
+  // The first address saved is the default; there is nothing else to fall back to.
+  const shouldBeDefault = payload.is_default === true || existingAddresses.length === 0
+
+  if (shouldBeDefault) {
+    await clearDefaultAddress(session.id)
+  }
+
+  const record = {
+    label: payload.label || null,
+    recipient_name: payload.recipient_name,
+    phone: payload.phone,
+    house: payload.house,
+    street: payload.street,
+    landmark: payload.landmark || null,
+    city: payload.city,
+    state: payload.state,
+    pincode: payload.pincode,
+    is_default: shouldBeDefault,
+  }
+
+  if (op === 'update') {
+    const existing = await fetchUserAddressById(session.id, addressId)
+    if (!existing) {
+      return sendJson(res, 404, {
+        success: false,
+        error: 'ADDRESS_NOT_FOUND',
+        message: 'That address no longer exists.',
+      })
+    }
+
+    await updateUserAddress(session.id, addressId, record)
+  } else {
+    await createUserAddress({ ...record, user_id: session.id })
+  }
+
+  return sendJson(res, 200, { success: true, addresses: await fetchUserAddresses(session.id) })
+}
+
 export default async function handler(req, res) {
   try {
     const action = getAction(req)
@@ -1042,6 +1169,10 @@ export default async function handler(req, res) {
 
     if (action === 'orders') {
       return await handleOrders(req, res)
+    }
+
+    if (action === 'addresses') {
+      return await handleAddresses(req, res)
     }
 
     if (action === 'saved-artworks') {

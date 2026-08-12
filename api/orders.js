@@ -24,6 +24,7 @@ import {
   fetchOrders,
   fetchShopSetting,
   supabaseAdminRequest,
+  updateOrderById,
   updateOrderStatusIfUnchanged,
 } from './_lib/supabaseAdmin.js'
 import {
@@ -332,6 +333,58 @@ async function decrementArtworkSelection(selection) {
   return updatedArtworks
 }
 
+/**
+ * Freeze the bill exactly as charged.
+ *
+ * An invoice is a record of a transaction, not a view over current data. If it
+ * were recomputed from the catalogue, editing an artwork's price would silently
+ * rewrite every past receipt. Everything the customer and the studio need to
+ * settle a dispute is captured here at the moment of payment.
+ */
+function buildInvoiceSnapshot({ selection, order, coupon, payment }) {
+  const pricing = selection.pricing || {}
+
+  return {
+    invoice_number: order.order_code,
+    issued_at: new Date().toISOString(),
+    currency: 'INR',
+    seller: {
+      name: 'Archique',
+      contact_email: 'archi@archique.in',
+      site: 'archique.in',
+    },
+    bill_to: {
+      name: order.customer_name,
+      email: order.customer_email,
+      phone: order.customer_phone,
+      address: order.customer_address,
+    },
+    line_items: selection.items.map((artwork) => ({
+      artwork_id: Number(artwork.id),
+      title: artwork.title,
+      category: artwork.category || null,
+      size: artwork.size || null,
+      unit_price: Number(artwork.price || 0),
+    })),
+    totals: {
+      subtotal: Number(pricing.subtotal || 0),
+      pairing_discount_percent: Number(pricing.discountPercent || 0),
+      pairing_discount_amount: Number(pricing.discountAmount || 0),
+      coupon_code: coupon?.code || null,
+      coupon_discount_amount: Number(pricing.couponDiscountAmount || 0),
+      shipping: Number(pricing.shippingCost || 0),
+      total: Number(pricing.totalAmount || 0),
+      amount_paid: Number(pricing.advanceAmount || 0),
+    },
+    payment: {
+      provider: 'razorpay',
+      payment_id: payment?.id || null,
+      method: payment?.method || null,
+      captured_at: new Date().toISOString(),
+    },
+  }
+}
+
 async function handleCreateOrder(req, res) {
   const body = await readJson(req)
   const validatedBody = validateWithSchema(orderCreationSchema, body)
@@ -340,6 +393,11 @@ async function handleCreateOrder(req, res) {
   const customerPhone = validatedBody.customer_phone
   const customerAddress = validatedBody.customer_address
   const customerEmail = validatedBody.customer_email
+  const isGift = validatedBody.is_gift === true
+  const giftMessage = isGift ? String(validatedBody.gift_message || '').trim() || null : null
+  const giftRecipientName = isGift
+    ? String(validatedBody.gift_recipient_name || '').trim() || null
+    : null
   const razorpayPaymentId = validatedBody.razorpay_payment_id
   const razorpayOrderId = validatedBody.razorpay_order_id
   const razorpaySignature = validatedBody.razorpay_signature
@@ -552,6 +610,9 @@ async function handleCreateOrder(req, res) {
       payment_verified_at: new Date().toISOString(),
       coupon_code: appliedCoupon?.code || null,
       coupon_discount_amount: selection.pricing.couponDiscountAmount || 0,
+      is_gift: isGift,
+      gift_message: giftMessage,
+      gift_recipient_name: giftRecipientName,
     })
   } catch (error) {
     await rollbackArtworkSelection(stockClaim)
@@ -559,6 +620,27 @@ async function handleCreateOrder(req, res) {
   }
 
   const order = normalizeOrder(createdOrder)
+
+  // Stored right after the row exists, so a receipt is available even if the
+  // customer closes the tab. Best effort: the payment is already captured and
+  // the order recorded, so failing here must not fail the request — it is
+  // logged instead, and the invoice can be regenerated from the order.
+  try {
+    const invoice = buildInvoiceSnapshot({
+      selection,
+      order: createdOrder,
+      coupon: appliedCoupon,
+      payment,
+    })
+    await updateOrderById(createdOrder.id, { invoice })
+    createdOrder.invoice = invoice
+    order.invoice = invoice
+  } catch (error) {
+    console.error('[orders] failed to store invoice snapshot', {
+      order_id: createdOrder.id,
+      message: error?.message || 'unknown error',
+    })
+  }
 
   if (appliedCoupon) {
     await createCouponRedemption({

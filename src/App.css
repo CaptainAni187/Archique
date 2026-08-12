@@ -5215,3 +5215,226 @@ html[data-theme='dark'] .site-footer-mail {
 .artwork-thumb-remove:hover {
   background: #c0392b;
 }
+
+/* Admin: gift orders and stored invoices */
+.order-gift-banner {
+  margin: 0 0 18px;
+  padding: 12px 16px;
+  border-left: 3px solid var(--accent-color);
+  background: rgba(198, 169, 98, 0.09);
+  border-radius: 3px;
+}
+
+.order-gift-banner strong {
+  display: block;
+  font-size: 0.82rem;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--accent-text);
+  margin-bottom: 4px;
+}
+
+.order-gift-banner span {
+  font-size: 0.82rem;
+  color: var(--text-color);
+  line-height: 1.5;
+}
+
+.order-gift-banner blockquote {
+  margin: 8px 0 0;
+  padding: 0;
+  font-style: italic;
+  font-size: 0.82rem;
+  color: var(--text-soft);
+}
+
+.order-invoice-block {
+  margin: 0 0 20px;
+  padding: 16px 18px;
+  border: 1px solid var(--border-gold-soft);
+  border-radius: 3px;
+  background: var(--bg-surface-faint);
+}
+
+.order-invoice-block h4 {
+  margin: 0 0 3px;
+  font-size: 0.8rem;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-color);
+}
+
+.order-invoice-note {
+  margin: 0 0 12px;
+  font-size: 0.72rem;
+  color: var(--text-soft);
+  max-width: 62ch;
+  line-height: 1.5;
+}
+
+.order-invoice-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.order-invoice-table td {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-gold-soft);
+  color: var(--text-color);
+}
+
+.order-invoice-table .numeric {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.order-invoice-table .muted {
+  color: var(--text-soft);
+  font-size: 0.75rem;
+}
+
+.order-invoice-table tfoot td {
+  color: var(--text-soft);
+}
+
+.order-invoice-table .order-invoice-total td {
+  font-weight: 500;
+  color: var(--text-color);
+  border-bottom: none;
+  padding-top: 9px;
+}
+
+/* Checkout: saved addresses and gifting */
+.saved-address-picker {
+  margin-bottom: 22px;
+}
+
+.saved-address-label {
+  display: block;
+  margin-bottom: 9px;
+  font-size: 0.72rem;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.saved-address-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.saved-address-option {
+  flex: 1 1 190px;
+  min-width: 0;
+  text-align: left;
+  padding: 11px 13px;
+  border: 1px solid var(--border-gold-soft);
+  border-radius: 3px;
+  background: var(--bg-surface-faint);
+  cursor: pointer;
+  transition: border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.saved-address-option:hover {
+  border-color: var(--border-gold-strong);
+}
+
+.saved-address-option.is-active {
+  border-color: var(--accent-color);
+  background: rgba(198, 169, 98, 0.1);
+}
+
+.saved-address-option strong {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-color);
+  margin-bottom: 3px;
+}
+
+.saved-address-option span {
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: var(--text-soft);
+}
+
+.gift-block {
+  margin: 20px 0 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-gold-soft);
+  border-radius: 3px;
+  background: var(--bg-surface-faint);
+}
+
+.gift-toggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  letter-spacing: var(--tracking-body);
+  color: var(--text-color);
+}
+
+.gift-fields {
+  margin-top: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gift-note {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-soft);
+  max-width: 60ch;
+}
+
+.gift-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 0.74rem;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.gift-fields .optional {
+  text-transform: none;
+  letter-spacing: normal;
+  opacity: 0.75;
+}
+
+.gift-fields input,
+.gift-fields textarea {
+  font-family: inherit;
+  font-size: 0.88rem;
+  letter-spacing: var(--tracking-body);
+  padding: 9px 11px;
+  color: var(--text-color);
+  background: var(--bg-input);
+  border: 1px solid var(--border-gold-soft);
+  border-radius: 3px;
+  resize: vertical;
+}
+
+.gift-fields input:focus,
+.gift-fields textarea:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+
+.account-gift-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(198, 169, 98, 0.16);
+  color: var(--accent-text);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
