@@ -22,6 +22,8 @@ import {
 import { fetchSavedArtworks, saveArtwork, unsaveArtwork } from '../services/userAuthService'
 import artworkSimilarity from '../../shared/ai/data/artwork-similarity.js'
 import VisualiseOnWall from '../components/VisualiseOnWall'
+import { primaryArtworkImage } from '../utils/artworkImages'
+import ArtworkReviews from '../components/ArtworkReviews'
 
 /**
  * Re-orders eligible pairings by precomputed semantic similarity (generated
@@ -75,6 +77,9 @@ function Product() {
     title: artwork ? `${artwork.title} | Archique` : 'Artwork | Archique',
     description:
       artwork?.description || 'Explore artwork details and secure your purchase at Archique.',
+    // Sharing a piece should preview the piece itself.
+    image: artwork ? primaryArtworkImage(artwork, 'display') : undefined,
+    type: artwork ? 'product' : 'website',
   })
 
   useEffect(() => {
@@ -407,6 +412,8 @@ function Product() {
             onClick={buyNow}
             disabled={isSoldOut}
           >
+      <ArtworkReviews artworkId={artwork?.id} />
+
             {isSoldOut ? 'Sold Out' : 'Buy This Work'}
           </button>
         </div>

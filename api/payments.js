@@ -1,3 +1,4 @@
+import { reportServerError } from './_lib/errorReporting.js'
 import crypto from 'node:crypto'
 import { getBackendConfig, requireConfigValues } from './_lib/env.js'
 import { validateCoupon } from './_lib/coupons.js'
@@ -15,6 +16,10 @@ import {
   fetchOrderByPaymentId,
   fetchShopSetting,
   supabaseAdminRequest,
+  reserveArtwork,
+  releaseReservationsByToken,
+  releaseExpiredReservations,
+  attachReservationOrder,
 } from './_lib/supabaseAdmin.js'
 import {
   paymentVerificationSchema,
@@ -75,6 +80,34 @@ async function handleCreatePaymentOrder(req, res) {
       error: 'ARTWORK_UNAVAILABLE',
       message: 'One or more selected artworks are no longer available.',
     })
+  }
+
+  // Expired holds only ever block another checkout, so the moment one begins is
+  // exactly when it is worth sweeping them. No scheduled job needed.
+  await releaseExpiredReservations()
+
+  // Hold every piece for the duration of checkout. Without this, two buyers can
+  // both reach payment for the same one-of-one artwork and both be charged,
+  // leaving one of them to be refunded by hand.
+  const reservationToken = crypto.randomUUID()
+
+  for (const artwork of availableArtworks) {
+    const held = await reserveArtwork(artwork.id, {
+      token: reservationToken,
+      email: String(body.customer_email || '').trim().toLowerCase() || null,
+    })
+
+    if (!held) {
+      // Someone else is already checking out with this piece. Release whatever
+      // this request managed to take, so a failure here never strands stock.
+      await releaseReservationsByToken(reservationToken).catch(() => null)
+
+      return sendJson(res, 409, {
+        success: false,
+        error: 'ARTWORK_RESERVED',
+        message: `"${artwork.title}" is being bought by someone else right now. If they do not complete checkout it will be available again within 15 minutes.`,
+      })
+    }
   }
 
   let curatedCombo = null
@@ -177,6 +210,10 @@ async function handleCreatePaymentOrder(req, res) {
     razorpayKeyId: config.razorpayKeyId,
     razorpayKeySecret: config.razorpayKeySecret,
   })
+
+  // Link the hold to the Razorpay order so it can be released the moment the
+  // order is recorded, rather than waiting out the full TTL.
+  await attachReservationOrder(reservationToken, razorpayOrder.id).catch(() => null)
 
   await createPaymentLog({
     event_type: 'payment_order_created',
@@ -496,6 +533,11 @@ export default async function handler(req, res) {
       message: 'Payment route not found.',
     })
   } catch (error) {
+    // Surfaced rather than left in a log nobody reads.
+    await reportServerError(error, { route: 'payments', action: getAction(req) }).catch(
+      () => null,
+    )
+
     if (error.validationIssues) {
       return sendValidationError(res, error.validationIssues)
     }

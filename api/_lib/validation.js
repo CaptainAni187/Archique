@@ -186,6 +186,11 @@ export const paymentVerificationSchema = z.object({
 
 export const orderUpdateSchema = z.object({
   payment_status: orderStatusSchema,
+  // Recorded when an order is marked shipped, so the buyer gets something they
+  // can actually track rather than the word "shipped".
+  courier_name: z.preprocess(trimString, z.string().max(80).optional()),
+  tracking_number: z.preprocess(trimString, z.string().max(60).optional()),
+  tracking_url: z.preprocess(trimString, z.string().url().max(500).optional()),
 })
 
 export const commissionStatusUpdateSchema = z.object({

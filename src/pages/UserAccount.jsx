@@ -13,6 +13,7 @@ import {
 } from '../services/userAuthService'
 import usePageMeta from '../hooks/usePageMeta'
 import { downloadInvoicePdf } from '../utils/invoicePdf'
+import AddressBook from '../components/AddressBook'
 import ErrorState from '../components/ErrorState'
 import StoreCard from '../components/StoreCard'
 import { SkeletonAccount } from '../components/SkeletonLoader'
@@ -325,6 +326,8 @@ function UserAccount() {
       </div>
 
       {/* ── Wishlist ── */}
+      <AddressBook />
+
       <div className="account-section">
         <div className="account-section-head">
           <h3>Wishlist</h3>

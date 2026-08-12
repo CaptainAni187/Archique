@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { getAdminToken } from '../services/adminAuthService'
 
 function formatPrice(price) {
@@ -24,6 +25,70 @@ async function downloadOrdersCsv(status = 'all') {
   anchor.download = `archique-orders-${new Date().toISOString().slice(0, 10)}.csv`
   anchor.click()
   URL.revokeObjectURL(url)
+}
+
+
+/**
+ * Courier and consignment number, saved with the shipped transition.
+ *
+ * Kept as its own component so its draft state is local: typing a tracking
+ * number should not re-render the whole orders tab.
+ */
+function ShipmentForm({ order, onUpdateOrderStatus }) {
+  const [courier, setCourier] = useState(order.courier_name || '')
+  const [trackingNumber, setTrackingNumber] = useState(order.tracking_number || '')
+  const [trackingUrl, setTrackingUrl] = useState(order.tracking_url || '')
+
+  const alreadyShipped = ['shipped', 'delivered'].includes(order.payment_status)
+
+  return (
+    <div className="shipment-form">
+      <h4>Dispatch details</h4>
+      <p className="shipment-note">
+        Saved with the order and included in the buyer&rsquo;s shipping email. Fill these in before
+        marking it shipped.
+      </p>
+      <div className="shipment-fields">
+        <label>
+          Courier
+          <input
+            value={courier}
+            placeholder="Delhivery, BlueDart…"
+            onChange={(event) => setCourier(event.target.value)}
+          />
+        </label>
+        <label>
+          Consignment / AWB
+          <input
+            value={trackingNumber}
+            placeholder="Tracking number"
+            onChange={(event) => setTrackingNumber(event.target.value)}
+          />
+        </label>
+        <label>
+          Tracking link <span className="optional">(optional)</span>
+          <input
+            value={trackingUrl}
+            placeholder="https://…"
+            onChange={(event) => setTrackingUrl(event.target.value)}
+          />
+        </label>
+      </div>
+      <button
+        type="button"
+        className="text-link-button action-button"
+        onClick={() =>
+          onUpdateOrderStatus(order.id, alreadyShipped ? order.payment_status : 'shipped', {
+            courier_name: courier,
+            tracking_number: trackingNumber,
+            tracking_url: trackingUrl,
+          })
+        }
+      >
+        {alreadyShipped ? 'Update dispatch details' : 'Save and mark shipped'}
+      </button>
+    </div>
+  )
 }
 
 function AdminOrdersTab({
@@ -75,6 +140,18 @@ function AdminOrdersTab({
                 <blockquote>“{selectedOrder.gift_message}”</blockquote>
               ) : null}
             </div>
+          ) : null}
+
+          {/* Dispatch details. Entered before marking the order shipped, so the
+              buyer's email carries something they can actually track. */}
+          {/* Keyed on the order so selecting a different one remounts with fresh
+              values, rather than syncing state inside an effect. */}
+          {['advance_paid', 'processing', 'shipped'].includes(selectedOrder.payment_status) ? (
+            <ShipmentForm
+              key={selectedOrder.id}
+              order={selectedOrder}
+              onUpdateOrderStatus={onUpdateOrderStatus}
+            />
           ) : null}
 
           {selectedOrder.invoice ? (

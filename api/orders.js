@@ -1,3 +1,4 @@
+import { reportServerError } from './_lib/errorReporting.js'
 import { requireAdminAuth } from './_lib/adminSession.js'
 import { logAdminActivity } from './_lib/adminActivity.js'
 import { validateCoupon } from './_lib/coupons.js'
@@ -26,6 +27,7 @@ import {
   supabaseAdminRequest,
   updateOrderById,
   updateOrderStatusIfUnchanged,
+  releaseReservationsForOrder,
 } from './_lib/supabaseAdmin.js'
 import {
   orderCreationSchema,
@@ -128,6 +130,9 @@ function normalizeTrackingOrder(order) {
     processing_at: order.processing_at || null,
     shipped_at: order.shipped_at || null,
     delivered_at: order.delivered_at || null,
+    courier_name: order.courier_name || null,
+    tracking_number: order.tracking_number || null,
+    tracking_url: order.tracking_url || null,
     customer_name: maskName(order.customer_name),
     customer_email: maskEmail(order.customer_email),
     customer_phone: maskPhone(order.customer_phone),
@@ -621,6 +626,11 @@ async function handleCreateOrder(req, res) {
 
   const order = normalizeOrder(createdOrder)
 
+  // The piece is now genuinely sold, so the checkout hold has done its job.
+  // Releasing it immediately means an abandoned cart for the same artwork is
+  // not blocked for the rest of the TTL.
+  await releaseReservationsForOrder(razorpayOrderId).catch(() => null)
+
   // Stored right after the row exists, so a receipt is available even if the
   // customer closes the tab. Best effort: the payment is already captured and
   // the order recorded, so failing here must not fail the request — it is
@@ -834,10 +844,22 @@ async function handleUpdateOrderStatus(req, res) {
   // Conditional on the status we just read. If another request transitioned
   // this order in between, we did not perform the change and must not run its
   // side effects.
+  const statusPatch = getOrderStatusTimestampPatch(
+    existingOrder.payment_status,
+    payload.payment_status,
+  )
+
+  // Shipment details belong to the transition that dispatched the order.
+  if (payload.courier_name !== undefined) statusPatch.courier_name = payload.courier_name || null
+  if (payload.tracking_number !== undefined) {
+    statusPatch.tracking_number = payload.tracking_number || null
+  }
+  if (payload.tracking_url !== undefined) statusPatch.tracking_url = payload.tracking_url || null
+
   const updatedOrder = await updateOrderStatusIfUnchanged(
     orderId,
     existingOrder.payment_status,
-    getOrderStatusTimestampPatch(existingOrder.payment_status, payload.payment_status),
+    statusPatch,
   )
 
   if (!updatedOrder) {
@@ -941,6 +963,11 @@ export default async function handler(req, res) {
 
     return methodNotAllowed(res, ['GET', 'POST', 'PATCH', 'PUT'])
   } catch (error) {
+    // Surfaced rather than left in a log nobody reads.
+    await reportServerError(error, { route: 'orders', action: getAction(req) }).catch(
+      () => null,
+    )
+
     if (error.validationIssues) {
       return sendValidationError(res, error.validationIssues)
     }

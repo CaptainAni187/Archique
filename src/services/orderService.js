@@ -67,14 +67,19 @@ export async function findOrderByCode(orderCode) {
   return normalizeOrder(order)
 }
 
-export async function updateOrderPaymentStatus(orderId, paymentStatus) {
+export async function updateOrderPaymentStatus(orderId, paymentStatus, shipment = {}) {
   const normalizedStatus = ORDER_STATUSES.includes(paymentStatus)
     ? paymentStatus
     : 'pending'
 
   const payload = await backendAdminRequest(`/api/orders/${Number(orderId)}/status`, {
     method: 'PATCH',
-    body: JSON.stringify({ payment_status: normalizedStatus }),
+    body: JSON.stringify({
+      payment_status: normalizedStatus,
+      ...(shipment.courier_name ? { courier_name: shipment.courier_name } : {}),
+      ...(shipment.tracking_number ? { tracking_number: shipment.tracking_number } : {}),
+      ...(shipment.tracking_url ? { tracking_url: shipment.tracking_url } : {}),
+    }),
   })
 
   return normalizeOrder(payload.data)

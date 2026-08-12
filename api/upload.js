@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import formidable from 'formidable'
 import { requireAdminAuth } from './_lib/adminSession.js'
 import { methodNotAllowed, sendJson } from './_lib/http.js'
-import { uploadArtworkImageFile } from './_lib/supabaseStorage.js'
+import { uploadArtworkImageFile, uploadArtworkImageSet } from './_lib/supabaseStorage.js'
 
 // The client-supplied mimetype is trivially spoofable, so verify the actual
 // file signature (magic bytes) before anything is stored.
@@ -107,6 +107,47 @@ export default async function handler(req, res) {
     }
 
     const { files } = await parseMultipartForm(req)
+
+    // Variant mode: the browser has already produced the display sizes, so
+    // each named field is one rendition of the same photograph. Every file is
+    // still validated by content, so a non-image cannot get through by being
+    // named 'thumb'.
+    const variantNames = ['original', 'thumb', 'display', 'zoom']
+    const variantFiles = {}
+    variantNames.forEach((name) => {
+      const candidate = Array.isArray(files[name]) ? files[name][0] : files[name]
+      if (candidate) {
+        variantFiles[name] = candidate
+      }
+    })
+
+    if (variantFiles.original) {
+      const provided = Object.values(variantFiles)
+      const checks = await Promise.all(provided.map((file) => hasImageContent(file)))
+      const bad = provided.find(
+        (file, index) =>
+          typeof file.mimetype !== 'string' ||
+          !file.mimetype.startsWith('image/') ||
+          !checks[index],
+      )
+
+      if (bad) {
+        return sendJson(res, 400, {
+          success: false,
+          error: 'VALIDATION_ERROR',
+          message: 'Only image files are allowed.',
+        })
+      }
+
+      const stored = await uploadArtworkImageSet(variantFiles)
+
+      return sendJson(res, 200, {
+        success: true,
+        images: [{ url: stored.url, urls: stored.urls, is_primary: true }],
+        data: { images: [{ url: stored.url, urls: stored.urls, is_primary: true }] },
+      })
+    }
+
     const imageFiles = getImageFiles(files)
 
     if (imageFiles.length < 1 || imageFiles.length > 5) {

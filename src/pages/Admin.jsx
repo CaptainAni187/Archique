@@ -755,11 +755,11 @@ function Admin() {
     }
   }
 
-  const onUpdateOrderStatus = async (orderId, paymentStatus) => {
+  const onUpdateOrderStatus = async (orderId, paymentStatus, shipment) => {
     setMessage('')
     setErrorMessage('')
     try {
-      await updateOrderPaymentStatus(orderId, paymentStatus)
+      await updateOrderPaymentStatus(orderId, paymentStatus, shipment)
       await Promise.all([loadOrders(), loadDashboardStats(), loadActivityLogs()])
       setMessage('Order status updated.')
     } catch (error) {

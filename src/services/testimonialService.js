@@ -18,6 +18,15 @@ export async function fetchTestimonials() {
   return (payload.data || []).map(normalizeTestimonial)
 }
 
+/** Visible reviews for one artwork, newest first. */
+export async function fetchArtworkTestimonials(artworkId) {
+  const payload = await backendRequest(`/api/testimonials?artwork_id=${Number(artworkId)}`)
+
+  return (payload.data || [])
+    .map(normalizeTestimonial)
+    .filter((testimonial) => testimonial.artwork_id === Number(artworkId))
+}
+
 export async function fetchAdminTestimonials() {
   const payload = await backendAdminRequest('/api/testimonials')
   return (payload.data || []).map(normalizeTestimonial)

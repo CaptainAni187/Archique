@@ -1,7 +1,8 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { finalizeGoogleLogin, OAUTH_ERROR_KEY } from './services/supabaseAuthService'
-import { getUserToken } from './services/userAuthService'
+import { fetchServerCart, getUserToken, saveServerCart } from './services/userAuthService'
+import { mergeServerCart, setCartSync } from './state/cartStore'
 import Home from './pages/Home'
 import Gallery from './pages/Gallery'
 import Product from './pages/Product'
@@ -90,6 +91,31 @@ function AppLayout() {
     // Run once on load — the OAuth redirect is a full page load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // A signed-in customer's cart follows them between devices. Guests keep a
+  // local cart, which is why this only engages when there is a session.
+  useEffect(() => {
+    if (!getUserToken()) {
+      setCartSync(null)
+      return undefined
+    }
+
+    let cancelled = false
+    setCartSync(saveServerCart)
+
+    fetchServerCart()
+      .then((serverItems) => {
+        if (!cancelled) {
+          mergeServerCart(serverItems)
+        }
+      })
+      .catch(() => null)
+
+    return () => {
+      cancelled = true
+    }
+    // Re-runs on navigation, which is when a sign-in becomes visible here.
+  }, [location.pathname])
 
   const isCarouselRoute = location.pathname === '/canvas' || location.pathname === '/sketch'
   const isAdminRoute = location.pathname.startsWith('/captain')

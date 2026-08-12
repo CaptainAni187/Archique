@@ -1,4 +1,5 @@
 import { backendAdminRequest, backendRequest } from './backendApiService'
+import { buildImageVariants } from '../utils/imageVariants'
 
 // Catalogue cache. A TTL keeps availability honest on a one-of-a-kind store —
 // without it a piece that sold in another tab would keep showing as available
@@ -325,10 +326,26 @@ export async function fetchAiFeedback() {
  * FormData so the browser can set its own multipart boundary.
  */
 export async function uploadArtworkImages(files) {
-  const body = new FormData()
-  Array.from(files).forEach((file) => body.append('images', file))
+  // One request per photograph, each carrying the original plus the display
+  // sizes the browser produced. Sequential rather than parallel, so a slow
+  // connection uploading several large originals does not stall on itself.
+  const uploaded = []
 
-  const response = await backendAdminRequest('/api/upload', { method: 'POST', body })
+  for (const file of Array.from(files)) {
+    const variants = await buildImageVariants(file)
+    const body = new FormData()
 
-  return response?.images || response?.data?.images || []
+    Object.entries(variants).forEach(([name, variantFile]) => {
+      body.append(name, variantFile)
+    })
+
+    const response = await backendAdminRequest('/api/upload', { method: 'POST', body })
+    const image = response?.images?.[0] || response?.data?.images?.[0]
+
+    if (image) {
+      uploaded.push(image)
+    }
+  }
+
+  return uploaded
 }
