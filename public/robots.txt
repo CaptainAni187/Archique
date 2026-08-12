@@ -1,0 +1,13 @@
+# Archique — archique.in
+User-agent: *
+Allow: /
+
+# Nothing useful to a crawler, and some of it is private.
+Disallow: /captain
+Disallow: /admin
+Disallow: /checkout
+Disallow: /account
+Disallow: /order/
+Disallow: /api/
+
+Sitemap: https://www.archique.in/sitemap.xml

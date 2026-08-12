@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { fetchArtworks } from '../services/artworkService'
 import Reveal from '../components/Reveal'
 import StoreCard from '../components/StoreCard'
@@ -50,17 +51,37 @@ function sortArtworks(artworks, sortBy) {
   }
 }
 
+/**
+ * Filters live in the query string.
+ *
+ * Without this a filtered view cannot be shared or bookmarked, and the browser
+ * Back button drops the visitor back to an unfiltered grid having lost their
+ * place. Defaults are omitted from the URL so a plain /store stays clean.
+ */
+function readParam(params, key, fallback) {
+  const value = params.get(key)
+  return value === null || value === '' ? fallback : value
+}
+
 function Gallery() {
+  const [searchParams, setSearchParams] = useSearchParams()
+
   const [artworks, setArtworks] = useState([])
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORIES)
-  const [selectedAvailability, setSelectedAvailability] = useState(ANY)
-  const [selectedSize, setSelectedSize] = useState(ANY)
-  const [selectedPriceBucket, setSelectedPriceBucket] = useState(ANY)
-  const [sortBy, setSortBy] = useState(DEFAULT_SORT)
+  const [selectedCategory, setSelectedCategory] = useState(() =>
+    readParam(searchParams, 'category', ALL_CATEGORIES),
+  )
+  const [selectedAvailability, setSelectedAvailability] = useState(() =>
+    readParam(searchParams, 'availability', ANY),
+  )
+  const [selectedSize, setSelectedSize] = useState(() => readParam(searchParams, 'size', ANY))
+  const [selectedPriceBucket, setSelectedPriceBucket] = useState(() =>
+    readParam(searchParams, 'price', ANY),
+  )
+  const [sortBy, setSortBy] = useState(() => readParam(searchParams, 'sort', DEFAULT_SORT))
   const [retryKey, setRetryKey] = useState(0)
-  const [smartQuery, setSmartQuery] = useState('')
+  const [smartQuery, setSmartQuery] = useState(() => readParam(searchParams, 'q', ''))
   const [selectedMoods, setSelectedMoods] = useState([])
   const [smartResults, setSmartResults] = useState([])
   const [smartSummary, setSmartSummary] = useState('')
@@ -68,6 +89,32 @@ function Gallery() {
   const [isSmartSearching, setIsSmartSearching] = useState(false)
   const [savedArtworkIds, setSavedArtworkIds] = useState([])
   const [debugStats, setDebugStats] = useState(null)
+
+  // Mirror the current selection into the URL. `replace` so filtering does not
+  // fill the history stack — Back should leave the store, not step through
+  // every filter the visitor tried.
+  useEffect(() => {
+    const next = new URLSearchParams()
+    if (selectedCategory !== ALL_CATEGORIES) next.set('category', selectedCategory)
+    if (selectedAvailability !== ANY) next.set('availability', selectedAvailability)
+    if (selectedSize !== ANY) next.set('size', selectedSize)
+    if (selectedPriceBucket !== ANY) next.set('price', selectedPriceBucket)
+    if (sortBy !== DEFAULT_SORT) next.set('sort', sortBy)
+    if (smartQuery.trim()) next.set('q', smartQuery.trim())
+
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true })
+    }
+  }, [
+    selectedCategory,
+    selectedAvailability,
+    selectedSize,
+    selectedPriceBucket,
+    sortBy,
+    smartQuery,
+    searchParams,
+    setSearchParams,
+  ])
 
   usePageMeta({
     title: 'Gallery | Archique',

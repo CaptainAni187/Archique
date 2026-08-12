@@ -818,6 +818,119 @@ export async function consumeRateLimitRecord(key, { limit, windowMs }) {
   }
 }
 
+// ── Checkout reservations ───────────────────────────────────────────────────
+/**
+ * Hold a piece for the duration of checkout.
+ *
+ * Stock is only claimed after payment is verified, so without a hold two
+ * buyers can both reach Razorpay for the same one-of-one artwork and both be
+ * charged — leaving one of them to be refunded by hand. A short reservation
+ * closes that window.
+ *
+ * Exclusivity comes from a partial unique index on (artwork_id) where the
+ * reservation is still active, so the database decides the winner rather than
+ * application logic. A duplicate-key rejection means someone else holds it.
+ */
+export async function reserveArtwork(artworkId, { token, razorpayOrderId, email, ttlMinutes = 15 }) {
+  try {
+    const rows = await supabaseAdminRequest('artwork_reservations', {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({
+        artwork_id: Number(artworkId),
+        reservation_token: token,
+        razorpay_order_id: razorpayOrderId || null,
+        customer_email: email || null,
+        expires_at: new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString(),
+      }),
+    })
+
+    return rows?.[0] || null
+  } catch (error) {
+    if (error?.code === '23505') {
+      return null
+    }
+    throw error
+  }
+}
+
+/** Bind a hold to the Razorpay order it was taken for. */
+export async function attachReservationOrder(token, razorpayOrderId) {
+  return supabaseAdminRequest(
+    `artwork_reservations?reservation_token=eq.${encodeURIComponent(token)}&released_at=is.null`,
+    {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ razorpay_order_id: razorpayOrderId }),
+    },
+  )
+}
+
+export async function releaseReservationsByToken(token) {
+  return supabaseAdminRequest(
+    `artwork_reservations?reservation_token=eq.${encodeURIComponent(token)}&released_at=is.null`,
+    {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ released_at: new Date().toISOString() }),
+    },
+  )
+}
+
+export async function releaseReservationsForOrder(razorpayOrderId) {
+  if (!razorpayOrderId) {
+    return null
+  }
+
+  return supabaseAdminRequest(
+    `artwork_reservations?razorpay_order_id=eq.${encodeURIComponent(razorpayOrderId)}&released_at=is.null`,
+    {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ released_at: new Date().toISOString() }),
+    },
+  )
+}
+
+/**
+ * Sweep expired holds.
+ *
+ * Called opportunistically when a checkout begins rather than on a schedule:
+ * the only thing an expired reservation can block is another checkout, so the
+ * moment one starts is exactly when the sweep is worth doing. That avoids
+ * needing a cron for correctness.
+ */
+export async function releaseExpiredReservations() {
+  return supabaseAdminRequest('rpc/release_expired_reservations', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  }).catch(() => null)
+}
+
+// ── Server-side carts ───────────────────────────────────────────────────────
+export async function fetchUserCart(userId) {
+  const rows = await supabaseAdminRequest(
+    `user_carts?select=*&user_id=eq.${Number(userId)}&limit=1`,
+  )
+
+  return rows?.[0] || null
+}
+
+export async function saveUserCart(userId, items) {
+  return supabaseAdminRequest('user_carts', {
+    method: 'POST',
+    headers: {
+      // One row per customer, so an update is an upsert on the primary key.
+      Prefer: 'resolution=merge-duplicates,return=minimal',
+    },
+    body: JSON.stringify({
+      user_id: Number(userId),
+      items,
+      updated_at: new Date().toISOString(),
+    }),
+  })
+}
+
 // ── Saved delivery addresses ────────────────────────────────────────────────
 export async function fetchUserAddresses(userId) {
   return supabaseAdminRequest(

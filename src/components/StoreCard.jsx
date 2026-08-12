@@ -4,6 +4,7 @@ import { trackAnalyticsEvent } from '../services/analyticsService'
 import { getArtworkTasteMetadata } from '../services/tasteService'
 import ArtworkActions from './ArtworkActions'
 import { getImageSrcSet, getOptimizedImageUrl } from '../utils/imageUrl'
+import { artworkImageUrl } from '../utils/artworkImages'
 
 function formatPrice(price) {
   return `Rs. ${Number(price).toLocaleString()}`
@@ -20,7 +21,9 @@ function StoreCard({ artwork, isSaved = false, onToggleSave = null }) {
           : [],
     [artwork.image, artwork.images],
   )
-  const primaryImage = images[0]
+  // Cards are small; loading a full-size original here is what made the
+  // store page weigh several megabytes.
+  const primaryImage = artworkImageUrl(images[0], 'thumb')
   const openProduct = () => {
     void trackAnalyticsEvent('artwork_click', getArtworkTasteMetadata(artwork))
     navigate(`/product/${artwork.id}`)

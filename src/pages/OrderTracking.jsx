@@ -178,6 +178,25 @@ function OrderTracking() {
         })}
       </div>
 
+      {order.tracking_number ? (
+        <div className="tracking-consignment">
+          <p className="tracking-consignment-label">On its way with</p>
+          <p className="tracking-consignment-value">
+            {order.courier_name || 'Courier'} · {order.tracking_number}
+          </p>
+          {order.tracking_url ? (
+            <a
+              href={order.tracking_url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-link-button"
+            >
+              Track with the courier
+            </a>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="confirmation-actions">
         {/* Public tracking masks contact details so a guessed order code cannot
             harvest them, which means this page no longer holds enough to build

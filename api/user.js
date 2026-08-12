@@ -1,3 +1,4 @@
+import { reportServerError } from './_lib/errorReporting.js'
 import { getBackendConfig, requireConfigValues } from './_lib/env.js'
 import { methodNotAllowed, readJson, sendJson } from './_lib/http.js'
 import { sendUserPasswordResetEmail, sendUserWelcomeEmail } from './_lib/notifications.js'
@@ -39,6 +40,8 @@ import {
   updateUserAccountById,
   updateVisitorEventsForSession,
   upsertUserTasteProfile,
+  fetchUserCart,
+  saveUserCart,
   fetchUserAddresses,
   fetchUserAddressById,
   createUserAddress,
@@ -1135,6 +1138,55 @@ async function handleAddresses(req, res) {
   return sendJson(res, 200, { success: true, addresses: await fetchUserAddresses(session.id) })
 }
 
+/**
+ * The signed-in customer's cart, kept server-side.
+ *
+ * A cart in localStorage does not survive moving from a phone to a laptop.
+ * This stores only the same small snapshot the browser keeps — price and
+ * availability are still re-verified at checkout, so a stale row can never
+ * drive what someone is charged.
+ */
+async function handleCart(req, res) {
+  const session = requireUserAuth(req, res)
+  if (!session) {
+    return null
+  }
+
+  if (req.method === 'GET') {
+    const cart = await fetchUserCart(session.id)
+    return sendJson(res, 200, { success: true, items: cart?.items || [] })
+  }
+
+  if (req.method !== 'POST') {
+    return methodNotAllowed(res, ['GET', 'POST'])
+  }
+
+  if (!ensureSameOriginRequest(req, res)) {
+    return null
+  }
+
+  const body = await readJson(req)
+  const items = Array.isArray(body.items) ? body.items : []
+
+  // Bounded and normalised: this is client-supplied and only ever read back to
+  // the same client, but it should not become a place to store arbitrary data.
+  const normalized = items
+    .slice(0, 20)
+    .map((item) => ({
+      id: Number(item?.id),
+      title: String(item?.title || '').slice(0, 200),
+      price: Number(item?.price) || 0,
+      image: String(item?.image || '').slice(0, 500),
+      size: String(item?.size || '').slice(0, 60),
+      medium: String(item?.medium || '').slice(0, 60),
+    }))
+    .filter((item) => Number.isInteger(item.id) && item.id > 0)
+
+  await saveUserCart(session.id, normalized)
+
+  return sendJson(res, 200, { success: true, items: normalized })
+}
+
 export default async function handler(req, res) {
   try {
     const action = getAction(req)
@@ -1169,6 +1221,10 @@ export default async function handler(req, res) {
 
     if (action === 'orders') {
       return await handleOrders(req, res)
+    }
+
+    if (action === 'cart') {
+      return await handleCart(req, res)
     }
 
     if (action === 'addresses') {
@@ -1213,6 +1269,11 @@ export default async function handler(req, res) {
       message: 'User route not found.',
     })
   } catch (error) {
+    // Surfaced rather than left in a log nobody reads.
+    await reportServerError(error, { route: 'user', action: getAction(req) }).catch(
+      () => null,
+    )
+
     return sendJson(res, error.status || 500, {
       success: false,
       error: error.code || 'USER_REQUEST_FAILED',

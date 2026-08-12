@@ -331,3 +331,22 @@ export async function mutateUserAddress(input) {
 
   return payload?.addresses || []
 }
+
+/** The cart stored against the signed-in customer. */
+export async function fetchServerCart() {
+  const payload = await backendRequest('/api/user/cart', {
+    headers: { Authorization: `Bearer ${getUserToken() || ''}` },
+  })
+
+  return payload?.items || []
+}
+
+export async function saveServerCart(items) {
+  const payload = await backendRequest('/api/user/cart', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${getUserToken() || ''}` },
+    body: JSON.stringify({ items }),
+  })
+
+  return payload?.items || []
+}

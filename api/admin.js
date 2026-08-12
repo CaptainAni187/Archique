@@ -1,3 +1,4 @@
+import { reportServerError } from './_lib/errorReporting.js'
 import {
   consumePasswordResetToken,
   createAdminToken,
@@ -802,6 +803,11 @@ export default async function handler(req, res) {
       message: 'Method not allowed.',
     })
   } catch (error) {
+    // Surfaced rather than left in a log nobody reads.
+    await reportServerError(error, { route: 'admin', action: getAction(req) }).catch(
+      () => null,
+    )
+
     return sendJson(res, error.status || 500, {
       success: false,
       error: error.error || 'ADMIN_REQUEST_FAILED',

@@ -1,5 +1,6 @@
 import { memo, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { artworkImageUrl } from '../utils/artworkImages'
 
 function formatPrice(price) {
   return `Rs. ${Number(price).toLocaleString()}`
@@ -16,7 +17,9 @@ function ArtworkCard({ artwork }) {
           : [],
     [artwork.image, artwork.images],
   )
-  const primaryImage = images[0]
+  // Cards are small; loading a full-size original here is what made the
+  // store page weigh several megabytes.
+  const primaryImage = artworkImageUrl(images[0], 'thumb')
 
   return (
     <article

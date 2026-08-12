@@ -26,7 +26,29 @@ function readFromStorage() {
   }
 }
 
-function commit(nextItems) {
+// Set by the app once a customer is signed in, so the cart can follow them
+// between devices. Left null for guests, whose cart stays local.
+let pushToServer = null
+let pushTimer = null
+
+export function setCartSync(handler) {
+  pushToServer = handler
+}
+
+function schedulePush() {
+  if (!pushToServer) {
+    return
+  }
+
+  // Debounced: adding three pieces in quick succession should be one write,
+  // not three, and the cart is never the reason a tap feels slow.
+  clearTimeout(pushTimer)
+  pushTimer = setTimeout(() => {
+    Promise.resolve(pushToServer(items)).catch(() => null)
+  }, 800)
+}
+
+function commit(nextItems, { sync = true } = {}) {
   items = nextItems
 
   try {
@@ -35,7 +57,34 @@ function commit(nextItems) {
     /* storage can be full or blocked (private mode); cart still works in memory */
   }
 
+  if (sync) {
+    schedulePush()
+  }
+
   listeners.forEach((listener) => listener())
+}
+
+/**
+ * Adopt the cart stored on the server after signing in.
+ *
+ * Merged rather than replaced: someone who added pieces before signing in
+ * should not lose them, and someone signing in on a new device should not lose
+ * what is already in their account.
+ */
+export function mergeServerCart(serverItems = []) {
+  const byId = new Map()
+
+  for (const item of [...serverItems, ...items]) {
+    if (item && Number.isInteger(Number(item.id))) {
+      byId.set(Number(item.id), item)
+    }
+  }
+
+  const merged = [...byId.values()]
+  const changed = merged.length !== items.length
+  commit(merged, { sync: changed })
+
+  return merged
 }
 
 function toCartItem(artwork) {
