@@ -206,6 +206,8 @@ async function handleLogin(req, res) {
   const rateLimit = await consumeRateLimit(`admin-login:${ipAddress}`, {
     limit: 5,
     windowMs: 15 * 60 * 1000,
+    // Never degrade to a per-instance counter for admin credentials.
+    failClosed: true,
   })
 
   if (!rateLimit.allowed) {

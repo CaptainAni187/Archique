@@ -47,13 +47,38 @@ function consumeInMemory(key, { limit, windowMs }) {
   }
 }
 
-// Shared, serverless-safe rate limiter backed by Postgres. Falls back to the
-// per-instance store if the DB limiter is unavailable so a DB hiccup never
-// locks every user out (fail-open to a weaker-but-present limiter).
-export async function consumeRateLimit(key, options) {
+/**
+ * Shared, serverless-safe rate limiter backed by Postgres.
+ *
+ * When the database limiter is unavailable the default is to fall back to a
+ * per-instance counter, so a database hiccup does not lock everyone out. That
+ * fallback is deliberately weaker: instances do not share state, so an
+ * attacker spread across N instances effectively gets N times the budget.
+ *
+ * Pass `failClosed` for anything where that trade is unacceptable — admin
+ * authentication above all, where the fallback would turn "5 attempts per 15
+ * minutes" into "5 per instance" precisely when monitoring is already
+ * degraded. Failing closed costs nothing there: the console cannot do useful
+ * work while the database is unreachable anyway.
+ */
+export async function consumeRateLimit(key, options = {}) {
   try {
     return await consumeRateLimitRecord(getKey(key), options)
-  } catch {
+  } catch (error) {
+    if (options.failClosed) {
+      console.error('[rate-limit] limiter unavailable, denying request', {
+        key,
+        message: error?.message || 'unknown error',
+      })
+
+      return {
+        allowed: false,
+        remaining: 0,
+        retryAfterSeconds: Math.ceil(Number(options.windowMs || 60000) / 1000),
+        degraded: true,
+      }
+    }
+
     return consumeInMemory(key, options)
   }
 }

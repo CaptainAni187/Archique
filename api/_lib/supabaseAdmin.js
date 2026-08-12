@@ -352,6 +352,28 @@ export async function updateOrderById(id, payload) {
   return response?.[0] || null
 }
 
+/**
+ * Move an order to a new status only if it still holds the status the caller
+ * observed. Returns null when another request got there first.
+ *
+ * The transition has side effects — cancellation returns stock to the
+ * catalogue — so it must happen exactly once. Reading the status and then
+ * updating unconditionally lets two concurrent cancellations both observe the
+ * same old value and both act on it, restoring the same piece twice.
+ */
+export async function updateOrderStatusIfUnchanged(id, expectedStatus, payload) {
+  const response = await supabaseAdminRequest(
+    `orders?id=eq.${Number(id)}&payment_status=eq.${encodeURIComponent(expectedStatus)}`,
+    {
+      method: 'PATCH',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify(payload),
+    },
+  )
+
+  return response?.[0] || null
+}
+
 export async function fetchCommissions() {
   return supabaseAdminRequest('commissions?select=*&order=id.desc')
 }

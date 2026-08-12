@@ -179,4 +179,55 @@ describe('order cancellation', () => {
     expect(res.statusCode).toBe(200)
     expect(artworkPatches).toHaveLength(0)
   })
+
+  it('restores stock only for the request that actually performed the transition', async () => {
+    mockAdminAuth()
+    const artworkPatches = []
+    let statusPatchAttempts = 0
+
+    global.fetch = vi.fn(async (url, options = {}) => {
+      const value = String(url)
+
+      if (value.includes('/rest/v1/orders?select=*&id=eq.7')) {
+        return createJsonResponse([
+          { id: 7, product_id: 1, product_ids: [1], payment_status: 'advance_paid' },
+        ])
+      }
+
+      // The conditional update carries the observed status in the filter.
+      if (value.includes('/rest/v1/orders') && options.method === 'PATCH') {
+        statusPatchAttempts += 1
+        expect(value).toContain('payment_status=eq.advance_paid')
+        // Simulate another request having already transitioned this order:
+        // the predicate matches nothing, so no row comes back.
+        return createJsonResponse([])
+      }
+
+      if (value.includes('/rest/v1/artworks') && options.method === 'PATCH') {
+        artworkPatches.push(value)
+        return createJsonResponse([{ id: 1 }])
+      }
+
+      return createJsonResponse([])
+    })
+
+    const { default: handler } = await import('../api/orders.js')
+    const res = createMockResponse()
+
+    await handler(
+      {
+        method: 'PATCH',
+        url: '/api/orders/7/status',
+        headers: { authorization: 'Bearer token' },
+        query: { id: '7', action: 'status' },
+        body: { payment_status: 'cancelled' },
+      },
+      res,
+    )
+
+    expect(statusPatchAttempts).toBe(1)
+    expect(res.statusCode).toBe(409)
+    // The decisive assertion: the losing request must not restore stock.
+    expect(artworkPatches).toHaveLength(0)
+  })
 })
