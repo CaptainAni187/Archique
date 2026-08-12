@@ -5438,3 +5438,232 @@ html[data-theme='dark'] .site-footer-mail {
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+
+/* Account: saved addresses */
+.account-empty-note {
+  margin: 0 0 14px;
+  font-size: 0.82rem;
+  color: var(--text-soft);
+}
+
+.address-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.address-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-gold-soft);
+  border-radius: 3px;
+  background: var(--bg-surface-faint);
+}
+
+.address-card.is-default {
+  border-color: var(--border-gold-strong);
+}
+
+.address-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 0.86rem;
+  color: var(--text-color);
+}
+
+.address-default-tag {
+  padding: 2px 7px;
+  border-radius: 9px;
+  background: rgba(198, 169, 98, 0.16);
+  color: var(--accent-text);
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.address-card-lines {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--text-soft);
+}
+
+.address-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.address-card-actions .text-link-button {
+  font-size: 0.72rem;
+}
+
+.text-link-button.is-danger:hover {
+  color: #c0392b;
+}
+
+.address-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 16px 18px;
+  border: 1px solid var(--border-gold-soft);
+  border-radius: 3px;
+  background: var(--bg-surface-faint);
+}
+
+.address-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Product: reviews of this piece */
+.artwork-reviews {
+  margin: 48px 0;
+}
+
+.artwork-reviews-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.artwork-reviews-average {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-soft);
+  letter-spacing: var(--tracking-body);
+}
+
+.review-stars {
+  color: var(--accent-text);
+  letter-spacing: 0.1em;
+}
+
+.review-stars-empty {
+  opacity: 0.28;
+}
+
+.artwork-review-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.artwork-review {
+  padding: 16px 18px;
+  border: 1px solid var(--border-gold-soft);
+  border-radius: 3px;
+  background: var(--bg-surface-faint);
+}
+
+.artwork-review-body {
+  margin: 8px 0 10px;
+  font-size: 0.86rem;
+  line-height: 1.6;
+  color: var(--text-color);
+}
+
+.artwork-review-meta {
+  margin: 0;
+  font-size: 0.74rem;
+  letter-spacing: var(--tracking-body);
+  color: var(--text-soft);
+}
+
+/* Order tracking: carrier consignment */
+.tracking-consignment {
+  margin: 22px 0;
+  padding: 14px 18px;
+  border: 1px solid var(--border-gold-soft);
+  border-left: 3px solid var(--accent-color);
+  border-radius: 3px;
+  background: var(--bg-surface-faint);
+}
+
+.tracking-consignment-label {
+  margin: 0 0 4px;
+  font-size: 0.7rem;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.tracking-consignment-value {
+  margin: 0 0 8px;
+  font-size: 0.92rem;
+  color: var(--text-color);
+  letter-spacing: var(--tracking-body);
+}
+
+/* Admin: dispatch details */
+.shipment-form {
+  margin: 0 0 20px;
+  padding: 16px 18px;
+  border: 1px solid var(--border-gold-soft);
+  border-radius: 3px;
+  background: var(--bg-surface-faint);
+}
+
+.shipment-form h4 {
+  margin: 0 0 3px;
+  font-size: 0.8rem;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-color);
+}
+
+.shipment-note {
+  margin: 0 0 12px;
+  max-width: 62ch;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--text-soft);
+}
+
+.shipment-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.shipment-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 0.72rem;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.shipment-fields input {
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: 8px 10px;
+  color: var(--text-color);
+  background: var(--bg-input);
+  border: 1px solid var(--border-gold-soft);
+  border-radius: 3px;
+}
+
+.shipment-fields input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}

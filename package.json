@@ -9,12 +9,13 @@
     "dev:vercel": "node scripts/dev-api-server.mjs",
     "audit:artworks": "node scripts/audit-artwork-tags.mjs",
     "digest:send": "node scripts/send-personalized-digest.mjs",
-    "build": "vite build",
+    "build": "node scripts/build-sitemap.mjs && vite build",
     "lint": "eslint .",
     "test": "vitest run",
     "preview": "vite preview",
     "build:embeddings": "node scripts/build-artwork-embeddings.mjs",
-    "build:ar-assets": "node scripts/build-ar-assets.mjs"
+    "build:ar-assets": "node scripts/build-ar-assets.mjs",
+    "build:sitemap": "node scripts/build-sitemap.mjs"
   },
   "dependencies": {
     "@google/model-viewer": "^4.3.1",

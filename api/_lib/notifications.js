@@ -301,6 +301,18 @@ export async function notifyOrderStatusChange(order, config, nextStatus) {
       subject: `Your Archique order ${order.order_code} has shipped`,
       heading: 'ON ITS WAY',
       body: 'Your work has left the studio. Please open and inspect it in front of the delivery partner where possible.',
+      // "Shipped" with nothing to track is where the "where is it?" emails start.
+      extra: order.tracking_number
+        ? `<p style="margin:0 0 18px;padding:12px 14px;background:#faf7f0;border-left:3px solid #c6a962;">
+             <strong>${escapeHtml(order.courier_name || 'Courier')}</strong><br/>
+             Consignment ${escapeHtml(order.tracking_number)}
+             ${
+               order.tracking_url
+                 ? `<br/><a href="${escapeHtml(order.tracking_url)}" style="color:#7d6320;">Track with the courier</a>`
+                 : ''
+             }
+           </p>`
+        : '',
     },
     delivered: {
       subject: `Your Archique order ${order.order_code} has been delivered`,
@@ -325,6 +337,7 @@ export async function notifyOrderStatusChange(order, config, nextStatus) {
         <p>${copy.body}</p>
         <p><strong>Order:</strong> ${escapeHtml(order.order_code || '')}<br/>
         <strong>Artwork:</strong> ${escapeHtml(order.product_title || '')}</p>
+        ${copy.extra || ''}
         <p style="margin:24px 0;">
           <a href="${trackingUrl}" style="background:#c6a962;color:#1a1a1a;padding:12px 22px;text-decoration:none;border-radius:2px;display:inline-block;">Track your order</a>
         </p>

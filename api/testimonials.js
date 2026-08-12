@@ -80,11 +80,17 @@ function normalizeTestimonial(testimonial) {
   }
 }
 
-async function fetchTestimonials(featuredOnly) {
+async function fetchTestimonials(featuredOnly, artworkId) {
   const filters = ['select=*', 'is_visible=eq.true', 'order=created_at.desc']
 
   if (featuredOnly) {
     filters.push('is_featured=eq.true')
+  }
+
+  // Reviews shown on an artwork page. Number-wrapped, so nothing from the
+  // query string reaches the request as text.
+  if (Number.isInteger(artworkId) && artworkId > 0) {
+    filters.push(`artwork_id=eq.${artworkId}`)
   }
 
   const response = await supabaseAdminRequest(`testimonials?${filters.join('&')}`)
@@ -125,7 +131,10 @@ async function deleteTestimonial(id) {
 }
 
 async function handleGet(req, res) {
-  const testimonials = await fetchTestimonials(getFeaturedFilter(req))
+  const testimonials = await fetchTestimonials(
+    getFeaturedFilter(req),
+    Number(req.query?.artwork_id),
+  )
   return sendJson(res, 200, {
     success: true,
     data: testimonials,
