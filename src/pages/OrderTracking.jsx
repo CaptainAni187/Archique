@@ -179,9 +179,14 @@ function OrderTracking() {
       </div>
 
       <div className="confirmation-actions">
+        {/* Public tracking masks contact details so a guessed order code cannot
+            harvest them, which means this page no longer holds enough to build
+            a correct invoice. The receipt email and the confirmation screen
+            carry the full document instead. */}
         <button
           type="button"
           className="text-link-button"
+          hidden
           onClick={() => {
             try {
               downloadInvoicePdf({
