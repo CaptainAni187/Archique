@@ -34,3 +34,7 @@ notes/
 
 # Supabase CLI local link state
 supabase/.temp/
+
+# Python build artifacts (the optional image-intelligence script)
+__pycache__/
+*.pyc

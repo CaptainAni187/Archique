@@ -25,6 +25,11 @@ async function supabaseRequest(path, options = {}) {
   return payload
 }
 
+// A marketing email without a working way out is both a trust problem and, in
+// most jurisdictions, a compliance one. Relative links are not clickable in a
+// mail client, so this has to be absolute.
+const siteUrl = (process.env.SITE_URL || 'https://www.archique.in').replace(/\/+$/, '')
+
 async function sendEmail({ to, subject, html }) {
   const resendApiKey = required('RESEND_API_KEY')
   const fromEmail = required('FROM_EMAIL')
@@ -75,7 +80,10 @@ async function main() {
         <p>Hello ${String(user.name || 'Collector').replaceAll('<', '&lt;')}</p>
         <p>New works aligned to your Archique profile:</p>
         <ul>${picks}</ul>
-        <p>Manage preferences in your account settings.</p>
+        <p style="margin-top:22px;color:#666;font-size:13px;">
+          You are receiving this because you opted in to curated updates.
+          <a href="${siteUrl}/account">Manage or stop these emails</a> at any time.
+        </p>
       `,
     })
 
