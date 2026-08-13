@@ -12,7 +12,7 @@ import {
   validateAdminCredentials,
 } from './_lib/adminSession.js'
 import { fetchAdminActivity, logAdminActivity } from './_lib/adminActivity.js'
-import { getClientIp, consumeRateLimit } from './_lib/rateLimit.js'
+import { getClientIp, consumeRateLimit, enforceAuthRateLimit } from './_lib/rateLimit.js'
 import { methodNotAllowed, readJson, sendJson } from './_lib/http.js'
 import {
   fetchOrderAnalyticsRows,
@@ -204,20 +204,20 @@ async function handleLogin(req, res) {
   const email = String(body.email || '').trim().toLowerCase()
   const password = body.password || ''
   const ipAddress = getClientIp(req)
-  const rateLimit = await consumeRateLimit(`admin-login:${ipAddress}`, {
-    limit: 5,
-    windowMs: 15 * 60 * 1000,
-    // Never degrade to a per-instance counter for admin credentials.
-    failClosed: true,
-  })
 
-  if (!rateLimit.allowed) {
-    res.setHeader('Retry-After', String(rateLimit.retryAfterSeconds))
-    return sendJson(res, 429, {
-      success: false,
-      error: 'RATE_LIMITED',
+  // Limited by IP *and* by the account being targeted: an attacker rotating
+  // addresses would otherwise get an unlimited budget against one login.
+  if (
+    await enforceAuthRateLimit(req, res, {
+      scope: 'admin-login',
+      identifier: email,
+      ipLimit: 5,
+      identifierLimit: 5,
       message: 'Too many admin login attempts. Please try again later.',
     })
+  ) {
+    console.warn(`[admin-auth] rate limited login attempt from ${ipAddress}.`)
+    return null
   }
 
   if (!process.env.ADMIN_SESSION_SECRET) {
@@ -429,6 +429,21 @@ async function handleResetPassword(req, res) {
   const email = body.email?.trim()
   const token = body.token?.trim()
   const newPassword = body.new_password || ''
+
+  // Reset tokens are 256-bit and hashed at rest, so guessing one is not the
+  // threat — unbounded attempts against this endpoint are, since each costs a
+  // database lookup and a bcrypt hash.
+  if (
+    await enforceAuthRateLimit(req, res, {
+      scope: 'admin-reset',
+      identifier: email,
+      ipLimit: 10,
+      identifierLimit: 5,
+      message: 'Too many reset attempts. Please request a new link and try again later.',
+    })
+  ) {
+    return null
+  }
 
   if (!email || !token || !newPassword) {
     return sendJson(res, 400, {

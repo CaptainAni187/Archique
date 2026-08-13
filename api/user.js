@@ -2,7 +2,7 @@ import { reportServerError } from './_lib/errorReporting.js'
 import { getBackendConfig, requireConfigValues } from './_lib/env.js'
 import { methodNotAllowed, readJson, sendJson } from './_lib/http.js'
 import { sendUserPasswordResetEmail, sendUserWelcomeEmail } from './_lib/notifications.js'
-import { getClientIp, consumeRateLimit } from './_lib/rateLimit.js'
+import { getClientIp, consumeRateLimit, enforceAuthRateLimit } from './_lib/rateLimit.js'
 import { fetchSupabaseUserFromAccessToken } from './_lib/supabaseAuth.js'
 import {
   consumeUserPasswordResetToken,
@@ -266,6 +266,21 @@ async function handleSignup(req, res) {
   const email = normalizeEmail(body.email)
   const password = String(body.password || '')
 
+  // Unbounded signup is how a store ends up with thousands of junk accounts,
+  // and how an attacker probes which addresses are already registered.
+  if (
+    await enforceAuthRateLimit(req, res, {
+      scope: 'user-signup',
+      identifier: email,
+      ipLimit: 5,
+      identifierLimit: 3,
+      windowMs: 60 * 60 * 1000,
+      message: 'Too many sign-up attempts. Please try again in a little while.',
+    })
+  ) {
+    return null
+  }
+
   if (!name || !email || !password) {
     return sendJson(res, 400, {
       success: false,
@@ -325,27 +340,30 @@ async function handleLogin(req, res) {
   const body = await readJson(req)
   const email = normalizeEmail(body.email)
   const password = String(body.password || '')
-  const ipAddress = getClientIp(req)
-  const rateLimit = await consumeRateLimit(`user-login:${ipAddress}`, {
-    limit: 10,
-    windowMs: 15 * 60 * 1000,
-  })
-  if (!rateLimit.allowed) {
-    res.setHeader('Retry-After', String(rateLimit.retryAfterSeconds))
-    return sendJson(res, 429, {
-      success: false,
-      error: 'RATE_LIMITED',
+  // By IP and by account. Limiting on IP alone leaves one customer's login
+  // open to a distributed attempt; limiting on account alone lets one machine
+  // work through many accounts.
+  if (
+    await enforceAuthRateLimit(req, res, {
+      scope: 'user-login',
+      identifier: email,
+      ipLimit: 10,
+      identifierLimit: 8,
       message: 'Too many login attempts. Please try again later.',
     })
+  ) {
+    return null
   }
 
   const user = await fetchUserByEmail(email)
   const isValid = await validateUserPassword(password, user?.password_hash)
+  // Deliberately indistinguishable from a wrong password: answering
+  // differently for a deleted account confirms the address was registered.
   if (user?.deleted_at) {
-    return sendJson(res, 403, {
+    return sendJson(res, 401, {
       success: false,
-      error: 'ACCOUNT_DELETED',
-      message: 'This account has been deleted.',
+      error: 'INVALID_CREDENTIALS',
+      message: 'Invalid email or password.',
     })
   }
 
@@ -358,7 +376,9 @@ async function handleLogin(req, res) {
   }
 
   if (!user || !isValid) {
-    console.warn(`[user-auth] Failed email login attempt for ${email || 'unknown-email'} from ${ipAddress}.`)
+    console.warn(
+      `[user-auth] Failed email login attempt for ${email || 'unknown-email'} from ${getClientIp(req)}.`,
+    )
     return sendJson(res, 401, {
       success: false,
       error: 'INVALID_CREDENTIALS',
@@ -446,6 +466,18 @@ async function handleResetPassword(req, res) {
   const token = String(body.token || '').trim()
   const newPassword = String(body.new_password || body.password || '')
 
+  if (
+    await enforceAuthRateLimit(req, res, {
+      scope: 'user-reset',
+      identifier: email,
+      ipLimit: 10,
+      identifierLimit: 5,
+      message: 'Too many reset attempts. Please request a new link and try again later.',
+    })
+  ) {
+    return null
+  }
+
   if (!email || !token || !newPassword) {
     return sendJson(res, 400, {
       success: false,
@@ -507,6 +539,19 @@ async function handleGoogleExchange(req, res) {
   }
 
   requireUserSessionSecret()
+
+  // Each call costs a round trip to the identity provider, so it needs a
+  // ceiling even though the token itself is verified there.
+  if (
+    await enforceAuthRateLimit(req, res, {
+      scope: 'user-google-exchange',
+      ipLimit: 20,
+      message: 'Too many sign-in attempts. Please wait a moment and try again.',
+    })
+  ) {
+    return null
+  }
+
   const body = await readJson(req)
   const accessToken = String(body.access_token || '').trim()
   const sessionId = String(body.session_id || '').trim()
