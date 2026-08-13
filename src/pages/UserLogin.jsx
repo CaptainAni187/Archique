@@ -8,7 +8,8 @@ import {
   requestPasswordReset,
   resetPassword,
 } from '../services/userAuthService'
-import { continueWithGoogle, OAUTH_ERROR_KEY } from '../services/supabaseAuthService'
+import { continueWithGoogle } from '../services/supabaseAuthService'
+import { OAUTH_ERROR_KEY } from '../constants/auth'
 import usePageMeta from '../hooks/usePageMeta'
 import PasswordInput from '../components/PasswordInput'
 

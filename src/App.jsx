@@ -1,6 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { finalizeGoogleLogin, OAUTH_ERROR_KEY } from './services/supabaseAuthService'
+import { OAUTH_ERROR_KEY } from './constants/auth'
 import { fetchServerCart, getUserToken, saveServerCart } from './services/userAuthService'
 import { mergeServerCart, setCartSync } from './state/cartStore'
 import Home from './pages/Home'
@@ -31,6 +31,7 @@ const Policies = lazy(() => import('./pages/Policies'))
 const Privacy = lazy(() => import('./pages/Privacy'))
 const Contact = lazy(() => import('./pages/Contact'))
 const Feed = lazy(() => import('./pages/Feed'))
+const NotFound = lazy(() => import('./pages/NotFound'))
 
 // Detected synchronously on first render, before the SDK strips the params —
 // so we can show the sign-in overlay instead of flashing the login form.
@@ -41,6 +42,30 @@ function hasOAuthCallbackInUrl() {
   const search = window.location.search || ''
   const hash = window.location.hash || ''
   return /[?&]code=/.test(search) || hash.includes('access_token=')
+}
+
+/**
+ * Does a Supabase session exist that we have not yet exchanged?
+ *
+ * Supabase persists its session under an `sb-<project>-auth-token` key. Reading
+ * that directly costs nothing, whereas asking the SDK costs 188KB — the whole
+ * client library was previously in the initial bundle purely so this check
+ * could run, on every visit, for the majority of visitors who never use Google
+ * sign-in at all.
+ *
+ * Checking the URL is reliable here precisely because the SDK has not loaded:
+ * it is the SDK that strips those parameters, and it cannot have done so yet.
+ */
+function hasPendingSupabaseSession() {
+  if (typeof window === 'undefined') {
+    return false
+  }
+
+  try {
+    return Object.keys(window.localStorage).some((key) => /^sb-.+-auth-token$/.test(key))
+  } catch {
+    return false
+  }
 }
 
 function AppLayout() {
@@ -60,9 +85,16 @@ function AppLayout() {
       return undefined
     }
 
+    // Nothing to exchange, so the Supabase client is never fetched.
+    if (!hasOAuthCallbackInUrl() && !hasPendingSupabaseSession()) {
+      setIsCompletingLogin(false)
+      return undefined
+    }
+
     let cancelled = false
 
-    finalizeGoogleLogin()
+    import('./services/supabaseAuthService')
+      .then((module) => module.finalizeGoogleLogin())
       .then((user) => {
         if (user && !cancelled) {
           navigate('/account', { replace: true })
@@ -196,6 +228,8 @@ function AppLayout() {
               </ProtectedRoute>
             }
           />
+          {/* Catch-all. Must stay last: React Router matches in order. */}
+          <Route path="*" element={<NotFound />} />
         </Routes>
         </Suspense>
       </main>
