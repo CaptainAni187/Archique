@@ -1,4 +1,6 @@
+import crypto from 'node:crypto'
 import { consumeRateLimitRecord } from './supabaseAdmin.js'
+import { sendJson } from './http.js'
 
 // Per-instance fallback store. Only used when the shared DB limiter is
 // unreachable (e.g. local dev without migrations). It still provides
@@ -112,5 +114,69 @@ export async function enforcePublicRateLimit(
       message,
     }),
   )
+  return true
+}
+
+/**
+ * Guard an authentication endpoint.
+ *
+ * Limits on two keys at once, because either alone is bypassable:
+ *
+ *   - by IP, which stops one machine hammering many accounts;
+ *   - by the account being targeted, which stops a distributed attempt
+ *     spreading across many IPs to grind one specific inbox.
+ *
+ * The identifier is lowercased and hashed rather than stored raw, so the
+ * rate-limit table never becomes a list of which email addresses exist.
+ *
+ * `failClosed` is on by default here: if the shared limiter is unreachable,
+ * falling back to a per-instance counter multiplies the real budget by the
+ * number of running instances, which is precisely the wrong behaviour for a
+ * credential endpoint.
+ */
+export async function enforceAuthRateLimit(
+  req,
+  res,
+  {
+    scope,
+    identifier = '',
+    ipLimit = 10,
+    identifierLimit = 5,
+    windowMs = 15 * 60 * 1000,
+    message = 'Too many attempts. Please wait a few minutes and try again.',
+  },
+) {
+  const checks = [consumeRateLimit(`${scope}:ip:${getClientIp(req)}`, {
+    limit: ipLimit,
+    windowMs,
+    failClosed: true,
+  })]
+
+  const normalized = String(identifier || '').trim().toLowerCase()
+  if (normalized) {
+    const digest = crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 32)
+    checks.push(
+      consumeRateLimit(`${scope}:id:${digest}`, {
+        limit: identifierLimit,
+        windowMs,
+        failClosed: true,
+      }),
+    )
+  }
+
+  const results = await Promise.all(checks)
+  const blocked = results.find((result) => !result.allowed)
+
+  if (!blocked) {
+    return false
+  }
+
+  res.setHeader('Retry-After', String(blocked.retryAfterSeconds || Math.ceil(windowMs / 1000)))
+  sendJson(res, 429, {
+    success: false,
+    error: 'RATE_LIMITED',
+    message,
+  })
+
   return true
 }
