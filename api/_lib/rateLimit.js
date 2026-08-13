@@ -11,14 +11,31 @@ function getKey(ipAddress) {
   return ipAddress || 'unknown'
 }
 
+/**
+ * The client's address, from a header the client cannot forge.
+ *
+ * `x-forwarded-for` is a list that the caller can prepend to, and taking the
+ * first entry means taking whatever the caller wrote — so anyone could defeat
+ * a per-IP limit by sending a different value each request. The platform's own
+ * headers are set at the edge and overwrite anything supplied, so they are
+ * preferred; `x-forwarded-for` is a last resort, and its *last* entry is taken
+ * because that is the hop nearest the proxy rather than the caller's claim.
+ *
+ * Defensive throughout: this runs before anything else on public endpoints, so
+ * a request shape without headers or a socket must never throw.
+ */
 export function getClientIp(req) {
-  // Defensive throughout: this runs before anything else on public endpoints,
-  // so a request shape without `headers` (or a socket) must never throw and
-  // take down the handler.
-  const forwardedFor = req?.headers?.['x-forwarded-for']
+  const headers = req?.headers || {}
 
+  const trusted = headers['x-vercel-forwarded-for'] || headers['x-real-ip']
+  if (typeof trusted === 'string' && trusted.trim()) {
+    return trusted.split(',')[0].trim()
+  }
+
+  const forwardedFor = headers['x-forwarded-for']
   if (typeof forwardedFor === 'string' && forwardedFor.trim()) {
-    return forwardedFor.split(',')[0].trim()
+    const hops = forwardedFor.split(',').map((hop) => hop.trim()).filter(Boolean)
+    return hops[hops.length - 1] || 'unknown'
   }
 
   return req?.socket?.remoteAddress || req?.connection?.remoteAddress || 'unknown'
