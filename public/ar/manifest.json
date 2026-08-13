@@ -110,5 +110,21 @@
     "widthM": 0.2032,
     "heightM": 0.2032,
     "fingerprint": "be001f2c4b25b565"
+  },
+  "34": {
+    "id": 34,
+    "glb": "/ar/34.glb",
+    "usdz": "/ar/34.usdz",
+    "widthM": 0.127,
+    "heightM": 0.2032,
+    "fingerprint": "6d945d2e6dae283c"
+  },
+  "35": {
+    "id": 35,
+    "glb": "/ar/35.glb",
+    "usdz": "/ar/35.usdz",
+    "widthM": 0.127,
+    "heightM": 0.2032,
+    "fingerprint": "3b7c3b88e84b0d97"
   }
 }
