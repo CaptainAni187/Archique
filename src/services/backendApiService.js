@@ -1,6 +1,44 @@
 import { getAdminToken } from './adminAuthService'
 
-async function parseApiResponse(response) {
+/**
+ * A session that has expired or been revoked must not surface as a raw server
+ * error. Clearing the stale token and sending the visitor to sign in is the
+ * only useful response — leaving them staring at "Request failed (401)" reads
+ * as a broken site rather than an expired login.
+ *
+ * The redirect carries where they were, so signing in returns them there.
+ */
+function handleExpiredSession(path) {
+  const isAdminRoute = String(path || '').includes('/api/admin')
+
+  try {
+    if (isAdminRoute) {
+      localStorage.removeItem('archique_admin_token')
+    } else {
+      localStorage.removeItem('archique_user_token')
+      localStorage.removeItem('archique_user_profile')
+    }
+  } catch {
+    // Storage can be unavailable in private modes; the redirect still applies.
+  }
+
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  const destination = isAdminRoute ? '/captain' : '/login'
+  const current = `${window.location.pathname}${window.location.search}`
+
+  // Already on the sign-in screen: redirecting again would loop.
+  if (window.location.pathname === destination) {
+    return
+  }
+
+  const from = current && current !== '/' ? `?from=${encodeURIComponent(current)}` : ''
+  window.location.assign(`${destination}${from}`)
+}
+
+async function parseApiResponse(response, path, hadToken) {
   const text = await response.text()
   let payload = {}
 
@@ -12,6 +50,14 @@ async function parseApiResponse(response) {
 
   if (import.meta.env.DEV) {
     console.log('API RESPONSE:', payload)
+  }
+
+  // Only a request that carried a token can have an *expired* session. Sign-in
+  // itself answers 401 for a wrong password, and that must keep saying so
+  // rather than claiming the session ran out.
+  if (response.status === 401 && hadToken) {
+    handleExpiredSession(path)
+    throw new Error(payload.message || 'Your session has expired. Please sign in again.')
   }
 
   if (!response.ok || payload.success === false) {
@@ -31,7 +77,10 @@ export async function backendRequest(path, options = {}) {
     },
   })
 
-  return parseApiResponse(response)
+  const authHeader = options.headers?.Authorization || options.headers?.authorization || ''
+  const hadToken = /^Bearer\s+\S+/.test(String(authHeader))
+
+  return parseApiResponse(response, path, hadToken)
 }
 
 export async function backendAdminRequest(path, options = {}) {

@@ -1,0 +1,43 @@
+name: Send curated digest
+
+# The digest existed as a script that nothing ever ran, so customers could opt
+# in from their account page and then receive nothing at all. It only mails
+# accounts with digest_opt_in set, and respects each account's chosen frequency
+# and last-sent timestamp, so running it weekly does not mean weekly mail for
+# everyone.
+#
+# workflow_dispatch first, so it can be run by hand and inspected before the
+# schedule ever fires on its own.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * 3' # Wednesdays, 04:00 UTC — 09:30 IST
+
+# Read-only: this job sends email and updates a timestamp, it commits nothing.
+permissions:
+  contents: read
+
+jobs:
+  send-digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Send digest
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+          SITE_URL: ${{ secrets.SITE_URL }}
+        run: npm run digest:send

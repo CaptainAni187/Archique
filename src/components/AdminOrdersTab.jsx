@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { getAdminToken } from '../services/adminAuthService'
+import { printPackingSlip } from '../utils/packingSlip'
 
 function formatPrice(price) {
   return `Rs. ${Number(price).toLocaleString()}`
@@ -94,6 +95,7 @@ function ShipmentForm({ order, onUpdateOrderStatus }) {
 function AdminOrdersTab({
   orders,
   selectedOrder,
+  artworks = [],
   selectedArtwork,
   orderStatuses,
   onSelectOrder,
@@ -125,9 +127,25 @@ function AdminOrdersTab({
               <p className="order-detail-kicker">Selected order</p>
               <h3>{selectedOrder.order_code || `Order #${selectedOrder.id}`}</h3>
             </div>
-            <span className={`badge status-${selectedOrder.payment_status}`}>
-              {selectedOrder.payment_status}
-            </span>
+            <div className="order-detail-header-actions">
+              <span className={`badge status-${selectedOrder.payment_status}`}>
+                {selectedOrder.payment_status}
+              </span>
+              {/* Printed while packing, so the address is never copied by hand
+                  and a gift order cannot quietly get an invoice in the box. */}
+              <button
+                type="button"
+                className="text-link-button"
+                onClick={() =>
+                  printPackingSlip(
+                    selectedOrder,
+                    new Map(artworks.map((artwork) => [Number(artwork.id), artwork])),
+                  )
+                }
+              >
+                Print packing slip
+              </button>
+            </div>
           </div>
           {selectedOrder.is_gift ? (
             <div className="order-gift-banner">

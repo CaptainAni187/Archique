@@ -1030,6 +1030,7 @@ function Admin() {
           {activeTab === 'orders' ? (
             <AdminOrdersTab
               orders={orders}
+              artworks={artworks}
               selectedOrder={selectedOrder}
               selectedArtwork={selectedArtwork}
               orderStatuses={ORDER_STATUSES}
