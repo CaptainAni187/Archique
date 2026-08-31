@@ -2338,6 +2338,13 @@ body.is-carousel-route {
   letter-spacing: var(--tracking-wide);
   font-size: 0.92rem;
   line-height: 1.06;
+  /* The caption sits over whatever the artwork happens to be, and a bright sky
+     or a pale wall leaves it unreadable. A soft shadow costs nothing over a
+     dark image and rescues it over a light one — cheaper and more reliable
+     than sampling the region behind every caption. */
+  text-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.55),
+    0 0 14px rgba(0, 0, 0, 0.35);
 }
 
 .artwork-carousel__arrow {
