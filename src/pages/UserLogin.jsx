@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import DeliveryAddressFields from '../components/DeliveryAddressFields'
 import {
   loginUser,
@@ -20,6 +20,26 @@ function UserLogin() {
   })
 
   const navigate = useNavigate()
+
+  const [searchParams] = useSearchParams()
+
+  // Where to go after signing in. Checkout sends visitors here when they are
+
+  // not signed in, so returning them to /account would lose the purchase they
+
+  // were part-way through. Only same-site paths are honoured, so the parameter
+
+  // cannot be used to bounce someone to another domain.
+
+  const requestedFrom = searchParams.get('from') || ''
+
+  const returnTo =
+
+    requestedFrom.startsWith('/') && !requestedFrom.startsWith('//')
+
+      ? requestedFrom
+
+      : '/account'
   const [mode, setMode] = useState('login')
   // A brand-new account has no phone or address, and asking at checkout is the
   // worst moment. Collect it once, right after signup, so the first purchase is
@@ -133,7 +153,7 @@ function UserLogin() {
         return
       }
 
-      navigate('/account')
+      navigate(returnTo)
     } catch (error) {
       setErrorMessage(error.message || 'Unable to authenticate.')
     } finally {
@@ -153,7 +173,7 @@ function UserLogin() {
     setIsSavingDetails(true)
     try {
       await saveDeliveryProfile(detailsForm)
-      navigate('/account')
+      navigate(returnTo)
     } catch (error) {
       setDetailsError(error.message || 'Could not save your details.')
     } finally {
@@ -182,7 +202,7 @@ function UserLogin() {
             <button
               type="button"
               className="text-link-button"
-              onClick={() => navigate('/account')}
+              onClick={() => navigate(returnTo)}
               disabled={isSavingDetails}
             >
               Skip for now
