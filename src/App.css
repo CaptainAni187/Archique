@@ -5734,3 +5734,16 @@ html[data-theme='dark'] .site-footer-mail {
   text-decoration: none;
   border-bottom: 1px solid var(--border-gold-medium);
 }
+
+/* Admin: artwork identifier */
+.admin-artwork-id {
+  margin-left: 8px;
+  padding: 2px 7px;
+  border-radius: 9px;
+  background: var(--bg-chip);
+  color: var(--accent-text);
+  font-size: 0.64rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
