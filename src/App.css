@@ -608,7 +608,14 @@
 
 .carousel-stage.full-bleed {
   width: 100vw;
+  /* Both margins, not just the left one. With only the left margin the element
+     is positioned correctly but still measures 100vw from inside the parent's
+     padded content box, so it pushes the parent wider than the screen and the
+     whole page gains a horizontal scroll — which reads as a gap down the left
+     once anything scrolls sideways. The topbar always carried both, which is
+     why the header sat still while the carousel drifted. */
   margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
 }
 
 .image-with-fallback {
@@ -2267,7 +2274,14 @@ button:disabled {
 
 .artwork-carousel__stage.full-bleed {
   width: 100vw;
+  /* Both margins, not just the left one. With only the left margin the element
+     is positioned correctly but still measures 100vw from inside the parent's
+     padded content box, so it pushes the parent wider than the screen and the
+     whole page gains a horizontal scroll — which reads as a gap down the left
+     once anything scrolls sideways. The topbar always carried both, which is
+     why the header sat still while the carousel drifted. */
   margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
 }
 
 .artwork-carousel__track {
