@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import Reveal from '../components/Reveal'
 import usePageMeta from '../hooks/usePageMeta'
-import { PUBLIC_EMAIL, PUBLIC_EMAIL_HREF } from '../constants/contact'
+import { PUBLIC_EMAIL, PUBLIC_EMAIL_HREF, STUDIO } from '../constants/contact'
 
 function Contact() {
   usePageMeta({
@@ -60,6 +60,32 @@ function Contact() {
           <p className="section-copy">
             FOR CUSTOM PAINTINGS, COMMISSIONS, OR INQUIRIES
           </p>
+          {/* Stated in plain text, not only behind icons: a buyer deciding on an
+              original wants to see a real person is reachable, and payment
+              providers check for exactly this before approving a live account. */}
+          <dl className="contact-details">
+            <div>
+              <dt>Phone</dt>
+              <dd>
+                <a href={STUDIO.phoneHref}>{STUDIO.phone}</a>
+              </dd>
+            </div>
+            <div>
+              <dt>Email</dt>
+              <dd>
+                <a href={PUBLIC_EMAIL_HREF}>{PUBLIC_EMAIL}</a>
+              </dd>
+            </div>
+            <div>
+              <dt>Studio</dt>
+              <dd>{STUDIO.city}</dd>
+            </div>
+            <div>
+              <dt>Hours</dt>
+              <dd>Monday to Saturday, 10am – 7pm IST</dd>
+            </div>
+          </dl>
+
           <div className="contact-links">
             <a
               href="https://www.instagram.com/archique.in/"
@@ -72,6 +98,12 @@ function Contact() {
                 <use href="/icons.svg#instagram-icon" />
               </svg>
               <span className="sr-only">Instagram</span>
+            </a>
+            <a href={STUDIO.phoneHref} aria-label={`Call ${STUDIO.phone}`} title={STUDIO.phone}>
+              <svg className="contact-icon" aria-hidden="true" focusable="false">
+                <use href="/icons.svg#phone-icon" />
+              </svg>
+              <span className="sr-only">Phone</span>
             </a>
             <a
               href={PUBLIC_EMAIL_HREF}

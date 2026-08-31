@@ -1,6 +1,6 @@
 import { reportServerError } from './_lib/errorReporting.js'
 import { requireAdminAuth } from './_lib/adminSession.js'
-import { requireUserAuth } from './_lib/userSession.js'
+import { requireUserAuth, getOptionalUserSession, normalizeEmail } from './_lib/userSession.js'
 import { logAdminActivity } from './_lib/adminActivity.js'
 import { validateCoupon } from './_lib/coupons.js'
 import { getBackendConfig } from './_lib/env.js'
@@ -117,6 +117,25 @@ function maskAddress(value) {
   const locality = parts.length > 1 ? parts[parts.length - 1].replace(/\b\d{6}\b/, '').trim() : ''
 
   return [locality || null, pincode ? pincode[1] : null].filter(Boolean).join(' ') || null
+}
+
+/**
+ * The order as its owner sees it: nothing masked, because they supplied every
+ * one of these details themselves.
+ */
+function normalizeOwnerTrackingOrder(order) {
+  return {
+    ...normalizeTrackingOrder(order),
+    customer_name: order.customer_name || null,
+    customer_email: order.customer_email || null,
+    customer_phone: order.customer_phone || null,
+    customer_address: order.customer_address || null,
+    razorpay_payment_id: order.razorpay_payment_id || null,
+    coupon_code: order.coupon_code || null,
+    coupon_discount_amount: Number(order.coupon_discount_amount || 0),
+    is_gift: order.is_gift === true,
+    product_ids: Array.isArray(order.product_ids) ? order.product_ids : [],
+  }
 }
 
 function normalizeTrackingOrder(order) {
@@ -800,10 +819,31 @@ async function handleLookupOrderByCode(req, res) {
     })
   }
 
+  // An order code is sequential and therefore guessable, so holding one is not
+  // proof of anything. Only the account that placed the order may read it.
+  // Buying requires an account, so every order has an owner to compare against.
+  const session = getOptionalUserSession(req)
+  const ownsOrder =
+    Boolean(session) &&
+    (Number(order.user_id) === Number(session.id) ||
+      normalizeEmail(order.customer_email) === normalizeEmail(session.email))
+
+  if (!ownsOrder) {
+    // Deliberately the same answer as an order code that does not exist:
+    // confirming one exists would let the sequence be mapped.
+    return sendJson(res, 404, {
+      success: false,
+      error: 'ORDER_NOT_FOUND',
+      message: 'No order found for this order code on your account.',
+    })
+  }
+
+  const payload = normalizeOwnerTrackingOrder(order)
+
   return sendJson(res, 200, {
     success: true,
-    order: normalizeTrackingOrder(order),
-    data: normalizeTrackingOrder(order),
+    order: payload,
+    data: payload,
   })
 }
 

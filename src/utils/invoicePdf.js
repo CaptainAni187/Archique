@@ -1,226 +1,144 @@
+import { STUDIO } from '../constants/contact'
+
+/**
+ * The customer's invoice.
+ *
+ * Previously written by hand as a raw PDF content stream, which has no layout
+ * engine — long titles and addresses ran off the page because nothing measured
+ * them. This renders the document as HTML and hands it to the browser's print
+ * pipeline instead, so text wraps, the table aligns, and the studio's colours
+ * survive. The buyer chooses "Save as PDF" in the print dialogue.
+ */
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+}
+
 function formatPrice(value) {
-  return `Rs. ${Number(value || 0).toLocaleString('en-IN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`
+  return `Rs. ${Number(value || 0).toLocaleString('en-IN')}`
 }
 
 function formatDate(value) {
-  if (!value) {
-    return new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium' }).format(new Date())
-  }
-
-  return new Intl.DateTimeFormat('en-IN', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value))
-}
-
-function sanitize(value) {
-  return String(value || '').replace(/\s+/g, ' ').trim()
-}
-
-function escapePdfText(value) {
-  return sanitize(value)
-    .replace(/\\/g, '\\\\')
-    .replace(/\(/g, '\\(')
-    .replace(/\)/g, '\\)')
-}
-
-function wrapText(value, maxCharacters = 62) {
-  const text = sanitize(value)
-
-  if (!text) {
-    return []
-  }
-
-  const words = text.split(' ')
-  const lines = []
-  let currentLine = ''
-
-  words.forEach((word) => {
-    const nextLine = currentLine ? `${currentLine} ${word}` : word
-
-    if (nextLine.length <= maxCharacters) {
-      currentLine = nextLine
-      return
-    }
-
-    if (currentLine) {
-      lines.push(currentLine)
-    }
-
-    currentLine = word
-  })
-
-  if (currentLine) {
-    lines.push(currentLine)
-  }
-
-  return lines
-}
-
-function drawText(text, x, y, size = 12) {
-  return `BT\n/F1 ${size} Tf\n1 0 0 1 ${x} ${y} Tm\n(${escapePdfText(text)}) Tj\nET`
-}
-
-function buildInvoiceLines(invoice) {
-  const totalAmount = Number(invoice.totalAmount || 0)
-  const amountPaid = Number(invoice.advanceAmount || 0)
-
-  const lines = [
-    { text: 'ARCHIQUE', x: 48, y: 792, size: 20 },
-    { text: 'Invoice', x: 48, y: 766, size: 16 },
-    { text: `Invoice No: ${invoice.orderId || invoice.orderCode || 'Pending'}`, x: 48, y: 734 },
-    { text: `Order Code: ${invoice.orderCode || 'Pending'}`, x: 48, y: 716 },
-    { text: `Issue Date: ${formatDate(invoice.paymentVerifiedAt)}`, x: 48, y: 698 },
-    { text: `Payment ID: ${invoice.paymentId || 'Pending confirmation'}`, x: 48, y: 680 },
-    { text: 'Bill To', x: 48, y: 644, size: 14 },
-    { text: invoice.customerName || 'Collector', x: 48, y: 622 },
-  ]
-
-  let customerY = 604
-  const customerDetails = [
-    invoice.customerEmail,
-    invoice.customerPhone,
-    ...(invoice.customerAddress ? wrapText(invoice.customerAddress) : []),
-  ].filter(Boolean)
-
-  customerDetails.forEach((detail) => {
-    lines.push({ text: detail, x: 48, y: customerY })
-    customerY -= 18
-  })
-
-  const detailsTop = Math.min(customerY - 18, 568)
-
-  lines.push({ text: 'Order Details', x: 48, y: detailsTop, size: 14 })
-
-  let rowY = detailsTop - 24
-
-  // Itemise from the stored invoice when it is available, so a multi-piece
-  // order shows each work and its price rather than one concatenated title.
-  const lineItems = Array.isArray(invoice.lineItems) ? invoice.lineItems : []
-
-  if (lineItems.length > 0) {
-    lineItems.forEach((item) => {
-      const label = item.size ? `${item.title} (${item.size})` : item.title
-      lines.push({ text: label, x: 48, y: rowY })
-      lines.push({ text: formatPrice(item.unit_price), x: 430, y: rowY })
-      rowY -= 18
-    })
-    rowY -= 8
-  } else {
-    lines.push({ text: `Artwork: ${invoice.productTitle || 'Original artwork'}`, x: 48, y: rowY })
-    rowY -= 18
-  }
-
-  if (Number(invoice.pairingDiscountAmount) > 0) {
-    const percent = Number(invoice.pairingDiscountPercent) || 0
-    lines.push({
-      text: `Multi-piece discount${percent ? ` (${percent}%)` : ''}`,
-      x: 48,
-      y: rowY,
-    })
-    lines.push({ text: `- ${formatPrice(invoice.pairingDiscountAmount)}`, x: 430, y: rowY })
-    rowY -= 18
-  }
-
-  if (Number(invoice.couponDiscountAmount) > 0) {
-    lines.push({ text: `Coupon ${invoice.couponCode || ''}`.trim(), x: 48, y: rowY })
-    lines.push({ text: `- ${formatPrice(invoice.couponDiscountAmount)}`, x: 430, y: rowY })
-    rowY -= 18
-  }
-
-  if (Number(invoice.shipping) > 0) {
-    lines.push({ text: 'Delivery', x: 48, y: rowY })
-    lines.push({ text: formatPrice(invoice.shipping), x: 430, y: rowY })
-    rowY -= 18
-  }
-
-  rowY -= 6
-  lines.push({ text: 'Payment Status: Paid in full', x: 48, y: rowY })
-  rowY -= 18
-  lines.push({ text: 'Total Amount:', x: 48, y: rowY })
-  lines.push({ text: formatPrice(totalAmount), x: 430, y: rowY })
-  rowY -= 18
-  lines.push({ text: 'Amount Paid:', x: 48, y: rowY, size: 13 })
-  lines.push({ text: formatPrice(amountPaid), x: 430, y: rowY, size: 13 })
-  rowY -= 24
-
-  if (invoice.isGift) {
-    lines.push({
-      text: `Gift order${invoice.giftRecipientName ? ` for ${invoice.giftRecipientName}` : ''}`,
-      x: 48,
-      y: rowY,
-    })
-    rowY -= 18
-  }
-
-  // Follows the running cursor rather than a fixed offset, which would now
-  // collide with the itemised rows above.
-  if (invoice.deliveryEstimate) {
-    lines.push({ text: `Delivery Estimate: ${invoice.deliveryEstimate}`, x: 48, y: rowY })
-    rowY -= 18
-  }
-
-  lines.push({
-    text: 'Thank you for collecting original work from Archique.',
-    x: 48,
-    y: 92,
-  })
-
-  return lines
-}
-
-function createPdf(contentStream) {
-  const objects = [
-    '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj',
-    '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj',
-    '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj',
-    `4 0 obj\n<< /Length ${contentStream.length} >>\nstream\n${contentStream}\nendstream\nendobj`,
-    '5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj',
-  ]
-
-  let pdf = '%PDF-1.4\n'
-  const offsets = [0]
-
-  objects.forEach((object) => {
-    offsets.push(pdf.length)
-    pdf += `${object}\n`
-  })
-
-  const xrefStart = pdf.length
-  pdf += `xref\n0 ${objects.length + 1}\n`
-  pdf += '0000000000 65535 f \n'
-
-  offsets.slice(1).forEach((offset) => {
-    pdf += `${String(offset).padStart(10, '0')} 00000 n \n`
-  })
-
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`
-  return new Blob([pdf], { type: 'application/pdf' })
+  const date = value ? new Date(value) : new Date()
+  return Number.isNaN(date.getTime())
+    ? ''
+    : date.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
 export function downloadInvoicePdf(invoice) {
-  const lines = buildInvoiceLines(invoice)
-  const contentStream = [
-    '0.2 w',
-    '48 752 m',
-    '564 752 l',
-    'S',
-    ...lines.map((line) => drawText(line.text, line.x, line.y, line.size)),
-  ].join('\n')
+  const total = Number(invoice.totalAmount || invoice.total_amount || 0)
+  const paid = Number(invoice.advanceAmount || invoice.advance_amount || total)
+  const discount = Number(invoice.couponDiscountAmount || invoice.coupon_discount_amount || 0)
+  const couponCode = invoice.couponCode || invoice.coupon_code || ''
+  const orderCode = invoice.orderCode || invoice.order_id || invoice.order_code || ''
 
-  const blob = createPdf(contentStream)
-  const objectUrl = URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-  const filenameBase = sanitize(invoice.orderCode || invoice.orderId || 'archique-invoice')
+  const rows = [
+    [escapeHtml(invoice.productTitle || invoice.product_title || 'Original artwork'), formatPrice(total - (invoice.shipping || 0))],
+    discount > 0 ? [`Discount${couponCode ? ` · ${escapeHtml(couponCode)}` : ''}`, `− ${formatPrice(discount)}`] : null,
+  ].filter(Boolean)
 
-  anchor.href = objectUrl
-  anchor.download = `${filenameBase}.pdf`
-  anchor.click()
+  const html = `<!doctype html>
+<html><head><meta charset="utf-8"><title>Invoice ${escapeHtml(orderCode)}</title>
+<style>
+  @page { size: A4; margin: 16mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Helvetica, Arial, sans-serif; color: #1d1d1f; margin: 0; font-size: 10.5pt; line-height: 1.5; }
+  .top { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #c6a962; padding-bottom: 12px; }
+  .mark { font-size: 20pt; font-weight: 300; letter-spacing: 0.26em; color: #1d1d1f; }
+  .tag { font-size: 8pt; letter-spacing: 0.16em; text-transform: uppercase; color: #8a7a4e; margin-top: 4px; }
+  .doc { text-align: right; }
+  .doc h1 { margin: 0; font-size: 15pt; font-weight: 600; letter-spacing: 0.1em; color: #7d6320; text-transform: uppercase; }
+  .doc .num { font-size: 12pt; font-weight: 600; margin-top: 3px; }
+  .doc .date { font-size: 9pt; color: #666; }
+  .paid { display: inline-block; margin-top: 6px; padding: 3px 10px; border-radius: 10px; background: #e8f3ea; color: #1d6b32; font-size: 8pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+  .cols { display: flex; gap: 28px; margin: 22px 0 6px; }
+  .col { flex: 1; }
+  .label { font-size: 7.5pt; letter-spacing: 0.14em; text-transform: uppercase; color: #8a8a8a; margin-bottom: 5px; }
+  .val { font-size: 10pt; line-height: 1.55; }
+  table { width: 100%; border-collapse: collapse; margin-top: 18px; }
+  th { text-align: left; font-size: 7.5pt; letter-spacing: 0.12em; text-transform: uppercase; color: #6b6b6b; background: #faf7f0; border-top: 1px solid #e4dcc8; border-bottom: 1px solid #e4dcc8; padding: 8px 10px; }
+  th.r, td.r { text-align: right; }
+  td { padding: 11px 10px; border-bottom: 1px solid #efece4; vertical-align: top; word-break: break-word; }
+  .totals { margin-left: auto; width: 58%; margin-top: 10px; }
+  .totals div { display: flex; justify-content: space-between; padding: 6px 10px; font-size: 10pt; }
+  .totals .grand { margin-top: 4px; border-top: 2px solid #c6a962; font-weight: 700; font-size: 12pt; color: #1d1d1f; padding-top: 9px; }
+  .note { margin-top: 26px; padding: 12px 14px; background: #faf7f0; border-left: 3px solid #c6a962; font-size: 9pt; color: #4a4a4a; }
+  .foot { margin-top: 26px; padding-top: 12px; border-top: 1px solid #e4dcc8; font-size: 8.5pt; color: #6b6b6b; display: flex; justify-content: space-between; gap: 16px; }
+  .foot a { color: #7d6320; text-decoration: none; }
+</style></head><body>
+  <div class="top">
+    <div>
+      <div class="mark">ARCHIQUE</div>
+      <div class="tag">Original artwork · one of each</div>
+    </div>
+    <div class="doc">
+      <h1>Invoice</h1>
+      <div class="num">${escapeHtml(orderCode)}</div>
+      <div class="date">${formatDate(invoice.paymentVerifiedAt || invoice.created_at)}</div>
+      <div class="paid">Paid in full</div>
+    </div>
+  </div>
 
-  window.setTimeout(() => {
-    URL.revokeObjectURL(objectUrl)
-  }, 1000)
+  <div class="cols">
+    <div class="col">
+      <div class="label">Billed to</div>
+      <div class="val">
+        <strong>${escapeHtml(invoice.customerName || invoice.customer_name || '')}</strong><br>
+        ${escapeHtml(invoice.customerAddress || invoice.customer_address || '').replaceAll('\n', '<br>')}<br>
+        ${escapeHtml(invoice.customerPhone || invoice.customer_phone || '')}<br>
+        ${escapeHtml(invoice.customerEmail || invoice.customer_email || '')}
+      </div>
+    </div>
+    <div class="col">
+      <div class="label">From</div>
+      <div class="val">
+        <strong>Archique</strong><br>
+        ${escapeHtml(STUDIO.city)}<br>
+        ${escapeHtml(STUDIO.phone)}<br>
+        ${escapeHtml(STUDIO.email)}
+      </div>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th>Description</th><th class="r">Amount</th></tr></thead>
+    <tbody>
+      ${rows.map(([a, b]) => `<tr><td>${a}</td><td class="r">${b}</td></tr>`).join('')}
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <div><span>Order total</span><span>${formatPrice(total)}</span></div>
+    <div class="grand"><span>Amount paid</span><span>${formatPrice(paid)}</span></div>
+  </div>
+
+  ${
+    invoice.paymentId || invoice.razorpay_payment_id
+      ? `<div class="note">Payment reference: ${escapeHtml(invoice.paymentId || invoice.razorpay_payment_id)} · Paid securely via Razorpay. Archique never stores card or UPI details.</div>`
+      : ''
+  }
+
+  <div class="foot">
+    <span>${escapeHtml(STUDIO.email)} · ${escapeHtml(STUDIO.phone)}</span>
+    <span>${escapeHtml(STUDIO.instagramHandle)}</span>
+    <span>archique.in</span>
+  </div>
+</body></html>`
+
+  const frame = document.createElement('iframe')
+  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'
+  document.body.appendChild(frame)
+
+  const doc = frame.contentWindow.document
+  doc.open()
+  doc.write(html)
+  doc.close()
+
+  frame.contentWindow.focus()
+  frame.contentWindow.print()
+
+  window.setTimeout(() => frame.remove(), 1000)
 }
