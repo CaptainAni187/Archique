@@ -83,6 +83,31 @@ export async function backendRequest(path, options = {}) {
   return parseApiResponse(response, path, hadToken)
 }
 
+/**
+ * A request made as the signed-in customer.
+ *
+ * Buying requires an account, so the endpoints behind checkout reject requests
+ * without a session. The token is read from storage rather than imported from
+ * userAuthService, because that module imports this one.
+ */
+export async function backendUserRequest(path, options = {}) {
+  let token = ''
+
+  try {
+    token = localStorage.getItem('archique_user_token') || ''
+  } catch {
+    // Storage unavailable; the server will answer 401 and the caller redirects.
+  }
+
+  return backendRequest(path, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(options.headers || {}),
+    },
+  })
+}
+
 export async function backendAdminRequest(path, options = {}) {
   const token = getAdminToken()
 
@@ -110,7 +135,7 @@ export async function createPaymentOrder(selection, { couponCode, customerEmail 
           coupon_code: couponCode || undefined,
           customer_email: customerEmail || undefined,
         }
-  const payload = await backendRequest('/api/create-order', {
+  const payload = await backendUserRequest('/api/create-order', {
     method: 'POST',
     body: JSON.stringify(payloadBody),
   })
@@ -144,7 +169,7 @@ export async function lookupOrderByCode(orderCode) {
 }
 
 export async function createVerifiedOrder(orderInput) {
-  const payload = await backendRequest('/api/orders', {
+  const payload = await backendUserRequest('/api/orders', {
     method: 'POST',
     body: JSON.stringify(orderInput),
   })
