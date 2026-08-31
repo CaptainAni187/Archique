@@ -77,7 +77,7 @@ Shipping is charged as one parcel, not one per piece: the highest single rate pl
 
 Customers sign in with email and password or with Google. New accounts capture phone and delivery address at sign-up, with the email pre-filled, so checkout is not the first time anyone is asked for an address.
 
-Orders are tracked by order code without signing in.
+Orders are private to the account that placed them: tracking answers the owner only, since order codes run in sequence and holding one proves nothing.
 
 ### Commissions
 
