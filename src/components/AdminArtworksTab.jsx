@@ -296,7 +296,13 @@ function AdminArtworksTab({
                 />
               ) : null}
               <div>
-                <h3>{artwork.title}</h3>
+                <h3>
+                  {artwork.title}
+                  {/* The id is how an artwork is referred to in orders, AR
+                      assets and support questions, so it belongs on screen
+                      rather than only in the database. */}
+                  <span className="admin-artwork-id">#{artwork.id}</span>
+                </h3>
                 <p>{formatPrice(artwork.price)}</p>
                 <p>Size: {artwork.size} in</p>
                 <p>Stock: {artwork.quantity}</p>

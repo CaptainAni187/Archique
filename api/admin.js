@@ -725,11 +725,40 @@ async function handlePaymentLogs(req, res) {
   ).catch(() => [])
 
   const rows = Array.isArray(logs) ? logs : []
-  const needsAttention = rows.filter((row) =>
-    ['orphan_payment', 'payment_mismatch', 'artwork_sold_race', 'invalid_signature'].includes(
-      row.status,
-    ),
-  )
+
+  // Razorpay's webhook routinely beats the browser: the payment is captured and
+  // the notification delivered before the tab has finished asking us to write
+  // the order. Every purchase therefore logs one "orphan" that resolves itself
+  // seconds later. Only a payment that still has no order is a real problem, so
+  // the ones that since found their order are dropped here rather than left to
+  // train the studio to ignore the panel.
+  const orphanPaymentIds = rows
+    .filter((row) => row.status === 'orphan_payment' && row.razorpay_payment_id)
+    .map((row) => row.razorpay_payment_id)
+
+  const settledPaymentIds = new Set()
+  if (orphanPaymentIds.length > 0) {
+    const inList = orphanPaymentIds.map((id) => `"${String(id).replaceAll('"', '')}"`).join(',')
+    const matched = await supabaseAdminRequest(
+      `orders?select=razorpay_payment_id&razorpay_payment_id=in.(${inList})`,
+    ).catch(() => [])
+
+    ;(Array.isArray(matched) ? matched : []).forEach((order) => {
+      settledPaymentIds.add(order.razorpay_payment_id)
+    })
+  }
+
+  const needsAttention = rows.filter((row) => {
+    if (
+      !['orphan_payment', 'payment_mismatch', 'artwork_sold_race', 'invalid_signature'].includes(
+        row.status,
+      )
+    ) {
+      return false
+    }
+
+    return !(row.status === 'orphan_payment' && settledPaymentIds.has(row.razorpay_payment_id))
+  })
 
   return sendJson(res, 200, {
     success: true,
