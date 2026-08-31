@@ -9,6 +9,8 @@ describe('order creation handler', () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key'
     process.env.RAZORPAY_KEY_ID = 'rzp_test_key'
     process.env.RAZORPAY_KEY_SECRET = 'rzp_test_secret'
+    // Checkout requires a signed-in customer, so the request must carry one.
+    process.env.USER_SESSION_SECRET = 'test-user-session-secret-0123456789abcdef'
   })
 
   afterEach(() => {
@@ -84,9 +86,13 @@ describe('order creation handler', () => {
     const { default: handler } = await import('../api/orders.js')
     const res = createMockResponse()
 
+    const { createUserToken } = await import('../api/_lib/userSession.js')
+    const userToken = createUserToken({ id: 42, email: 'ada@example.com', name: 'Ada Lovelace' })
+
     await handler(
       {
         method: 'POST',
+        headers: { authorization: `Bearer ${userToken}` },
         body: {
           product_id: 1,
           customer_name: 'Ada Lovelace',
@@ -115,5 +121,36 @@ describe('order creation handler', () => {
         body: JSON.stringify({ quantity: 0, status: 'sold' }),
       }),
     )
+  })
+
+  it('refuses to create an order for a request with no customer session', async () => {
+    // The browser redirects to sign-in, but the endpoint is reachable directly.
+    // A payment must never be recorded without a known customer.
+    global.fetch = vi.fn(async () => createJsonResponse([]))
+
+    const { default: handler } = await import('../api/orders.js')
+    const res = createMockResponse()
+
+    await handler(
+      {
+        method: 'POST',
+        headers: {},
+        body: {
+          product_id: 1,
+          customer_name: 'Ada Lovelace',
+          customer_phone: '+919812345678',
+          customer_address: '123 Main Street',
+          customer_email: 'ada@example.com',
+          razorpay_payment_id: 'pay_anon',
+          razorpay_order_id: 'order_anon',
+          razorpay_signature: 'nope',
+        },
+        query: {},
+        url: '/api/orders',
+      },
+      res,
+    )
+
+    expect(res.statusCode).toBe(401)
   })
 })

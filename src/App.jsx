@@ -10,6 +10,7 @@ import Canvas from './pages/Canvas'
 import Sketch from './pages/Sketch'
 import { OrderProvider } from './state/OrderContext'
 import ProtectedRoute from './components/ProtectedRoute'
+import RequireUser from './components/RequireUser'
 import SiteHeader from './components/SiteHeader'
 import SiteFooter from './components/SiteFooter'
 import ScrollToTop from './components/ScrollToTop'
@@ -212,7 +213,14 @@ function AppLayout() {
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/product/:id" element={<Product />} />
           <Route path="/cart" element={<Cart />} />
-          <Route path="/checkout" element={<Checkout />} />
+          <Route
+            path="/checkout"
+            element={
+              <RequireUser>
+                <Checkout />
+              </RequireUser>
+            }
+          />
           <Route path="/checkout/confirmation" element={<OrderConfirmation />} />
           <Route path="/order/:orderCode" element={<OrderTracking />} />
           <Route path="/login" element={<UserLogin />} />

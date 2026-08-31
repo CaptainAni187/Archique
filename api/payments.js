@@ -4,6 +4,7 @@ import { getBackendConfig, requireConfigValues } from './_lib/env.js'
 import { validateCoupon } from './_lib/coupons.js'
 import { methodNotAllowed, readJson, readRawBody, sendJson } from './_lib/http.js'
 import { enforcePublicRateLimit } from './_lib/rateLimit.js'
+import { requireUserAuth } from './_lib/userSession.js'
 import { createPaymentLog } from './_lib/paymentLogs.js'
 import {
   createRazorpayOrder,
@@ -48,6 +49,14 @@ async function getShippingRates() {
 async function handleCreatePaymentOrder(req, res) {
   if (req.method !== 'POST') {
     return methodNotAllowed(res, ['POST'])
+  }
+
+  // Buying requires an account. Enforced here rather than only in the browser,
+  // because a redirect in the UI is a convenience and this is the control:
+  // anything that can be reached with curl has to check for itself.
+  const session = requireUserAuth(req, res)
+  if (!session) {
+    return null
   }
 
   const body = await readJson(req)

@@ -1,5 +1,6 @@
 import { reportServerError } from './_lib/errorReporting.js'
 import { requireAdminAuth } from './_lib/adminSession.js'
+import { requireUserAuth } from './_lib/userSession.js'
 import { logAdminActivity } from './_lib/adminActivity.js'
 import { validateCoupon } from './_lib/coupons.js'
 import { getBackendConfig } from './_lib/env.js'
@@ -194,6 +195,15 @@ async function createOrderRecord(payload) {
 
       return response[0]
     } catch (error) {
+      // Same tolerance as product_ids: the money path must not depend on a
+      // migration having been applied first.
+      if (isMissingColumnError(error, 'user_id')) {
+        console.warn('[orders] user_id column missing — apply the account migration.')
+        const { user_id: _noUserId, ...withoutUserId } = body
+        body = withoutUserId
+        continue
+      }
+
       if (isMissingColumnError(error, 'product_ids')) {
         console.warn(
           '[orders] product_ids column missing — apply the order-items migration. ' +
@@ -391,6 +401,14 @@ function buildInvoiceSnapshot({ selection, order, coupon, payment }) {
 }
 
 async function handleCreateOrder(req, res) {
+  // Buying requires an account. The browser redirects to sign-in, but that is
+  // a convenience — this is the control, because the endpoint is reachable
+  // directly and a payment must never be recorded without a known customer.
+  const session = requireUserAuth(req, res)
+  if (!session) {
+    return null
+  }
+
   const body = await readJson(req)
   const validatedBody = validateWithSchema(orderCreationSchema, body)
   validateWithSchema(paymentVerificationSchema, validatedBody)
@@ -600,6 +618,7 @@ async function handleCreateOrder(req, res) {
       customer_phone: customerPhone,
       customer_address: customerAddress,
       customer_email: customerEmail,
+      user_id: session.id || session.user_id || null,
       product_id: primaryArtwork.id,
       // Every piece in the order, not just the first. Cancellation reads this
       // to return the right artwork to the catalogue.
