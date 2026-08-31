@@ -190,14 +190,20 @@ async function handleCreatePaymentOrder(req, res) {
   })
   const amountInPaise = Math.round(selection.pricing.advanceAmount * 100)
 
-  // A coupon (or a combination of discounts) that brings the payable amount
-  // to zero or below can't go through Razorpay, which requires a positive
-  // amount. Fail with a clear message instead of a raw provider error.
-  if (amountInPaise <= 0) {
+  // Razorpay will not accept an order below one rupee. A coupon or a stack of
+  // discounts can drive the payable amount to zero, and a mispriced artwork
+  // could in principle land between one and ninety-nine paise, so both are
+  // caught here with a clear message rather than a raw provider error.
+  const MINIMUM_PAYABLE_PAISE = 100
+
+  if (amountInPaise < MINIMUM_PAYABLE_PAISE) {
     return sendJson(res, 400, {
       success: false,
       error: 'INVALID_PAYABLE_AMOUNT',
-      message: 'This discount brings the order to zero, which cannot be processed as a payment.',
+      message:
+        amountInPaise <= 0
+          ? 'This discount brings the order to zero, which cannot be processed as a payment.'
+          : 'The payable amount is below the one rupee minimum a payment can be taken for.',
     })
   }
 
