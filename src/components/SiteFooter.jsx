@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { PUBLIC_EMAIL, PUBLIC_EMAIL_HREF } from '../constants/contact'
+import { PUBLIC_EMAIL, PUBLIC_EMAIL_HREF, STUDIO } from '../constants/contact'
 
 const FOOTER_SECTIONS = [
   {
@@ -61,6 +61,20 @@ function SiteFooter() {
             {/* The address is revealed on hover rather than printed, so the
                 footer stays clean but a visitor can still see where the mail
                 is going before they click. */}
+            {/* Calling is often the fastest reassurance before spending on an
+                original, so the number sits with the other ways to reach us. */}
+            <a
+              className="site-footer-mail"
+              href={STUDIO.phoneHref}
+              aria-label={`Call ${STUDIO.phone}`}
+            >
+              <svg className="social-icon" aria-hidden="true">
+                <use href="/icons.svg#phone-icon" />
+              </svg>
+              <span className="site-footer-mail-tip" aria-hidden="true">
+                {STUDIO.phone}
+              </span>
+            </a>
             <a
               className="site-footer-mail"
               href={PUBLIC_EMAIL_HREF}

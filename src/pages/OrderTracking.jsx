@@ -6,6 +6,8 @@ import usePageMeta from '../hooks/usePageMeta'
 import { findOrderByCode } from '../services/orderService'
 import { downloadInvoicePdf } from '../utils/invoicePdf'
 import { getUserFriendlyError } from '../utils/userErrors'
+import { getUserToken } from '../services/userAuthService'
+
 
 // The DB status key stays 'advance_paid' for backward compatibility with
 // existing orders; it now means "payment received in full".
@@ -115,6 +117,28 @@ function OrderTracking() {
 
   if (loading) {
     return <p className="status-message">Loading order tracking...</p>
+  }
+
+  // An order is readable only by the account that placed it, so a signed-out
+  // visitor following a link from their receipt needs to sign in rather than
+  // being told the order does not exist.
+  if (errorMessage && !getUserToken()) {
+    return (
+      <Reveal className="confirmation-card">
+        <p className="eyebrow">Order Tracking</p>
+        <h1 className="section-title">Sign in to view this order</h1>
+        <p className="section-copy">
+          Orders are private to the account that placed them. Sign in with the email you used at
+          checkout.
+        </p>
+        <Link
+          to={`/login?from=${encodeURIComponent(window.location.pathname)}`}
+          className="text-link-button action-button"
+        >
+          Sign in
+        </Link>
+      </Reveal>
+    )
   }
 
   if (errorMessage) {

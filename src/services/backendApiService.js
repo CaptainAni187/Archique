@@ -161,7 +161,7 @@ export async function lookupOrderByPaymentId(paymentId) {
 }
 
 export async function lookupOrderByCode(orderCode) {
-  const payload = await backendRequest(
+  const payload = await backendUserRequest(
     `/api/orders/code/${encodeURIComponent(orderCode)}`,
   )
 

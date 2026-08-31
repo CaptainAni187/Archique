@@ -5706,3 +5706,31 @@ html[data-theme='dark'] .site-footer-mail {
   font-size: 0.74rem;
   white-space: nowrap;
 }
+
+/* Contact: plain-text details */
+.contact-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px 28px;
+  margin: 22px 0 26px;
+}
+
+.contact-details dt {
+  font-size: 0.68rem;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-soft);
+  margin-bottom: 4px;
+}
+
+.contact-details dd {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text-color);
+}
+
+.contact-details a {
+  color: var(--accent-text);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border-gold-medium);
+}

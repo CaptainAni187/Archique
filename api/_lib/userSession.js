@@ -132,3 +132,19 @@ export async function consumeUserPasswordResetToken(token, email) {
 }
 
 export { normalizeEmail }
+
+/**
+ * The signed-in customer, or null. Unlike requireUserAuth this writes no
+ * response — for routes that answer differently rather than refusing.
+ */
+export function getOptionalUserSession(req) {
+  const token = getBearerToken(req)
+
+  if (!token) {
+    return null
+  }
+
+  const session = getUserSessionFromToken(token)
+
+  return session && session.role === 'user' && session.email ? session : null
+}

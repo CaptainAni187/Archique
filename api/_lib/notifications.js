@@ -107,6 +107,8 @@ function emailFooter(order) {
         <a href="mailto:archi@archique.in" style="color:#7d6320;">archi@archique.in</a></p>
       <p style="margin:0 0 3px;">Track it any time:
         <a href="${trackingUrl}" style="color:#7d6320;">${trackingUrl}</a></p>
+      <p style="margin:0 0 3px;">Call or WhatsApp:
+        <a href="tel:+918797092998" style="color:#7d6320;">+91 87970 92998</a></p>
       <p style="margin:0 0 3px;">Instagram:
         <a href="https://www.instagram.com/archique.in/" style="color:#7d6320;">@archique.in</a></p>
       <p style="margin:12px 0 0;color:#9a9a9a;">Archique &middot; original artwork &middot; archique.in</p>
