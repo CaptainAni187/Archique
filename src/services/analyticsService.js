@@ -3,6 +3,50 @@ import { updateTasteProfileFromEvent } from './tasteService'
 import { getStoredUser } from './userAuthService'
 
 const SESSION_STORAGE_KEY = 'archique_visitor_session_id'
+const INTERNAL_TRAFFIC_KEY = 'archique_internal_traffic'
+
+/**
+ * The studio's own browsing was the largest single source of "traffic" — every
+ * round of testing looked like a visitor, which made the launch numbers
+ * unreadable. Opening the site once with `?analytics=off` marks that browser as
+ * internal for good (and `?analytics=on` undoes it); nothing from it is sent to
+ * the server after that, so the dashboard counts real visitors only.
+ *
+ * Stored per browser rather than filtered later, because there is no reliable
+ * way to tell the studio's sessions apart once they are already in the table.
+ */
+function syncInternalTrafficFlag() {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    const setting = new URLSearchParams(window.location.search).get('analytics')
+    if (setting === 'off') {
+      window.localStorage.setItem(INTERNAL_TRAFFIC_KEY, '1')
+      console.info('[analytics] This browser is now excluded from visitor stats.')
+    } else if (setting === 'on') {
+      window.localStorage.removeItem(INTERNAL_TRAFFIC_KEY)
+      console.info('[analytics] This browser is counted in visitor stats again.')
+    }
+  } catch {
+    /* Private browsing can refuse storage; tracking normally is the safe default. */
+  }
+}
+
+export function isInternalTraffic() {
+  if (typeof window === 'undefined') {
+    return false
+  }
+
+  try {
+    return window.localStorage.getItem(INTERNAL_TRAFFIC_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+syncInternalTrafficFlag()
 
 function createSessionId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -28,7 +72,14 @@ export function getAnonymousSessionId() {
 }
 
 export async function trackAnalyticsEvent(eventType, metadata = {}) {
+  // The local taste profile still updates, so the site keeps recommending
+  // sensibly on this browser — it is only the server-side record that stops.
   updateTasteProfileFromEvent(eventType, metadata)
+
+  if (isInternalTraffic()) {
+    return
+  }
+
   const currentUser = getStoredUser()
 
   try {

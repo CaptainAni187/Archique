@@ -1,3 +1,5 @@
+import AdminTrafficPanel from './AdminTrafficPanel'
+
 function formatPrice(price) {
   return `Rs. ${Number(price).toLocaleString()}`
 }
@@ -96,6 +98,8 @@ function AdminDashboardTab({ dashboardStats, paymentAttention }) {
           )}
         </div>
       </section>
+
+      <AdminTrafficPanel traffic={dashboardStats.traffic} />
 
       <section className="order-detail-card dashboard-daily-orders">
         <h3>Top Viewed AI Signals</h3>

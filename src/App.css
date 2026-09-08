@@ -5779,3 +5779,114 @@ html[data-theme='dark'] .site-footer-mail {
   letter-spacing: 0.04em;
   vertical-align: middle;
 }
+
+/* ── Admin traffic panel ───────────────────────────────────────
+   Visits are a time series, and a list of dates does not show a launch spike
+   or a quiet week the way a shape does. Drawn as plain SVG: one series of
+   thirty bars is not worth a charting library on the admin bundle. */
+.traffic-stats {
+  margin-bottom: 22px;
+}
+
+/* The query string is a single thing to copy; wrapping it mid-token turns it
+   into two half-instructions. */
+.dashboard-table-note code {
+  white-space: nowrap;
+  font-size: 0.95em;
+}
+
+.traffic-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.traffic-chart-bar {
+  fill: var(--accent-color);
+}
+
+/* A day with no visits still gets a hairline, so the gap reads as "nobody
+   came" rather than as missing data. */
+.traffic-chart-bar.is-empty {
+  fill: var(--border-muted);
+}
+
+.traffic-chart-grid {
+  stroke: var(--border-gold-soft);
+  stroke-width: 1;
+}
+
+.traffic-chart-axis {
+  fill: var(--text-soft);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-anchor: end;
+}
+
+.traffic-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 26px;
+}
+
+.traffic-breakdown h4 {
+  margin: 0 0 12px;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+
+.traffic-funnel {
+  display: grid;
+  gap: 12px;
+}
+
+.traffic-funnel-step {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 2fr auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.traffic-funnel-track {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--border-gold-soft);
+  overflow: hidden;
+}
+
+.traffic-funnel-fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent-color);
+  transition: width 0.4s ease;
+}
+
+.traffic-funnel-value {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.traffic-funnel-value span {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-soft);
+}
+
+@media (max-width: 640px) {
+  /* The label needs the full width before the bar is worth showing at all. */
+  .traffic-funnel-step {
+    grid-template-columns: 1fr auto;
+  }
+
+  .traffic-funnel-track {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+}

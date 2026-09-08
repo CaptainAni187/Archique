@@ -75,8 +75,11 @@ export function mergeServerCart(serverItems = []) {
   const byId = new Map()
 
   for (const item of [...serverItems, ...items]) {
-    if (item && Number.isInteger(Number(item.id))) {
-      byId.set(Number(item.id), item)
+    // `Number(null)` is 0, which `Number.isInteger` accepts — an id-less item
+    // would otherwise merge in as artwork 0 and fail further down the line.
+    const id = Number(item?.id)
+    if (Number.isInteger(id) && id > 0) {
+      byId.set(id, item)
     }
   }
 

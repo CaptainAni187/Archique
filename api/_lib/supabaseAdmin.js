@@ -675,14 +675,36 @@ export async function fetchAdminActivityLogs(limit = 50) {
   )
 }
 
-export async function upsertVisitorSession(payload) {
-  const response = await supabaseAdminRequest('visitor_sessions?on_conflict=session_id', {
+/**
+ * Records a visit, keeping first-touch details first-touch.
+ *
+ * This was a single merge-duplicates upsert carrying every column, so
+ * `referrer` and `landing_path` were rewritten on every event — the page a
+ * visitor arrived on always ended up equal to the page they were last on, and
+ * the referrer that actually brought them in was overwritten by whatever the
+ * browser reported later. Two statements keep the distinction: an insert that
+ * does nothing if the visitor is already known, then an update of only the
+ * columns that are meant to move.
+ */
+export async function upsertVisitorSession({ session_id, firstTouch = {}, ...mutable }) {
+  await supabaseAdminRequest('visitor_sessions?on_conflict=session_id', {
     method: 'POST',
     headers: {
-      Prefer: 'resolution=merge-duplicates,return=representation',
+      Prefer: 'resolution=ignore-duplicates,return=minimal',
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ session_id, ...firstTouch, ...mutable }),
   })
+
+  const response = await supabaseAdminRequest(
+    `visitor_sessions?session_id=eq.${encodeURIComponent(session_id)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Prefer: 'return=representation',
+      },
+      body: JSON.stringify(mutable),
+    },
+  )
 
   return response?.[0] || null
 }
@@ -753,9 +775,22 @@ export async function upsertUserTasteProfile(payload) {
   return response?.[0] || null
 }
 
-export async function fetchVisitorEvents(limit = 500) {
+export async function fetchVisitorEvents(limit = 500, { since = '' } = {}) {
+  const sinceFilter = since ? `&created_at=gte.${encodeURIComponent(since)}` : ''
   return supabaseAdminRequest(
-    `visitor_events?select=event_type,metadata,created_at&order=created_at.desc&limit=${Number(limit)}`,
+    `visitor_events?select=session_id,event_type,artwork_id,path,metadata,created_at` +
+      `${sinceFilter}&order=created_at.desc&limit=${Number(limit)}`,
+  )
+}
+
+/**
+ * One row per visit, which is what "how many people came" is counted from —
+ * visitor_events counts actions, and a single visitor generates many.
+ */
+export async function fetchVisitorSessions({ limit = 5000 } = {}) {
+  return supabaseAdminRequest(
+    `visitor_sessions?select=session_id,started_at,last_seen,referrer,landing_path,last_path,user_agent` +
+      `&order=started_at.desc&limit=${Number(limit)}`,
   )
 }
 

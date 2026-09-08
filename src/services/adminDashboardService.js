@@ -1,5 +1,16 @@
 import { backendAdminRequest } from './backendApiService'
 
+const emptyTraffic = {
+  window_days: 30,
+  totals: {},
+  daily: [],
+  referrers: [],
+  landing_pages: [],
+  devices: [],
+  funnel: [],
+  top_artwork_ids: [],
+}
+
 const emptyDashboard = {
   total_orders: 0,
   total_revenue: 0,
@@ -23,6 +34,7 @@ const emptyDashboard = {
   recent_active_users: [],
   login_frequency: [],
   latest_users: [],
+  traffic: emptyTraffic,
 }
 
 export async function fetchDashboardAnalytics() {
@@ -47,6 +59,9 @@ export async function fetchDashboardAnalytics() {
       : [],
     top_tags: Array.isArray(aiSummary.top_tags) ? aiSummary.top_tags : [],
     top_categories: Array.isArray(aiSummary.top_categories) ? aiSummary.top_categories : [],
+    // The analytics call is allowed to fail without taking the dashboard with
+    // it, so the panel always receives a shape it can render.
+    traffic: { ...emptyTraffic, ...(aiSummary.traffic || {}) },
   }
 }
 

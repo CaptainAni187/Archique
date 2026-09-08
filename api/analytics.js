@@ -4,7 +4,8 @@ import { logAnalyticsEvent } from './_lib/analytics.js'
 import { requireAdminAuth } from './_lib/adminSession.js'
 import { methodNotAllowed, readJson, sendJson } from './_lib/http.js'
 import { enforcePublicRateLimit } from './_lib/rateLimit.js'
-import { fetchVisitorEvents } from './_lib/supabaseAdmin.js'
+import { fetchVisitorEvents, fetchVisitorSessions } from './_lib/supabaseAdmin.js'
+import { TRAFFIC_WINDOW_DAYS, summariseTraffic } from './_lib/trafficSummary.js'
 import { sendValidationError, validateWithSchema } from './_lib/validation.js'
 
 const analyticsEventSchema = z.object({
@@ -32,21 +33,46 @@ function topCounterItems(counter, limit = 8) {
     .slice(0, limit)
 }
 
+/**
+ * The analytics tables are additive migrations, so a database that has not had
+ * them applied yet should leave the dashboard working rather than 500.
+ */
+async function tolerateMissingTable(read, fallback) {
+  try {
+    return await read()
+  } catch (error) {
+    const message = String(error?.message || '').toLowerCase()
+    if (message.includes('visitor_') || message.includes('relation')) {
+      return fallback
+    }
+    throw error
+  }
+}
+
+/** Own-domain referrers are internal navigation, not a traffic source. */
+function siteHostname() {
+  try {
+    return new URL(process.env.SITE_URL || 'https://www.archique.in').hostname
+  } catch {
+    return ''
+  }
+}
+
 async function handleAnalyticsSummary(req, res) {
   const session = await requireAdminAuth(req, res)
   if (!session) {
     return null
   }
 
-  let events = []
-  try {
-    events = await fetchVisitorEvents(500)
-  } catch (error) {
-    const message = String(error?.message || '').toLowerCase()
-    if (!message.includes('visitor_events') && !message.includes('relation')) {
-      throw error
-    }
-  }
+  const windowStart = new Date(
+    Date.now() - TRAFFIC_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+  ).toISOString()
+
+  const [events, sessions] = await Promise.all([
+    tolerateMissingTable(() => fetchVisitorEvents(5000, { since: windowStart }), []),
+    tolerateMissingTable(() => fetchVisitorSessions(), []),
+  ])
+
   const tagCounts = new Map()
   const categoryCounts = new Map()
 
@@ -75,6 +101,11 @@ async function handleAnalyticsSummary(req, res) {
       top_tags: topCounterItems(tagCounts),
       top_categories: topCounterItems(categoryCounts),
       inspected_events: events.length,
+      traffic: summariseTraffic({
+        sessions,
+        events,
+        siteHost: siteHostname(),
+      }),
     },
   })
 }
@@ -103,7 +134,13 @@ export default async function handler(req, res) {
     const body = await readJson(req)
     const payload = validateWithSchema(analyticsEventSchema, body)
 
-    await logAnalyticsEvent(payload)
+    await logAnalyticsEvent({
+      ...payload,
+      // Read from the request rather than trusting the body: the client has no
+      // reason to send it, and this column drove the device breakdown to
+      // "unknown" for every session because nothing ever set it.
+      user_agent: String(req.headers?.['user-agent'] || '').slice(0, 400),
+    })
 
     return sendJson(res, 202, {
       success: true,
