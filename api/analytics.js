@@ -4,7 +4,11 @@ import { logAnalyticsEvent } from './_lib/analytics.js'
 import { requireAdminAuth } from './_lib/adminSession.js'
 import { methodNotAllowed, readJson, sendJson } from './_lib/http.js'
 import { enforcePublicRateLimit } from './_lib/rateLimit.js'
-import { fetchVisitorEvents, fetchVisitorSessions } from './_lib/supabaseAdmin.js'
+import {
+  fetchArtworkTitles,
+  fetchVisitorEvents,
+  fetchVisitorSessions,
+} from './_lib/supabaseAdmin.js'
 import { TRAFFIC_WINDOW_DAYS, summariseTraffic } from './_lib/trafficSummary.js'
 import { sendValidationError, validateWithSchema } from './_lib/validation.js'
 
@@ -58,6 +62,28 @@ function siteHostname() {
   }
 }
 
+/**
+ * "#17 was viewed six times" means nothing to the person choosing what to paint
+ * next; the title does. Resolved here rather than in the summary so that stays
+ * a pure function over rows.
+ */
+async function withArtworkTitles(traffic) {
+  const lists = [traffic.top_artwork_ids, traffic.top_ar_previews].filter(Array.isArray)
+  const ids = lists.flat().map((item) => item.artwork_id)
+
+  const titles = await tolerateMissingTable(() => fetchArtworkTitles(ids), [])
+  const byId = new Map(titles.map((row) => [Number(row.id), row.title]))
+
+  const name = (list) =>
+    list.map((item) => ({ ...item, title: byId.get(item.artwork_id) || `#${item.artwork_id}` }))
+
+  return {
+    ...traffic,
+    top_artwork_ids: name(traffic.top_artwork_ids || []),
+    top_ar_previews: name(traffic.top_ar_previews || []),
+  }
+}
+
 async function handleAnalyticsSummary(req, res) {
   const session = await requireAdminAuth(req, res)
   if (!session) {
@@ -95,17 +121,17 @@ async function handleAnalyticsSummary(req, res) {
       tags.forEach((tag) => incrementCounter(tagCounts, String(tag || '').trim().toLowerCase()))
     })
 
+  const traffic = await withArtworkTitles(
+    summariseTraffic({ sessions, events, siteHost: siteHostname() }),
+  )
+
   return sendJson(res, 200, {
     success: true,
     data: {
       top_tags: topCounterItems(tagCounts),
       top_categories: topCounterItems(categoryCounts),
       inspected_events: events.length,
-      traffic: summariseTraffic({
-        sessions,
-        events,
-        siteHost: siteHostname(),
-      }),
+      traffic,
     },
   })
 }

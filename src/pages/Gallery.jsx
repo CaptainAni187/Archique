@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { fetchArtworks } from '../services/artworkService'
 import Reveal from '../components/Reveal'
@@ -375,6 +375,78 @@ function Gallery() {
       has_smart_search: hasSmartSearch,
     })
   }, [artworks, filteredArtworks, smartResults, hasSmartSearch])
+
+  /**
+   * A search that returned nothing is the clearest signal the catalogue has:
+   * someone said exactly what they wanted and the studio did not have it.
+   * Nothing recorded it before, so those requests left no trace at all.
+   *
+   * Debounced past the keystrokes, and only fired once the results for the
+   * current query have actually settled — otherwise every partial word typed
+   * on the way to a real match would be reported as a miss.
+   */
+  useEffect(() => {
+    if (loading || isSmartSearching) {
+      return
+    }
+
+    const query = smartQuery.trim()
+    if (query.length < 3 || filteredArtworks.length > 0) {
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      void trackAnalyticsEvent('search_no_results', {
+        query,
+        category: selectedCategory === ALL_CATEGORIES ? '' : selectedCategory,
+        price_bucket: selectedPriceBucket === ANY ? '' : selectedPriceBucket,
+      })
+    }, 1200)
+
+    return () => window.clearTimeout(timer)
+  }, [
+    loading,
+    isSmartSearching,
+    smartQuery,
+    filteredArtworks.length,
+    selectedCategory,
+    selectedPriceBucket,
+  ])
+
+  /**
+   * How far down the store anyone actually gets.
+   *
+   * Nearly everyone lands here, so whether they see past the first row decides
+   * what the rest of the catalogue is worth. Only the deepest point reached is
+   * reported, once, when the visitor leaves — a scroll handler that reported as
+   * it went would send hundreds of events per visit.
+   */
+  const deepestScrollRef = useRef(0)
+  useEffect(() => {
+    deepestScrollRef.current = 0
+
+    const measure = () => {
+      const scrollable = document.documentElement.scrollHeight - window.innerHeight
+      const reached =
+        scrollable <= 0 ? 100 : Math.round(((window.scrollY + window.innerHeight) / document.documentElement.scrollHeight) * 100)
+      deepestScrollRef.current = Math.min(100, Math.max(deepestScrollRef.current, reached))
+    }
+
+    measure()
+    window.addEventListener('scroll', measure, { passive: true })
+
+    return () => {
+      window.removeEventListener('scroll', measure)
+      if (deepestScrollRef.current > 0) {
+        void trackAnalyticsEvent('scroll_depth', {
+          // Bucketed, because the exact percentage is noise — what matters is
+          // whether they saw a quarter of the store or all of it.
+          depth_bucket: `${Math.min(100, Math.ceil(deepestScrollRef.current / 25) * 25)}%`,
+          depth_percent: deepestScrollRef.current,
+        })
+      }
+    }
+  }, [])
 
   const toggleMood = (mood) => {
     setSelectedMoods((current) =>

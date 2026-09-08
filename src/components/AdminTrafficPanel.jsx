@@ -118,6 +118,16 @@ function BreakdownList({ title, items, emptyLabel }) {
   )
 }
 
+function formatDuration(seconds) {
+  if (seconds === null || seconds === undefined) {
+    return '--'
+  }
+  if (seconds < 60) {
+    return `${seconds}s`
+  }
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+}
+
 function AdminTrafficPanel({ traffic }) {
   const daily = Array.isArray(traffic?.daily) ? traffic.daily : []
   const totals = traffic?.totals || {}
@@ -187,6 +197,73 @@ function AdminTrafficPanel({ traffic }) {
             items={traffic?.devices || []}
             emptyLabel="No devices recorded yet."
           />
+        </div>
+      </section>
+
+      <section className="order-detail-card dashboard-daily-orders">
+        <h3>What They Looked At</h3>
+        <div className="traffic-breakdown-grid">
+          <BreakdownList
+            title="Most viewed"
+            items={(traffic?.top_artwork_ids || []).map((item) => ({
+              label: item.title,
+              count: item.count,
+            }))}
+            emptyLabel="No pieces viewed yet."
+          />
+          <BreakdownList
+            title="Most previewed on a wall"
+            items={(traffic?.top_ar_previews || []).map((item) => ({
+              label: item.title,
+              count: item.count,
+            }))}
+            emptyLabel="No wall previews yet."
+          />
+          <div className="traffic-breakdown">
+            <h4>How far down the store</h4>
+            <div className="dashboard-daily-list">
+              {(traffic?.scroll_depth || []).length > 0 ? (
+                traffic.scroll_depth.map((item) => (
+                  <p key={`scroll-${item.label}`}>
+                    <span>Reached {item.label}</span>
+                    <strong>{item.count}</strong>
+                  </p>
+                ))
+              ) : (
+                <p>
+                  <span>No scroll data yet.</span>
+                  <strong>0</strong>
+                </p>
+              )}
+              <p>
+                <span>Median time to first piece</span>
+                <strong>{formatDuration(traffic?.seconds_to_first_view)}</strong>
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="order-detail-card dashboard-daily-orders">
+        <h3>Searches That Found Nothing</h3>
+        <p className="dashboard-table-note">
+          Someone said exactly what they wanted and the studio did not have it. The clearest
+          list there is of what to paint next.
+        </p>
+        <div className="dashboard-daily-list">
+          {(traffic?.failed_searches || []).length > 0 ? (
+            traffic.failed_searches.map((item) => (
+              <p key={`miss-${item.label}`}>
+                <span>&ldquo;{item.label}&rdquo;</span>
+                <strong>{item.count}</strong>
+              </p>
+            ))
+          ) : (
+            <p>
+              <span>Every search has found something so far.</span>
+              <strong>0</strong>
+            </p>
+          )}
         </div>
       </section>
 

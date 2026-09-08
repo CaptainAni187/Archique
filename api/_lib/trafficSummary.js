@@ -39,6 +39,75 @@ const REFERRER_GROUPS = [
 const PRODUCT_VIEW_EVENTS = new Set(['product_open', 'artwork_view', 'artwork_click'])
 const PURCHASE_EVENTS = new Set(['order_completed', 'purchase'])
 
+/** Percentage of the store page reached, in the order a reader expects. */
+const SCROLL_BUCKET_ORDER = ['25%', '50%', '75%', '100%']
+
+function median(values) {
+  if (values.length === 0) {
+    return null
+  }
+  const sorted = [...values].sort((left, right) => left - right)
+  const middle = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 0
+    ? Math.round((sorted[middle - 1] + sorted[middle]) / 2)
+    : sorted[middle]
+}
+
+/**
+ * Half an hour of silence ends a visit. A visitor id lives in localStorage
+ * indefinitely, so without a cut-off "their first event" means the first thing
+ * they ever did, and a visitor who came back a week later to buy would be
+ * recorded as having taken a week to find the work.
+ */
+const VISIT_GAP_MS = 30 * 60 * 1000
+
+/**
+ * Median seconds from arriving to opening an actual piece, measured within a
+ * single sitting.
+ *
+ * Needs no extra tracking — the timestamps are already there — and it says
+ * something the funnel cannot: whether the people who do look at work find it
+ * quickly, or have to dig for it.
+ */
+function secondsToFirstView(events) {
+  const bySession = new Map()
+
+  events.forEach((event) => {
+    const at = new Date(event.created_at).getTime()
+    if (!Number.isFinite(at) || !event.session_id) {
+      return
+    }
+    if (!bySession.has(event.session_id)) {
+      bySession.set(event.session_id, [])
+    }
+    bySession.get(event.session_id).push({ at, isView: PRODUCT_VIEW_EVENTS.has(event.event_type) })
+  })
+
+  const gaps = []
+
+  bySession.forEach((sessionEvents) => {
+    sessionEvents.sort((left, right) => left.at - right.at)
+
+    let visitStart = null
+    let previous = null
+    let counted = false
+
+    sessionEvents.forEach((event) => {
+      if (previous === null || event.at - previous > VISIT_GAP_MS) {
+        visitStart = event.at
+        counted = false
+      }
+      if (event.isView && !counted) {
+        gaps.push(Math.round((event.at - visitStart) / 1000))
+        counted = true
+      }
+      previous = event.at
+    })
+  })
+
+  return median(gaps)
+}
+
 function isoDate(value) {
   const date = value instanceof Date ? value : new Date(value)
   return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10)
@@ -183,6 +252,10 @@ export function summariseTraffic({
       count: sessionsWithEvent((event) => event.event_type === 'favorite_added'),
     },
     {
+      stage: 'Added to cart',
+      count: sessionsWithEvent((event) => event.event_type === 'cart_add'),
+    },
+    {
       stage: 'Started checkout',
       count: sessionsWithEvent((event) => event.event_type === 'checkout_started'),
     },
@@ -191,6 +264,21 @@ export function summariseTraffic({
       count: sessionsWithEvent((event) => PURCHASE_EVENTS.has(event.event_type)),
     },
   ]
+
+  const searchMisses = countBy(
+    events.filter((event) => event.event_type === 'search_no_results'),
+    (event) => String(event.metadata?.query || '').trim().toLowerCase(),
+  )
+
+  const scrollDepth = countBy(
+    events.filter((event) => event.event_type === 'scroll_depth'),
+    (event) => String(event.metadata?.depth_bucket || ''),
+  )
+
+  const arPreviews = countBy(
+    events.filter((event) => event.event_type === 'room_preview_opened' && event.artwork_id),
+    (event) => String(event.artwork_id),
+  )
 
   const artworkViews = countBy(
     events.filter((event) => PRODUCT_VIEW_EVENTS.has(event.event_type) && event.artwork_id),
@@ -216,7 +304,19 @@ export function summariseTraffic({
     landing_pages: topItems(countBy(newInWindow, (session) => session.landing_path || '/')),
     devices: topItems(countBy(newInWindow, (session) => deviceLabel(session.user_agent)), 4),
     funnel,
+    seconds_to_first_view: secondsToFirstView(events),
+    // Sorted by depth rather than by count: the shape of the drop-off is the
+    // point, and a frequency sort would scramble it.
+    scroll_depth: SCROLL_BUCKET_ORDER.filter((bucket) => scrollDepth.has(bucket)).map((bucket) => ({
+      label: bucket,
+      count: scrollDepth.get(bucket),
+    })),
+    failed_searches: topItems(searchMisses, 10),
     top_artwork_ids: topItems(artworkViews, 6).map((item) => ({
+      artwork_id: Number(item.label),
+      count: item.count,
+    })),
+    top_ar_previews: topItems(arPreviews, 6).map((item) => ({
       artwork_id: Number(item.label),
       count: item.count,
     })),

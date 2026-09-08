@@ -131,6 +131,24 @@ describe('traffic summary', () => {
     expect(summary.top_artwork_ids[0]).toEqual({ artwork_id: 4, count: 3 })
   })
 
+  it('times the walk to a piece within one sitting, not across visits', () => {
+    const summary = summariseTraffic({
+      now: NOW,
+      sessions: [session('2026-09-01T09:00:00.000Z')],
+      events: [
+        // One sitting: arrive, look at a piece 40 seconds later.
+        { session_id: 'a', created_at: '2026-09-01T09:00:00.000Z', event_type: 'search_query' },
+        { session_id: 'a', created_at: '2026-09-01T09:00:40.000Z', event_type: 'product_open' },
+        // The same visitor back a week later. Measured from the first event
+        // they ever fired this would read as six days, not twenty seconds.
+        { session_id: 'a', created_at: '2026-09-07T09:00:00.000Z', event_type: 'search_query' },
+        { session_id: 'a', created_at: '2026-09-07T09:00:20.000Z', event_type: 'product_open' },
+      ],
+    })
+
+    expect(summary.seconds_to_first_view).toBe(30)
+  })
+
   it('returns a renderable shape with no data at all', () => {
     const summary = summariseTraffic({ now: NOW })
 

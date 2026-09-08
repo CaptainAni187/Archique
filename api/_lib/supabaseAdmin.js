@@ -783,6 +783,15 @@ export async function fetchVisitorEvents(limit = 500, { since = '' } = {}) {
   )
 }
 
+/** Titles for a handful of ids, so a report can name a piece instead of numbering it. */
+export async function fetchArtworkTitles(ids = []) {
+  const numeric = [...new Set(ids.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))]
+  if (numeric.length === 0) {
+    return []
+  }
+  return supabaseAdminRequest(`artworks?select=id,title&id=in.(${numeric.join(',')})`)
+}
+
 /**
  * One row per visit, which is what "how many people came" is counted from —
  * visitor_events counts actions, and a single visitor generates many.

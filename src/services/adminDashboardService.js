@@ -8,7 +8,11 @@ const emptyTraffic = {
   landing_pages: [],
   devices: [],
   funnel: [],
+  scroll_depth: [],
+  failed_searches: [],
   top_artwork_ids: [],
+  top_ar_previews: [],
+  seconds_to_first_view: null,
 }
 
 const emptyDashboard = {

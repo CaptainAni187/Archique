@@ -7,7 +7,11 @@ export const SUPPORTED_BEHAVIOR_EVENTS = [
   'instagram_click',
   'commission_open',
   'search_query',
+  'search_no_results',
+  'scroll_depth',
   'combo_click',
+  'cart_add',
+  'cart_removed',
   'checkout_started',
   'order_completed',
   'purchase',
@@ -37,7 +41,14 @@ export const EVENT_WEIGHTS = {
   instagram_click: 2,
   commission_open: 2,
   search_query: 1.5,
+  // Pure telemetry: a search that found nothing says nothing about taste, and
+  // how far someone scrolled is about the page, not the work.
+  search_no_results: 0,
+  scroll_depth: 0,
   combo_click: 2,
+  // Wanting to own it sits just below starting to pay for it.
+  cart_add: 3,
+  cart_removed: -0.5,
   checkout_started: 2.5,
   order_completed: 4,
   purchase: 4,

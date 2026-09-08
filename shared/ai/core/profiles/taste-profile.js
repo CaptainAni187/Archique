@@ -96,7 +96,9 @@ export function mergeTasteProfileForEvent(currentProfile = {}, event = {}) {
   const metadata = event.metadata || {}
   const dwellWeight = Math.min(3, normalizeNumber(metadata.dwell_time_ms) / 15000)
   const hoverWeight = Math.min(2, normalizeNumber(metadata.hover_dwell_time_ms) / 10000)
-  const weight = (EVENT_WEIGHTS[eventType] || 1) + dwellWeight + hoverWeight
+  // `??`, not `||`: a deliberate weight of 0 is falsy, and would otherwise be
+  // silently promoted to 1 — turning telemetry-only events into taste signals.
+  const weight = (EVENT_WEIGHTS[eventType] ?? 1) + dwellWeight + hoverWeight
   const artworkSignals = buildArtworkSignals(metadata.artwork || metadata)
   const featureProfile = buildArtworkFeatureProfile(metadata.artwork || metadata)
   const category = artworkSignals.category || normalizeText(metadata.category)

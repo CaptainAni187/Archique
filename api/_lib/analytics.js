@@ -30,6 +30,25 @@ function toIdOrNull(value) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
+/**
+ * Runs one write, reporting a failure instead of letting it end the rest.
+ *
+ * These writes were wrapped in a single try/catch, so the first rejection took
+ * everything after it down with it — a rejected event row also discarded the
+ * visit and the taste profile, and a rejected `analytics_events` row discarded
+ * the whole lot. That coupling is what let a bad `artwork_id` go unnoticed
+ * while it was quietly dropping most of the site's traffic. Naming the table in
+ * the log is what makes the next one obvious rather than invisible.
+ */
+async function write(table, run) {
+  try {
+    return await run()
+  } catch (error) {
+    console.error(`[analytics] ${table} write failed:`, error.message)
+    return null
+  }
+}
+
 export async function logAnalyticsEvent({
   event_type,
   session_id = '',
@@ -41,8 +60,8 @@ export async function logAnalyticsEvent({
   user_agent = '',
   timestamp = new Date().toISOString(),
 }) {
-  try {
-    await supabaseAdminRequest('analytics_events', {
+  await write('analytics_events', () =>
+    supabaseAdminRequest('analytics_events', {
       method: 'POST',
       headers: {
         Prefer: 'return=minimal',
@@ -55,15 +74,17 @@ export async function logAnalyticsEvent({
           user_id: toIdOrNull(user_id) ?? undefined,
         },
       }),
-    })
+    }),
+  )
 
-    const normalizedSessionId = normalizeSessionId(session_id || metadata.session_id)
+  const normalizedSessionId = normalizeSessionId(session_id || metadata.session_id)
 
-    if (!normalizedSessionId) {
-      return
-    }
+  if (!normalizedSessionId) {
+    return
+  }
 
-    await upsertVisitorSession({
+  const session = await write('visitor_sessions', () =>
+    upsertVisitorSession({
       session_id: normalizedSessionId,
       // Only true of the first visit: where they came from and what they landed
       // on. Rewriting these on every event turned them into duplicates of
@@ -78,9 +99,17 @@ export async function logAnalyticsEvent({
       metadata: {
         ...(metadata.session_metadata || {}),
       },
-    })
+    }),
+  )
 
-    await createVisitorEvent({
+  // Both of the writes below reference the session row, so there is nothing to
+  // attach them to if it could not be created.
+  if (!session) {
+    return
+  }
+
+  await write('visitor_events', () =>
+    createVisitorEvent({
       session_id: normalizedSessionId,
       event_type,
       user_id: toIdOrNull(user_id),
@@ -88,8 +117,10 @@ export async function logAnalyticsEvent({
       path: path || null,
       metadata,
       created_at: timestamp,
-    })
+    }),
+  )
 
+  await write('visitor_taste_profiles', async () => {
     const existingProfile = await fetchVisitorTasteProfileBySessionId(normalizedSessionId)
     const nextTasteProfile = mergeTasteProfileForEvent(
       existingProfile?.taste_profile || createEmptyTasteProfile(),
@@ -100,13 +131,11 @@ export async function logAnalyticsEvent({
       },
     )
 
-    await upsertVisitorTasteProfile({
+    return upsertVisitorTasteProfile({
       session_id: normalizedSessionId,
       taste_profile: nextTasteProfile,
       last_seen: timestamp,
       updated_at: timestamp,
     })
-  } catch (error) {
-    console.error('[analytics] Failed to persist analytics event:', error.message)
-  }
+  })
 }

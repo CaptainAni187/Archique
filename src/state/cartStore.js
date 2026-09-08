@@ -8,6 +8,8 @@
  * are re-verified server-side at checkout, so a stale snapshot can never drive
  * what someone is charged.
  */
+import { trackAnalyticsEvent } from '../services/analyticsService'
+
 const STORAGE_KEY = 'archique-cart'
 
 const listeners = new Set()
@@ -123,12 +125,25 @@ export function addToCart(artwork) {
     return
   }
   commit([...items, toCartItem(artwork)])
+
+  // Reported from here rather than from each button, so every route into the
+  // cart is counted. Without it the funnel jumped from looking at a piece
+  // straight to checkout, hiding the step where most people actually stop.
+  void trackAnalyticsEvent('cart_add', {
+    artwork_id: Number(artwork.id),
+    artwork,
+    cart_size: items.length,
+  })
 }
 
 export function removeFromCart(artworkId) {
   const next = items.filter((item) => Number(item.id) !== Number(artworkId))
   if (next.length !== items.length) {
     commit(next)
+    void trackAnalyticsEvent('cart_removed', {
+      artwork_id: Number(artworkId),
+      cart_size: next.length,
+    })
   }
 }
 
