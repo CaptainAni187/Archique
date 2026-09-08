@@ -92,6 +92,12 @@ function VisualiseOnWall({ artworkId, artworkTitle }) {
     viewer.setAttribute('ar-scale', 'fixed')
     viewer.setAttribute('shadow-intensity', '0.6')
     viewer.setAttribute('environment-image', 'neutral')
+    // A flat piece is judged face-on, not from the three-quarter angle
+    // model-viewer defaults to, which foreshortens it into a sliver.
+    viewer.setAttribute('camera-orbit', '0deg 90deg auto')
+    // Filmic tone mapping darkens and desaturates; buyers are choosing on
+    // colour here, so keep the render as close to the photograph as possible.
+    viewer.setAttribute('tone-mapping', 'neutral')
   }, [isLibReady, assets, artworkTitle])
 
   const launchAr = () => {

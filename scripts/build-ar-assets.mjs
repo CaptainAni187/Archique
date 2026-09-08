@@ -12,7 +12,8 @@
  * Both are static files served by Vite, same as any other public asset —
  * generation is a one-time offline step, not a runtime cost.
  */
-import './lib/node-canvas-polyfill.mjs'
+// First import: installs the browser globals three's exporters expect.
+import { createExportCanvas } from './lib/node-canvas-polyfill.mjs'
 import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -27,6 +28,10 @@ import { getArtworkDimensionsMeters } from '../src/utils/artworkDimensions.js'
 const OUTPUT_DIR = path.resolve(process.cwd(), 'public/ar')
 const MANIFEST_PATH = path.join(OUTPUT_DIR, 'manifest.json')
 const MAX_TEXTURE_PX = 1024
+
+// Bumped whenever the geometry, material or orientation changes, so the skip
+// check below rebuilds every artwork instead of keeping stale output.
+const AR_PIPELINE_VERSION = 4
 
 function primaryImageUrl(artwork) {
   if (Array.isArray(artwork.images) && artwork.images[0]) {
@@ -49,19 +54,39 @@ async function loadArtworkCanvas(imageUrl) {
   const width = Math.max(1, Math.round(image.width * scale))
   const height = Math.max(1, Math.round(image.height * scale))
 
-  const { Canvas } = await import('@napi-rs/canvas')
-  const canvas = new Canvas(width, height)
+  const canvas = createExportCanvas(width, height)
   const ctx = canvas.getContext('2d')
   ctx.drawImage(image, 0, 0, width, height)
   return canvas
 }
 
-function buildPlaneScene(canvas, widthM, heightM) {
+/**
+ * The two AR viewers disagree about which way "out of the wall" points, so each
+ * format is authored for the viewer that actually reads it.
+ *
+ * model-viewer's wall placement keeps the model upright and only yaws it,
+ * pressing the model's back (-Z) against the wall. The GLB therefore stays in
+ * the XY plane facing +Z, which is also the orientation the inline 3D preview
+ * wants.
+ *
+ * AR Quick Look works the other way round: a vertical plane anchor aligns the
+ * scene's +Y axis with the wall's normal. A USDZ authored facing +Z hangs off
+ * the wall like a shelf — the piece lying flat, legible only by tilting the
+ * phone down at it, which is exactly the bug this fixes. Laying the plane into
+ * the XZ plane facing +Y puts it flat against the wall, the right way up.
+ */
+const WALL_ANCHOR_ROTATION_X = -Math.PI / 2
+
+function buildArtworkMaterial(canvas, { textureMimeType, doubleSided }) {
   const texture = new THREE.CanvasTexture(canvas)
   texture.colorSpace = THREE.SRGBColorSpace
   texture.needsUpdate = true
+  // glTF embeds the texture in the file itself, so the format decides how much
+  // the phone downloads before the preview appears. A photograph at 1024px is
+  // ~1 MB as PNG and ~100 KB as JPEG with no difference anyone can see at AR
+  // viewing distance. USDZ has no such choice — three always writes PNG there.
+  texture.userData.mimeType = textureMimeType
 
-  const geometry = new THREE.PlaneGeometry(widthM, heightM)
   // The artwork must read at its true colours no matter how bright or dark the
   // room is — and the exported scene ships with no lights, while iOS Quick Look
   // relies on real-world light estimation. A plain lit material therefore
@@ -69,23 +94,56 @@ function buildPlaneScene(canvas, widthM, heightM) {
   // purely through the *emissive* channel (self-illuminated, like a backlit
   // print) with a black base colour: exact colours everywhere, never black in a
   // dark room and never blown out in a bright one, in model-viewer and AR alike.
-  // `emissiveMap` survives both the glTF and USDZ exporters. DoubleSide
-  // guarantees we never see a culled black back if wall-anchoring flips the
-  // plane toward the viewer.
-  const material = new THREE.MeshStandardMaterial({
+  // `emissiveMap` survives both the glTF and USDZ exporters.
+  return new THREE.MeshStandardMaterial({
     color: 0x000000,
     emissive: 0xffffff,
     emissiveMap: texture,
     emissiveIntensity: 1,
-    side: THREE.DoubleSide,
+    side: doubleSided ? THREE.DoubleSide : THREE.FrontSide,
     roughness: 1,
     metalness: 0,
   })
-  const mesh = new THREE.Mesh(geometry, material)
-  mesh.name = 'Artwork'
+}
+
+/**
+ * @param wallAnchored orient for AR Quick Look's vertical anchor (USDZ) rather
+ *   than for model-viewer (GLB)
+ */
+function buildPlaneScene(canvas, widthM, heightM, { wallAnchored = false } = {}) {
+  const material = buildArtworkMaterial(canvas, {
+    textureMimeType: wallAnchored ? 'image/png' : 'image/jpeg',
+    // USD has no double-sided flag, so the USDZ gets a real second face below
+    // instead; glTF has one, so the GLB needs no extra geometry.
+    doubleSided: !wallAnchored,
+  })
+  const geometry = new THREE.PlaneGeometry(widthM, heightM)
 
   const scene = new THREE.Scene()
-  scene.add(mesh)
+
+  const front = new THREE.Mesh(geometry, material)
+  front.name = 'Artwork'
+  scene.add(front)
+
+  if (wallAnchored) {
+    front.rotation.x = WALL_ANCHOR_ROTATION_X
+
+    // three's USDZ exporter has no way to mark a mesh double-sided, and USD
+    // defaults to single-sided, so the reverse of a lone plane draws as a black
+    // rectangle — which is what Quick Look's "Object" tab was showing. A second
+    // face, turned to look the other way, gives it something to draw from
+    // behind. Applied as X-then-Y so the flip happens in the artwork's own
+    // frame before the wall rotation.
+    const back = new THREE.Mesh(geometry, material)
+    back.name = 'ArtworkBack'
+    back.rotation.set(WALL_ANCHOR_ROTATION_X, Math.PI, 0)
+    scene.add(back)
+  }
+
+  // Both exporters read `object.matrix` straight off each node and neither
+  // refreshes it first, so without this the rotations above export as identity.
+  scene.updateMatrixWorld(true)
+
   return scene
 }
 
@@ -130,6 +188,7 @@ function artworkFingerprint(artwork, imageUrl, widthM, heightM) {
         widthM,
         heightM,
         maxTexturePx: MAX_TEXTURE_PX,
+        pipelineVersion: AR_PIPELINE_VERSION,
       }),
     )
     .digest('hex')
@@ -164,12 +223,11 @@ async function buildForArtwork(artwork, previousEntry) {
   }
 
   const canvas = await loadArtworkCanvas(imageUrl)
-  const scene = buildPlaneScene(canvas, widthM, heightM)
 
   const glbPath = path.join(OUTPUT_DIR, `${artwork.id}.glb`)
   const usdzPath = path.join(OUTPUT_DIR, `${artwork.id}.usdz`)
-  await exportGlb(scene, glbPath)
-  await exportUsdz(scene, usdzPath)
+  await exportGlb(buildPlaneScene(canvas, widthM, heightM), glbPath)
+  await exportUsdz(buildPlaneScene(canvas, widthM, heightM, { wallAnchored: true }), usdzPath)
 
   console.log(
     `  built #${artwork.id} "${artwork.title}" -> ${widthM.toFixed(3)}m x ${heightM.toFixed(3)}m` +
