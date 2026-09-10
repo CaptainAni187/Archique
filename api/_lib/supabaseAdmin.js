@@ -1,5 +1,40 @@
 import { getBackendConfig, requireConfigValues } from './env.js'
 
+/**
+ * Row count without transferring the rows.
+ *
+ * PostgREST reports it in `Content-Range` when asked, which is exact and
+ * unaffected by the server's 1000-row response cap — the trap that made the
+ * previous coupon count stop growing.
+ */
+async function countRows(path) {
+  const config = getBackendConfig()
+
+  requireConfigValues({
+    SUPABASE_URL: config.supabaseUrl,
+    SUPABASE_SERVICE_ROLE_KEY: config.supabaseServiceRoleKey,
+  })
+
+  const response = await fetch(`${config.supabaseUrl}/rest/v1/${path}`, {
+    method: 'HEAD',
+    headers: {
+      apikey: config.supabaseServiceRoleKey,
+      Authorization: `Bearer ${config.supabaseServiceRoleKey}`,
+      Prefer: 'count=exact',
+      Range: '0-0',
+    },
+  })
+
+  if (!response.ok && response.status !== 206) {
+    throw new Error(`Supabase count failed (${response.status}) for ${path}`)
+  }
+
+  // "0-0/42", or "*/42" when the range is empty.
+  const range = response.headers?.get?.('content-range')
+  const total = String(range || '').split('/')[1]
+  return Number(total) || 0
+}
+
 function createSupabaseError(payload, status) {
   const message =
     payload?.message || payload?.error || payload?.details || 'Supabase request failed.'
@@ -1147,29 +1182,115 @@ export async function deleteCouponById(id) {
   })
 }
 
-export async function countCouponRedemptions(couponId, customerEmail) {
-  const [totalResponse, customerResponse] = await Promise.all([
-    supabaseAdminRequest(`coupon_redemptions?select=id&coupon_id=eq.${encodeURIComponent(couponId)}`, {
-      headers: { Prefer: 'count=exact' },
-    }),
-    customerEmail
-      ? supabaseAdminRequest(
-          `coupon_redemptions?select=id&coupon_id=eq.${encodeURIComponent(couponId)}&customer_email=eq.${encodeURIComponent(customerEmail)}`,
-        )
-      : Promise.resolve([]),
-  ])
-
-  return {
-    total: Array.isArray(totalResponse) ? totalResponse.length : 0,
-    byCustomer: Array.isArray(customerResponse) ? customerResponse.length : 0,
-  }
+/**
+ * Redemptions that currently hold a place: not released, and either confirmed
+ * against an order or still inside their checkout window.
+ *
+ * The old version asked for `Prefer: count=exact` and then ignored the header
+ * it arrives in, counting array length instead — and PostgREST caps a response
+ * at 1000 rows, so past a thousand redemptions the total silently stopped
+ * growing and the usage limit stopped being enforced. It also fetched every
+ * row purely to measure how many there were.
+ */
+function liveRedemptionFilter() {
+  const now = new Date().toISOString()
+  return `&released_at=is.null&or=(expires_at.is.null,expires_at.gt.${encodeURIComponent(now)})`
 }
 
-export async function createCouponRedemption(payload) {
-  const response = await supabaseAdminRequest('coupon_redemptions', {
+export async function countCouponRedemptions(couponId, customerEmail) {
+  const coupon = encodeURIComponent(couponId)
+  const live = liveRedemptionFilter()
+
+  const [total, byCustomer] = await Promise.all([
+    countRows(`coupon_redemptions?select=id&coupon_id=eq.${coupon}${live}`),
+    customerEmail
+      ? countRows(
+          `coupon_redemptions?select=id&coupon_id=eq.${coupon}` +
+            `&customer_email=eq.${encodeURIComponent(customerEmail)}${live}`,
+        )
+      : Promise.resolve(0),
+  ])
+
+  return { total, byCustomer }
+}
+
+/**
+ * Claims a coupon for this checkout, or reports why it cannot be claimed.
+ *
+ * Everything that decides the answer — reading the limits, counting what is
+ * already held, and writing the row — happens inside one database transaction
+ * with the coupon row locked, so two checkouts can no longer both find
+ * themselves under the same limit. The claim is provisional: it carries the
+ * checkout's reservation token and expires with it, exactly like the hold on
+ * the artwork itself.
+ *
+ * @returns {'ok'|'not_found'|'expired'|'usage_limit'|'customer_limit'}
+ */
+export async function claimCouponRedemption({
+  couponId,
+  email,
+  token,
+  razorpayOrderId = null,
+  ttlMinutes = 15,
+}) {
+  const result = await supabaseAdminRequest('rpc/claim_coupon_redemption', {
     method: 'POST',
-    headers: { Prefer: 'return=representation' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      p_coupon_id: couponId,
+      p_email: email || '',
+      p_token: token,
+      p_razorpay_order_id: razorpayOrderId,
+      p_ttl_minutes: ttlMinutes,
+    }),
   })
-  return response?.[0] || null
+
+  return typeof result === 'string' ? result : 'not_found'
+}
+
+/** Turns a provisional claim into a permanent one, now that the order exists. */
+export async function confirmCouponRedemption(razorpayOrderId, orderId, discountAmount) {
+  if (!razorpayOrderId) {
+    return 0
+  }
+
+  const confirmed = await supabaseAdminRequest('rpc/confirm_coupon_redemption', {
+    method: 'POST',
+    body: JSON.stringify({
+      p_razorpay_order_id: razorpayOrderId,
+      p_order_id: orderId,
+      p_discount_amount: Number(discountAmount) || 0,
+    }),
+  })
+
+  return Number(confirmed) || 0
+}
+
+/** Mirrors attachReservationOrder: lets the claim be found again by order id. */
+export async function attachCouponRedemptionOrder(token, razorpayOrderId) {
+  if (!token || !razorpayOrderId) {
+    return null
+  }
+
+  return supabaseAdminRequest(
+    `coupon_redemptions?reservation_token=eq.${encodeURIComponent(token)}&released_at=is.null`,
+    {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ razorpay_order_id: razorpayOrderId }),
+    },
+  )
+}
+
+/** Gives the coupon back when a checkout does not go through. */
+export async function releaseCouponRedemptions(token) {
+  if (!token) {
+    return 0
+  }
+
+  const released = await supabaseAdminRequest('rpc/release_coupon_redemptions', {
+    method: 'POST',
+    body: JSON.stringify({ p_token: token }),
+  })
+
+  return Number(released) || 0
 }

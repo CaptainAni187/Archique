@@ -14,7 +14,7 @@ import {
 import { createPaymentLog } from './_lib/paymentLogs.js'
 import { fetchRazorpayPayment, verifyRazorpaySignature } from './_lib/razorpay.js'
 import {
-  createCouponRedemption,
+  confirmCouponRedemption,
   decrementArtworkStock,
   restoreArtworkStock,
   fetchArtworkById,
@@ -691,14 +691,42 @@ async function handleCreateOrder(req, res) {
   }
 
   if (appliedCoupon) {
-    await createCouponRedemption({
-      coupon_id: appliedCoupon.id,
-      customer_email: customerEmail,
-      order_id: order.id,
-      discount_amount: selection.pricing.couponDiscountAmount || 0,
-    }).catch((error) => {
-      console.warn('[orders] Failed to record coupon redemption:', error.message)
+    // The redemption was already claimed and paid for at checkout; this only
+    // makes it permanent. Previously the row was *created* here and a failure
+    // was swallowed with a warning, so a coupon could be spent and never
+    // recorded — and then reused for as long as nobody noticed.
+    //
+    // Confirming can still legitimately match nothing: a claim that expired
+    // while the customer sat on the payment sheet has been swept, and the
+    // discount was applied all the same. That is not something to fail the
+    // order over — the money is taken and the order is real — so it is recorded
+    // for the admin to reconcile, in the same place every other post-payment
+    // discrepancy is recorded.
+    const confirmed = await confirmCouponRedemption(
+      razorpayOrderId,
+      order.id,
+      selection.pricing.couponDiscountAmount || 0,
+    ).catch((error) => {
+      console.error('[orders] failed to confirm coupon redemption', {
+        order_id: order.id,
+        message: error?.message || 'unknown error',
+      })
+      return 0
     })
+
+    if (confirmed === 0) {
+      await createPaymentLog({
+        event_type: 'create_order',
+        status: 'coupon_redemption_unconfirmed',
+        razorpay_payment_id: razorpayPaymentId,
+        razorpay_order_id: razorpayOrderId,
+        details: {
+          coupon_code: appliedCoupon.code,
+          order_id: order.id,
+          discount_amount: selection.pricing.couponDiscountAmount || 0,
+        },
+      }).catch(() => null)
+    }
   }
 
   await createPaymentLog({

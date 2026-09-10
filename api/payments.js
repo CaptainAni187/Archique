@@ -1,7 +1,7 @@
 import { reportServerError } from './_lib/errorReporting.js'
 import crypto from 'node:crypto'
 import { getBackendConfig, requireConfigValues } from './_lib/env.js'
-import { validateCoupon } from './_lib/coupons.js'
+import { COUPON_CLAIM_MESSAGES, validateCoupon } from './_lib/coupons.js'
 import { methodNotAllowed, readJson, readRawBody, sendJson } from './_lib/http.js'
 import { enforcePublicRateLimit } from './_lib/rateLimit.js'
 import { requireUserAuth } from './_lib/userSession.js'
@@ -21,6 +21,9 @@ import {
   releaseReservationsByToken,
   releaseExpiredReservations,
   attachReservationOrder,
+  claimCouponRedemption,
+  releaseCouponRedemptions,
+  attachCouponRedemptionOrder,
 } from './_lib/supabaseAdmin.js'
 import {
   paymentVerificationSchema,
@@ -100,6 +103,15 @@ async function handleCreatePaymentOrder(req, res) {
   // leaving one of them to be refunded by hand.
   const reservationToken = crypto.randomUUID()
 
+  // Everything this checkout is holding — the pieces and, once claimed, the
+  // coupon — is released together. A path that takes a hold and returns without
+  // giving it back locks the piece, or a limited coupon, for the full TTL.
+  const releaseCheckoutHolds = () =>
+    Promise.all([
+      releaseReservationsByToken(reservationToken).catch(() => null),
+      releaseCouponRedemptions(reservationToken).catch(() => null),
+    ])
+
   for (const artwork of availableArtworks) {
     const held = await reserveArtwork(artwork.id, {
       token: reservationToken,
@@ -109,7 +121,7 @@ async function handleCreatePaymentOrder(req, res) {
     if (!held) {
       // Someone else is already checking out with this piece. Release whatever
       // this request managed to take, so a failure here never strands stock.
-      await releaseReservationsByToken(reservationToken).catch(() => null)
+      await releaseCheckoutHolds()
 
       return sendJson(res, 409, {
         success: false,
@@ -170,10 +182,33 @@ async function handleCreatePaymentOrder(req, res) {
     })
 
     if (!couponResult.valid) {
+      await releaseCheckoutHolds()
       return sendJson(res, 400, {
         success: false,
         error: 'COUPON_INVALID',
         message: couponResult.message,
+      })
+    }
+
+    // The check above only describes the coupon's state a moment ago. This is
+    // the decision that binds: it re-reads the limits with the coupon row
+    // locked and writes the claim in the same transaction, so two checkouts
+    // cannot both pass. Claimed here, before payment, because this is the last
+    // point at which refusing a customer is still free — once they have been
+    // charged, a coupon that turns out to be over its limit is the studio's
+    // problem to absorb, not theirs.
+    const claim = await claimCouponRedemption({
+      couponId: couponResult.coupon.id,
+      email: body.customer_email,
+      token: reservationToken,
+    })
+
+    if (claim !== 'ok') {
+      await releaseCheckoutHolds()
+      return sendJson(res, 400, {
+        success: false,
+        error: 'COUPON_INVALID',
+        message: COUPON_CLAIM_MESSAGES[claim] || COUPON_CLAIM_MESSAGES.not_found,
       })
     }
 
@@ -197,6 +232,7 @@ async function handleCreatePaymentOrder(req, res) {
   const MINIMUM_PAYABLE_PAISE = 100
 
   if (amountInPaise < MINIMUM_PAYABLE_PAISE) {
+    await releaseCheckoutHolds()
     return sendJson(res, 400, {
       success: false,
       error: 'INVALID_PAYABLE_AMOUNT',
@@ -214,21 +250,31 @@ async function handleCreatePaymentOrder(req, res) {
     RAZORPAY_KEY_SECRET: config.razorpayKeySecret,
   })
 
-  const razorpayOrder = await createRazorpayOrder({
-    amountInPaise,
-    receipt: `arc-${uniqueProductIds[0]}-${Date.now()}`.slice(0, 40),
-    notes: {
-      product_ids: uniqueProductIds.join(','),
-      product_title: selection.title,
-      combo_id: curatedCombo?.id || '',
-    },
-    razorpayKeyId: config.razorpayKeyId,
-    razorpayKeySecret: config.razorpayKeySecret,
-  })
+  let razorpayOrder
+  try {
+    razorpayOrder = await createRazorpayOrder({
+      amountInPaise,
+      receipt: `arc-${uniqueProductIds[0]}-${Date.now()}`.slice(0, 40),
+      notes: {
+        product_ids: uniqueProductIds.join(','),
+        product_title: selection.title,
+        combo_id: curatedCombo?.id || '',
+      },
+      razorpayKeyId: config.razorpayKeyId,
+      razorpayKeySecret: config.razorpayKeySecret,
+    })
+  } catch (error) {
+    // No payment was ever started, so nothing should stay held on its behalf.
+    await releaseCheckoutHolds()
+    throw error
+  }
 
-  // Link the hold to the Razorpay order so it can be released the moment the
+  // Link the holds to the Razorpay order so they can be released the moment the
   // order is recorded, rather than waiting out the full TTL.
-  await attachReservationOrder(reservationToken, razorpayOrder.id).catch(() => null)
+  await Promise.all([
+    attachReservationOrder(reservationToken, razorpayOrder.id).catch(() => null),
+    attachCouponRedemptionOrder(reservationToken, razorpayOrder.id).catch(() => null),
+  ])
 
   await createPaymentLog({
     event_type: 'payment_order_created',

@@ -5,10 +5,36 @@ export function normalizeCouponCode(code) {
 }
 
 /**
+ * The one way an email is written when it identifies a customer.
+ *
+ * Redemptions used to be stored exactly as the buyer typed them while the
+ * per-customer count queried a lowercased copy, so a single capital letter --
+ * which autofill preserves -- meant the count matched nothing and the limit was
+ * never enforced. Both sides go through here now, and the database rejects
+ * anything else.
+ */
+export function normalizeCustomerEmail(email) {
+  return String(email || '').trim().toLowerCase()
+}
+
+/** Why a claim was refused, in words a buyer can act on. */
+export const COUPON_CLAIM_MESSAGES = {
+  not_found: 'This coupon code is not valid.',
+  expired: 'This coupon has expired.',
+  usage_limit: 'This coupon has reached its usage limit.',
+  customer_limit: 'You have already used this coupon.',
+}
+
+/**
  * Re-validates a coupon server-side. Never trust a client-supplied discount
  * amount — always call this at both "preview" (checkout) and "charge"
  * (payment/order creation) time, since state (expiry, usage) can change
  * between the two.
+ *
+ * This answers "would this coupon apply right now"; it does not hold anything.
+ * The binding decision is `claimCouponRedemption`, which re-checks the same
+ * limits inside a transaction — so a coupon that passes here can still be
+ * refused there, and that refusal is the one that counts.
  *
  * @returns {{ valid: true, coupon: { code, label, type, value } } | { valid: false, message: string }}
  */
@@ -35,11 +61,11 @@ export async function validateCoupon({ code, email, subtotal }) {
     }
   }
 
-  const normalizedEmail = String(email || '').trim().toLowerCase()
+  const normalizedEmail = normalizeCustomerEmail(email)
   const { total, byCustomer } = await countCouponRedemptions(coupon.id, normalizedEmail)
 
   if (coupon.usage_limit != null && total >= Number(coupon.usage_limit)) {
-    return { valid: false, message: 'This coupon has reached its usage limit.' }
+    return { valid: false, message: COUPON_CLAIM_MESSAGES.usage_limit }
   }
 
   if (
@@ -47,7 +73,7 @@ export async function validateCoupon({ code, email, subtotal }) {
     normalizedEmail &&
     byCustomer >= Number(coupon.per_customer_limit)
   ) {
-    return { valid: false, message: 'You have already used this coupon.' }
+    return { valid: false, message: COUPON_CLAIM_MESSAGES.customer_limit }
   }
 
   return {
