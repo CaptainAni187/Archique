@@ -14,7 +14,6 @@ import RequireUser from './components/RequireUser'
 import SiteHeader from './components/SiteHeader'
 import SiteFooter from './components/SiteFooter'
 import ScrollToTop from './components/ScrollToTop'
-import CustomCursor from './components/CustomCursor'
 import CartCheckoutBar from './components/CartCheckoutBar'
 import './App.css'
 
@@ -183,7 +182,6 @@ function AppLayout() {
   return (
     <div className={`app-shell ${isCarouselRoute ? 'is-carousel-route' : ''}`.trim()}>
       <ScrollToTop />
-      <CustomCursor />
       <SiteHeader isDarkBackground={hasOverlayHeader && isDarkHeroBackground} />
 
       <main
